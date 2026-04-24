@@ -1,0 +1,112 @@
+type ProgramSlot = {
+  time: string;
+  title: string;
+  host?: string;
+  description?: string;
+};
+
+export const DAYS = [
+  'E Hënë',
+  'E Martë',
+  'E Mërkurë',
+  'E Enjte',
+  'E Premte',
+  'E Shtunë',
+  'E Diel',
+] as const;
+
+type DayName = (typeof DAYS)[number];
+
+export const schedule: Record<DayName, ProgramSlot[]> = {
+  'E Hënë': [
+    { time: '06:00', title: 'Mëngjes me Radio Fontana', host: 'Rexhep Morina', description: 'Filloni ditën me muzikën më të mirë dhe lajmet e fundit nga Istog dhe Kosova.' },
+    { time: '08:00', title: 'Lajmet e Mëngjesit', description: 'Informohuni me lajmet kryesore kombëtare dhe ndërkombëtare.' },
+    { time: '08:10', title: 'Fontana Music Mix', description: 'Muzika më e freskët shqipe dhe ndërkombëtare për fillimin e ditës.' },
+    { time: '10:00', title: 'E Vërteta', host: 'Arjeta Krasniqi', description: 'Diskutime dhe analiza të temave aktuale shoqërore dhe politike.' },
+    { time: '12:00', title: 'Lajmet e Mesditës', description: 'Lajmet kryesore të gjysmës së ditës.' },
+    { time: '12:30', title: 'Relaks Mezditëje', description: 'Muzikë relaksuese dhe këngë popullore për orën e drekës.' },
+    { time: '14:00', title: 'Sport & Showbiz', host: 'Fatos Doli', description: 'Lajmet e fundit sportive dhe të botës së argëtimit.' },
+    { time: '16:00', title: 'Popullaret e Radio Fontana', description: 'Hitet më të njohura të muzikës shqipe.' },
+    { time: '18:00', title: 'Lajmet e Darkës', description: 'Rishikimi i ngjarjeve kryesore të ditës.' },
+    { time: '18:30', title: 'Fontana Prime Time', host: 'Arjeta Krasniqi', description: 'Programi kryesor i mbrëmjes me lajme, intervista dhe muzikë.' },
+    { time: '20:00', title: 'Muzika e Mbrëmjes', description: 'Muzikë e butë dhe hit-et ndërkombëtare.' },
+    { time: '22:00', title: 'Natë Muzikore', description: 'Natë e qetë me muzikën tuaj të preferuar.' },
+  ],
+  'E Martë': [
+    { time: '06:00', title: 'Mëngjes me Radio Fontana', host: 'Rexhep Morina' },
+    { time: '08:00', title: 'Lajmet e Mëngjesit' },
+    { time: '08:10', title: 'Fontana Music Mix' },
+    { time: '10:00', title: 'Zemra e Kosovës', host: 'Besa Gashi', description: 'Muzikë dhe tradita shqiptare — gëzim dhe nostalgji.' },
+    { time: '12:00', title: 'Lajmet e Mesditës' },
+    { time: '12:30', title: 'Top 10 Shqip', description: 'Dhjetë këngët më të njohura të javës.' },
+    { time: '14:00', title: 'Teknologji & Inovacion', host: 'Driton Kastrati', description: 'Lajmet e fundit teknologjike dhe inovacioni.' },
+    { time: '16:00', title: 'Ritmet e Rajonit', description: 'Muzikë ballkanike dhe rajonale në ritmin tuaj.' },
+    { time: '18:00', title: 'Lajmet e Darkës' },
+    { time: '18:30', title: 'Fontana Prime Time', host: 'Arjeta Krasniqi' },
+    { time: '20:00', title: 'Muzika e Mbrëmjes' },
+    { time: '22:00', title: 'Natë Muzikore' },
+  ],
+  'E Mërkurë': [
+    { time: '06:00', title: 'Mëngjes me Radio Fontana', host: 'Rexhep Morina' },
+    { time: '08:00', title: 'Lajmet e Mëngjesit' },
+    { time: '08:10', title: 'Fontana Music Mix' },
+    { time: '10:00', title: 'Shëndetësi & Jetë', host: 'Dr. Flora Berisha', description: 'Këshilla shëndetësore dhe mirëqenies nga ekspertët.' },
+    { time: '12:00', title: 'Lajmet e Mesditës' },
+    { time: '12:30', title: 'Mezditja Muzikore', description: 'Hits ndërkombëtare dhe shqipe.' },
+    { time: '14:00', title: 'Sport Live', host: 'Fatos Doli', description: 'Kronikë sportive dhe analizë e ndeshjes.' },
+    { time: '16:00', title: 'Countdown Shqip', description: 'Numërojmë deri tek numri 1 — kush do të jetë?' },
+    { time: '18:00', title: 'Lajmet e Darkës' },
+    { time: '18:30', title: 'Fontana Prime Time', host: 'Arjeta Krasniqi' },
+    { time: '20:00', title: 'Muzika e Mbrëmjes' },
+    { time: '22:00', title: 'Natë Muzikore' },
+  ],
+  'E Enjte': [
+    { time: '06:00', title: 'Mëngjes me Radio Fontana', host: 'Rexhep Morina' },
+    { time: '08:00', title: 'Lajmet e Mëngjesit' },
+    { time: '08:10', title: 'Fontana Music Mix' },
+    { time: '10:00', title: 'Bota & Ne', host: 'Arjeta Krasniqi', description: 'Lajme ndërkombëtare dhe analiza të politikës botërore.' },
+    { time: '12:00', title: 'Lajmet e Mesditës' },
+    { time: '12:30', title: 'Folklori Shqiptar', description: 'Muzikë tradicionale — thesari i trashëgimisë sonë.' },
+    { time: '14:00', title: 'Ekonomia Sot', host: 'Besnik Ahmeti', description: 'Lajme ekonomike, tregu dhe financat.' },
+    { time: '16:00', title: 'Showbiz Kosovë', description: 'Të fshehtat e yjeve kosovarë dhe shqiptarë.' },
+    { time: '18:00', title: 'Lajmet e Darkës' },
+    { time: '18:30', title: 'Fontana Prime Time', host: 'Arjeta Krasniqi' },
+    { time: '20:00', title: 'Muzika e Mbrëmjes' },
+    { time: '22:00', title: 'Natë Muzikore' },
+  ],
+  'E Premte': [
+    { time: '06:00', title: 'Mëngjes me Radio Fontana', host: 'Rexhep Morina' },
+    { time: '08:00', title: 'Lajmet e Mëngjesit' },
+    { time: '08:10', title: 'Fontana Music Mix' },
+    { time: '10:00', title: 'Fun Friday', host: 'Liridon Bajrami', description: 'Fillojmë fundjaven me humor, lojëra dhe surpriza.' },
+    { time: '12:00', title: 'Lajmet e Mesditës' },
+    { time: '12:30', title: 'Fundjavja Fillon!', description: 'Muzikë, energji dhe lajme të mira.' },
+    { time: '14:00', title: 'Weekend Sport Preview', host: 'Fatos Doli', description: 'Gjithçka për ngjarjet sportive të fundjavës.' },
+    { time: '16:00', title: 'Party Mix Friday', description: 'EDM, house dhe pop ndërkombëtar — mbrëmja fillon!' },
+    { time: '18:00', title: 'Lajmet e Darkës' },
+    { time: '18:30', title: 'Fontana Friday Night', host: 'Liridon Bajrami', description: 'Programi i veçantë i fundjavës — festë muzikore.' },
+    { time: '21:00', title: 'Music Night', description: 'Muzikë pa ndalesë deri në mëngjes.' },
+  ],
+  'E Shtunë': [
+    { time: '08:00', title: 'Sabahu i Shtunës', description: 'Filloni fundjavën ngadalë me muzikë të mirë.' },
+    { time: '10:00', title: 'Weekend Vibes', host: 'Liridon Bajrami', description: 'Energji, humor dhe muzikë — fundjavja ka filluar!' },
+    { time: '12:00', title: 'Lajmet e Mesditës' },
+    { time: '12:15', title: 'Muzika e Fundjavës', description: 'Hits dhe klasikë të muzikës shqipe.' },
+    { time: '14:00', title: 'Sport Direkte', host: 'Fatos Doli', description: 'Ndjekni ngjarjet sportive live nga stadiumet.' },
+    { time: '16:00', title: 'Showtime Shqip', description: 'Muzike shqiptare e re dhe talent i fresket.' },
+    { time: '18:00', title: 'Lajmet e Darkës' },
+    { time: '18:30', title: 'Fontana Saturday Night', host: 'DJ Fontana', description: 'Mbrëmja muzikore e shtunës — ngrihuni dhe kërceni!' },
+    { time: '22:00', title: 'Late Night Mix', description: 'Muzikë e butë e natës së vonë.' },
+  ],
+  'E Diel': [
+    { time: '08:00', title: 'Sabahu i Dielës', description: 'Muzikë e qetë dhe relaksuese për mëngjesin e dielës.' },
+    { time: '10:00', title: 'Diela Muzikore', host: 'Arjeta Krasniqi', description: 'Muzikë familjare — diçka për të gjithë.' },
+    { time: '12:00', title: 'Lajmet e Mesditës' },
+    { time: '12:15', title: 'Klasiket Shqip', description: 'Këngët klasike të muzikës shqiptare — kujtime të bukura.' },
+    { time: '14:00', title: 'Kafe & Muzikë', description: 'Muzikë e lehtë, relaksim dhe kafeja e dielës.' },
+    { time: '16:00', title: 'Popullaret e Dielës', description: 'Hitet popullore të javës — votoni të preferuarën!' },
+    { time: '18:00', title: 'Lajmet e Darkës' },
+    { time: '18:30', title: 'Diela Mbrëmja', description: 'Fundjavën e mbyllim me muzikë dhe nostalgji.' },
+    { time: '21:00', title: 'Muzika e Natës e Dielës', description: 'Natë muzikore e qetë — deri nesër!' },
+  ],
+};
