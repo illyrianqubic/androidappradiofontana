@@ -8,7 +8,12 @@ import React, {
   useState,
 } from 'react';
 import * as Haptics from 'expo-haptics';
-import { Audio, type AVPlaybackStatus } from 'expo-av';
+import {
+  createAudioPlayer,
+  setAudioModeAsync,
+  type AudioPlayer,
+  type AudioStatus,
+} from 'expo-audio';
 import { appIdentity } from '../design-tokens';
 
 const STREAM_URL = 'https://live.radiostreaming.al:8010/stream.mp3';
@@ -58,7 +63,8 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     artist: appIdentity.location,
   });
 
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const playerRef = useRef<AudioPlayer | null>(null);
+  const statusSubscriptionRef = useRef<{ remove: () => void } | null>(null);
   const mountedRef = useRef(true);
   const initializingRef = useRef(false);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -72,28 +78,38 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const onPlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
+  const onPlaybackStatusUpdate = useCallback((status: AudioStatus) => {
     if (!mountedRef.current) {
       return;
     }
 
+    const playbackStateLabel = (status.playbackState ?? '').toLowerCase();
+    const isFailureState =
+      playbackStateLabel.includes('fail') || playbackStateLabel.includes('error');
+
+    if (isFailureState) {
+      setIsPlaying(false);
+      setIsBuffering(false);
+      setIsReconnecting(false);
+      setPlaybackState(PlayerState.error);
+      setMetadata({
+        title: 'Gabim ne stream',
+        artist: 'Po rilidhet automatikisht',
+      });
+      void reconnectRef.current();
+      return;
+    }
+
     if (!status.isLoaded) {
-      if (status.error) {
-        setIsPlaying(false);
-        setIsBuffering(false);
-        setIsReconnecting(false);
-        setPlaybackState(PlayerState.error);
-        setMetadata({
-          title: 'Gabim ne stream',
-          artist: 'Po rilidhet automatikisht',
-        });
-        void reconnectRef.current();
-      }
+      setIsPlaying(false);
+      setIsBuffering(true);
+      setIsReconnecting(true);
+      setPlaybackState(PlayerState.connecting);
       return;
     }
 
     const buffering = status.isBuffering;
-    const playing = status.isPlaying;
+    const playing = status.playing;
 
     setIsPlaying(playing);
     setIsBuffering(buffering);
@@ -119,38 +135,63 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     setPlaybackState(PlayerState.paused);
   }, []);
 
+  const releaseCurrentPlayer = useCallback(() => {
+    statusSubscriptionRef.current?.remove();
+    statusSubscriptionRef.current = null;
+
+    playerRef.current?.remove();
+    playerRef.current = null;
+  }, []);
+
+  const createAndAttachPlayer = useCallback(
+    (autoPlay: boolean) => {
+      releaseCurrentPlayer();
+
+      const player = createAudioPlayer(
+        { uri: STREAM_URL },
+        {
+          updateInterval: 250,
+          keepAudioSessionActive: true,
+        },
+      );
+
+      statusSubscriptionRef.current = player.addListener(
+        'playbackStatusUpdate',
+        onPlaybackStatusUpdate,
+      );
+
+      playerRef.current = player;
+
+      if (autoPlay) {
+        player.play();
+      }
+
+      return player;
+    },
+    [onPlaybackStatusUpdate, releaseCurrentPlayer],
+  );
+
   const ensurePlayer = useCallback(async () => {
-    if (isReady || initializingRef.current) {
+    if (playerRef.current || initializingRef.current) {
       return;
     }
 
     initializingRef.current = true;
 
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        interruptionMode: 'doNotMix',
+        shouldPlayInBackground: true,
       });
 
-      const sound = new Audio.Sound();
-      sound.setOnPlaybackStatusUpdate(onPlaybackStatusUpdate);
-      await sound.loadAsync(
-        { uri: STREAM_URL },
-        {
-          shouldPlay: false,
-          progressUpdateIntervalMillis: 250,
-        },
-        false,
-      );
-
-      soundRef.current = sound;
+      createAndAttachPlayer(false);
       setIsReady(true);
       setPlaybackState(PlayerState.paused);
     } finally {
       initializingRef.current = false;
     }
-  }, [isReady, onPlaybackStatusUpdate]);
+  }, [createAndAttachPlayer]);
 
   const cancelReconnect = useCallback(() => {
     clearReconnectTimeout();
@@ -174,27 +215,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
       void (async () => {
         try {
-          const oldSound = soundRef.current;
-          if (oldSound) {
-            oldSound.setOnPlaybackStatusUpdate(null);
-            const oldStatus = await oldSound.getStatusAsync();
-            if (oldStatus.isLoaded) {
-              await oldSound.unloadAsync();
-            }
-          }
-
-          const sound = new Audio.Sound();
-          sound.setOnPlaybackStatusUpdate(onPlaybackStatusUpdate);
-          soundRef.current = sound;
-
-          await sound.loadAsync(
-            { uri: STREAM_URL },
-            {
-              shouldPlay: true,
-              progressUpdateIntervalMillis: 250,
-            },
-            false,
-          );
+          createAndAttachPlayer(true);
 
           setIsReady(true);
         } catch {
@@ -203,11 +224,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
             title: 'Gabim ne stream',
             artist: 'Po rilidhet automatikisht',
           });
-          void reconnect();
+          void reconnectRef.current();
         }
       })();
     }, delay);
-  }, [clearReconnectTimeout, ensurePlayer, onPlaybackStatusUpdate]);
+  }, [clearReconnectTimeout, createAndAttachPlayer, ensurePlayer]);
 
   useEffect(() => {
     reconnectRef.current = reconnect;
@@ -222,25 +243,18 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     setPlaybackState(PlayerState.connecting);
 
     try {
-      const sound = soundRef.current;
-      if (!sound) {
+      const player = playerRef.current;
+      if (!player) {
         await reconnect();
         return;
       }
 
-      const status = await sound.getStatusAsync();
-      if (!status.isLoaded) {
-        await sound.loadAsync(
-          { uri: STREAM_URL },
-          {
-            shouldPlay: true,
-            progressUpdateIntervalMillis: 250,
-          },
-          false,
-        );
-      } else {
-        await sound.playAsync();
+      if (!player.isLoaded) {
+        await reconnect();
+        return;
       }
+
+      player.play();
     } catch {
       await reconnect();
     }
@@ -254,14 +268,13 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     setIsBuffering(false);
     setPlaybackState(PlayerState.paused);
 
-    const sound = soundRef.current;
-    if (!sound) {
+    const player = playerRef.current;
+    if (!player) {
       return;
     }
 
-    const status = await sound.getStatusAsync();
-    if (status.isLoaded && status.isPlaying) {
-      await sound.pauseAsync();
+    if (player.playing) {
+      player.pause();
     }
   }, [cancelReconnect]);
 
@@ -286,16 +299,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     return () => {
       mountedRef.current = false;
       cancelReconnect();
-
-      const sound = soundRef.current;
-      soundRef.current = null;
-
-      if (sound) {
-        sound.setOnPlaybackStatusUpdate(null);
-        void sound.unloadAsync();
-      }
+      releaseCurrentPlayer();
     };
-  }, [cancelReconnect, ensurePlayer]);
+  }, [cancelReconnect, ensurePlayer, releaseCurrentPlayer]);
 
   const value = useMemo<AudioContextValue>(
     () => ({

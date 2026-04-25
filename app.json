@@ -59,7 +59,8 @@
       "expo-router",
       "expo-dev-client",
       "expo-font",
-      "expo-notifications"
+      "expo-notifications",
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true
