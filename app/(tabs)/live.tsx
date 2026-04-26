@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { FlashList, type ListRenderItemInfo } from '@shopify/flash-list';
 import { EqualizerBars } from '../../components/EqualizerBars';
+import { HamburgerButton } from '../../components/HamburgerButton';
 import { LiveBadge } from '../../components/LiveBadge';
 import { SkeletonCard } from '../../components/SkeletonCard';
 import { StickyTopBar } from '../../components/StickyTopBar';
@@ -108,7 +109,12 @@ export default function LiveScreen() {
   if (liveQuery.isLoading && !liveData) {
     return (
       <View style={styles.screen}>
-        <StickyTopBar title="Drejtpërdrejt" subtitle="Transmetimi live" topInset={insets.top} />
+        <StickyTopBar
+          title="Drejtpërdrejt"
+          subtitle="Transmetimi live"
+          topInset={insets.top}
+          rightElement={<HamburgerButton />}
+        />
         <FlashList
           data={[1, 2, 3, 4]}
           keyExtractor={(item) => String(item)}
@@ -130,7 +136,12 @@ export default function LiveScreen() {
 
   return (
     <View style={styles.screen}>
-      <StickyTopBar title="Drejtpërdrejt" subtitle="Transmetimi live" topInset={insets.top} />
+      <StickyTopBar
+        title="Drejtpërdrejt"
+        subtitle="Transmetimi live"
+        topInset={insets.top}
+        rightElement={<HamburgerButton />}
+      />
       <FlashList
         data={programData}
         keyExtractor={(item) => `${item.time}-${item.title}`}
@@ -158,21 +169,26 @@ const styles = StyleSheet.create({
   heroSection: {
     alignItems: 'center',
     gap: spacing.md,
+    overflow: 'hidden',
+    width: '100%',
   },
   logo: {
-    width: 200,
-    height: 200,
+    width: '55%',
+    aspectRatio: 1,
+    maxWidth: 200,
     borderRadius: 20,
     backgroundColor: colors.surfaceSubtle,
   },
   stationTitle: {
     marginTop: spacing.sm,
     fontFamily: fonts.uiBold,
-    fontSize: 33,
-    lineHeight: 38,
+    fontSize: 22,
+    lineHeight: 28,
     color: colors.text,
     textAlign: 'center',
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
+    flexShrink: 1,
+    paddingHorizontal: spacing.md,
   },
   stationSubtitle: {
     marginTop: -2,
@@ -208,8 +224,9 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontFamily: fonts.uiBold,
     color: colors.text,
-    fontSize: 22,
+    fontSize: 18,
     letterSpacing: -0.2,
+    flexShrink: 1,
   },
   sectionSubtitle: {
     marginTop: 2,
@@ -238,25 +255,30 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     backgroundColor: colors.surfaceSubtle,
+    overflow: 'hidden',
   },
   programTime: {
     width: 55,
     fontFamily: fonts.uiBold,
     color: colors.text,
     fontSize: 13,
+    flexShrink: 0,
   },
   programTextWrap: {
     flex: 1,
+    overflow: 'hidden',
   },
   programTitle: {
     fontFamily: fonts.uiMedium,
     color: colors.text,
     fontSize: 14,
+    flexShrink: 1,
   },
   programHost: {
     marginTop: 2,
     fontFamily: fonts.uiRegular,
     color: colors.textMuted,
     fontSize: 12,
+    flexShrink: 1,
   },
 });

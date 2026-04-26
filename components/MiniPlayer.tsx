@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -7,10 +7,12 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { appIdentity, colors, elevation, fonts, motion, radius, spacing } from '../design-tokens';
 import { useAudio } from '../services/audio';
+import { useDrawer } from '../context/DrawerContext';
 import { EqualizerBars } from './EqualizerBars';
 
 type MiniPlayerProps = {
@@ -20,9 +22,15 @@ type MiniPlayerProps = {
 export function MiniPlayer({ onOpenPlayer }: MiniPlayerProps) {
   const insets = useSafeAreaInsets();
   const { isPlaying, isBuffering, isReconnecting, toggle } = useAudio();
+  const { isOpen: drawerOpen } = useDrawer();
   const miniPlayerBottom = insets.bottom + 76;
 
   const translateY = useSharedValue(0);
+  const hideOffset = useSharedValue(0);
+
+  useEffect(() => {
+    hideOffset.value = withTiming(drawerOpen ? 1 : 0, { duration: 180 });
+  }, [drawerOpen, hideOffset]);
 
   const openPlayer = useCallback(() => {
     onOpenPlayer();
@@ -44,7 +52,8 @@ export function MiniPlayer({ onOpenPlayer }: MiniPlayerProps) {
     });
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
+    transform: [{ translateY: translateY.value + hideOffset.value * 100 }],
+    opacity: 1 - hideOffset.value,
   }));
 
   return (

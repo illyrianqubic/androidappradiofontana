@@ -21,7 +21,9 @@ import {
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 import { LaunchSplash } from '../components/LaunchSplash';
 import { MiniPlayer } from '../components/MiniPlayer';
+import { HamburgerDrawer } from '../components/HamburgerDrawer';
 import { AudioProvider } from '../services/audio';
+import { DrawerProvider } from '../context/DrawerContext';
 import { queryStorage } from '../services/storage';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -86,33 +88,37 @@ export default function RootLayout() {
           }}
         >
           <AudioProvider>
-            <StatusBar style="dark" />
+            <DrawerProvider>
+              <StatusBar style="dark" />
 
-            <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="rreth-nesh" />
-              <Stack.Screen name="na-kontakto" />
-              <Stack.Screen name="programi" />
-              <Stack.Screen
-                name="player"
-                options={{
-                  presentation: 'modal',
-                  animation: 'slide_from_bottom',
-                  gestureEnabled: true,
-                }}
-              />
-            </Stack>
+              <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="rreth-nesh" />
+                <Stack.Screen name="na-kontakto" />
+                <Stack.Screen name="programi" />
+                <Stack.Screen
+                  name="player"
+                  options={{
+                    presentation: 'modal',
+                    animation: 'slide_from_bottom',
+                    gestureEnabled: true,
+                  }}
+                />
+              </Stack>
 
-            {pathname !== '/player' ? (
-              <MiniPlayer onOpenPlayer={() => router.push('/player' as never)} />
-            ) : null}
+              {pathname !== '/player' ? (
+                <MiniPlayer onOpenPlayer={() => router.push('/player' as never)} />
+              ) : null}
 
-            {showLaunchSplash ? (
-              <LaunchSplash
-                onReady={onLaunchSplashReady}
-                onComplete={onLaunchSplashComplete}
-              />
-            ) : null}
+              {showLaunchSplash ? (
+                <LaunchSplash
+                  onReady={onLaunchSplashReady}
+                  onComplete={onLaunchSplashComplete}
+                />
+              ) : null}
+
+              <HamburgerDrawer />
+            </DrawerProvider>
           </AudioProvider>
         </PersistQueryClientProvider>
       </SafeAreaProvider>

@@ -17,6 +17,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { EqualizerBars } from '../../components/EqualizerBars';
+import { HamburgerButton } from '../../components/HamburgerButton';
 import { RelativeTime } from '../../components/RelativeTime';
 import { SkeletonCard } from '../../components/SkeletonCard';
 import { appIdentity, colors, elevation, fonts, radius } from '../../design-tokens';
@@ -32,12 +33,6 @@ import {
 } from '../../services/api';
 
 type LatestGridItem = Post | { _skeleton: string };
-
-type QuickLink = {
-  icon: string;
-  title: string;
-  route: '/programi' | '/na-kontakto' | '/rreth-nesh';
-};
 
 function isSkeletonItem(item: LatestGridItem): item is { _skeleton: string } {
   return '_skeleton' in item;
@@ -118,15 +113,6 @@ export default function HomeScreen() {
   const topInsetOffset = headerHeight + 14;
   const bottomInsetOffset = insets.bottom + 208;
 
-  const quickLinks = useMemo<QuickLink[]>(
-    () => [
-      { icon: '📻', title: 'Programi', route: '/programi' },
-      { icon: '📞', title: 'Na Kontakto', route: '/na-kontakto' },
-      { icon: 'ℹ️', title: 'Rreth Nesh', route: '/rreth-nesh' },
-    ],
-    [],
-  );
-
   const latestSkeleton = useMemo(
     () => Array.from({ length: 6 }, (_, index) => ({ _skeleton: `latest-skeleton-${index}` })),
     [],
@@ -158,13 +144,6 @@ export default function HomeScreen() {
     [router],
   );
 
-  const onOpenQuickLink = useCallback(
-    (route: QuickLink['route']) => {
-      router.push(route as never);
-    },
-    [router],
-  );
-
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -181,10 +160,6 @@ export default function HomeScreen() {
 
   const onHeaderSearch = useCallback(() => {
     router.push('/(tabs)/news' as never);
-  }, [router]);
-
-  const onHeaderMenu = useCallback(() => {
-    router.push('/na-kontakto' as never);
   }, [router]);
 
   const onOpenLiveTab = useCallback(() => {
@@ -408,31 +383,6 @@ export default function HomeScreen() {
     ],
   );
 
-  const listFooter = useMemo(
-    () => (
-      <View style={styles.quickLinksSection}>
-        <Text style={styles.sectionTitle}>Qasja e Shpejtë</Text>
-
-        <View style={styles.quickLinksRow}>
-          {quickLinks.map((item) => (
-            <Pressable
-              key={item.route}
-              onPress={() => onOpenQuickLink(item.route)}
-              style={styles.quickLinkCard}
-            >
-              <Text style={styles.quickLinkIcon}>{item.icon}</Text>
-              <Text numberOfLines={1} style={styles.quickLinkTitle}>
-                {item.title}
-              </Text>
-              <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-            </Pressable>
-          ))}
-        </View>
-      </View>
-    ),
-    [onOpenQuickLink, quickLinks],
-  );
-
   return (
     <View style={styles.screen}>
       <View style={[styles.headerShell, { paddingTop: insets.top + 6 }]}>
@@ -444,9 +394,7 @@ export default function HomeScreen() {
               <Ionicons name="search-outline" size={20} color={colors.text} />
             </Pressable>
 
-            <Pressable onPress={onHeaderMenu} style={styles.headerIconButton}>
-              <Ionicons name="options-outline" size={20} color={colors.text} />
-            </Pressable>
+            <HamburgerButton />
           </View>
         </View>
       </View>
@@ -462,7 +410,6 @@ export default function HomeScreen() {
           { paddingTop: topInsetOffset, paddingBottom: bottomInsetOffset },
         ]}
         ListHeaderComponent={listHeader}
-        ListFooterComponent={listFooter}
         renderItem={renderLatestItem}
       />
     </View>
@@ -577,15 +524,17 @@ const styles = StyleSheet.create({
   heroHeadline: {
     color: '#FFFFFF',
     fontFamily: fonts.uiBold,
-    fontSize: 32,
-    lineHeight: 38,
-    letterSpacing: -0.5,
+    fontSize: 22,
+    lineHeight: 28,
+    letterSpacing: -0.3,
+    flexShrink: 1,
   },
   heroMetaRow: {
     marginTop: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    overflow: 'hidden',
   },
   heroMetaAuthor: {
     color: colors.text,
@@ -593,6 +542,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginRight: 12,
     flex: 1,
+    flexShrink: 1,
   },
   breakingStrip: {
     borderRadius: 12,
@@ -633,9 +583,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: colors.text,
     fontFamily: fonts.uiBold,
-    fontSize: 27,
-    lineHeight: 32,
-    letterSpacing: -0.3,
+    fontSize: 20,
+    lineHeight: 26,
+    letterSpacing: -0.2,
+    flexShrink: 1,
   },
   popularRail: {
     marginTop: 10,
@@ -691,8 +642,9 @@ const styles = StyleSheet.create({
   popularTitle: {
     color: colors.text,
     fontFamily: fonts.uiBold,
-    fontSize: 15,
-    lineHeight: 21,
+    fontSize: 14,
+    lineHeight: 20,
+    flexShrink: 1,
   },
   popularCategory: {
     color: colors.primary,
@@ -700,6 +652,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
+    flexShrink: 1,
   },
   liveNowCard: {
     borderRadius: 16,
@@ -713,6 +666,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
+    overflow: 'hidden',
   },
   liveNowLeft: {
     flex: 1,
@@ -742,14 +696,16 @@ const styles = StyleSheet.create({
   liveNowTitle: {
     color: '#FFFFFF',
     fontFamily: fonts.uiBold,
-    fontSize: 19,
-    lineHeight: 23,
+    fontSize: 16,
+    lineHeight: 21,
+    flexShrink: 1,
   },
   liveNowSubtitle: {
     marginTop: 2,
     color: 'rgba(255,255,255,0.9)',
     fontFamily: fonts.uiMedium,
     fontSize: 13,
+    flexShrink: 1,
   },
   liveNowFooter: {
     marginTop: 12,
@@ -843,51 +799,22 @@ const styles = StyleSheet.create({
   latestTitle: {
     color: colors.text,
     fontFamily: fonts.uiBold,
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 14,
+    lineHeight: 19,
+    flexShrink: 1,
   },
   latestMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
+    overflow: 'hidden',
   },
   latestAuthor: {
     color: colors.textMuted,
     fontFamily: fonts.uiMedium,
-    fontSize: 12,
+    fontSize: 11,
     flex: 1,
-  },
-  quickLinksSection: {
-    marginTop: 12,
-    marginBottom: 12,
-  },
-  quickLinksRow: {
-    marginTop: 10,
-    flexDirection: 'row',
-    gap: 10,
-  },
-  quickLinkCard: {
-    flex: 1,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#EEF2F7',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    ...elevation.card,
-  },
-  quickLinkIcon: {
-    fontSize: 20,
-    lineHeight: 22,
-  },
-  quickLinkTitle: {
-    color: colors.text,
-    fontFamily: fonts.uiBold,
-    fontSize: 12,
-    textAlign: 'center',
+    flexShrink: 1,
   },
 });

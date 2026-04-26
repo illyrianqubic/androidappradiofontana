@@ -15,6 +15,7 @@ import { useQuery } from '@tanstack/react-query';
 import { NewsCard } from '../../../components/NewsCard';
 import { SkeletonCard } from '../../../components/SkeletonCard';
 import { StickyTopBar } from '../../../components/StickyTopBar';
+import { HamburgerButton } from '../../../components/HamburgerButton';
 import { colors, fonts, radius, spacing } from '../../../design-tokens';
 import {
   fetchAuthors,
@@ -141,7 +142,12 @@ export default function NewsIndexScreen() {
   if (initialLoading) {
     return (
       <View style={styles.screen}>
-        <StickyTopBar title="Lajme" subtitle="Përditësime nga RTV Fontana" topInset={insets.top} />
+        <StickyTopBar
+          title="Lajme"
+          subtitle="Përditësime nga RTV Fontana"
+          topInset={insets.top}
+          rightElement={<HamburgerButton />}
+        />
         <FlashList
           data={loadingRows}
           keyExtractor={(item) => String(item)}
@@ -157,7 +163,12 @@ export default function NewsIndexScreen() {
 
   return (
     <View style={styles.screen}>
-      <StickyTopBar title="Lajme" subtitle="Përditësime nga RTV Fontana" topInset={insets.top} />
+      <StickyTopBar
+        title="Lajme"
+        subtitle="Përditësime nga RTV Fontana"
+        topInset={insets.top}
+        rightElement={<HamburgerButton />}
+      />
       <FlashList
         ref={listRef}
         data={postsQuery.data ?? []}
@@ -185,12 +196,13 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.surface,
+    overflow: 'hidden',
   },
   loadingContent: {
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: 16,
   },
   listContent: {
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: 16,
   },
   subtitle: {
     color: colors.textMuted,
@@ -234,9 +246,11 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontFamily: fonts.uiMedium,
     fontSize: 13,
+    flexShrink: 1,
   },
   categoryPillTextActive: {
     color: colors.primary,
     fontFamily: fonts.uiBold,
+    flexShrink: 1,
   },
 });

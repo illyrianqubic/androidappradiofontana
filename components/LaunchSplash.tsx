@@ -59,12 +59,11 @@ export function LaunchSplash({ onReady, onComplete }: LaunchSplashProps) {
         <Image source={appIdentity.logo} contentFit="cover" style={styles.logo} />
       </View>
 
-      <Text style={styles.stationName}>Radio Fontana</Text>
-      <Text style={styles.stationFrequency}>98.8 FM</Text>
-
       <View style={styles.progressTrack}>
         <Animated.View style={[styles.progressFill, { width: progressWidth }]} />
       </View>
+
+      <Text style={styles.loadingText}>Po ngarkohet...</Text>
     </View>
   );
 }
@@ -72,40 +71,24 @@ export function LaunchSplash({ onReady, onComplete }: LaunchSplashProps) {
 const styles = StyleSheet.create({
   screen: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#0a0a0a',
+    backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 120,
     paddingHorizontal: 24,
   },
   logoWrap: {
-    width: 144,
-    height: 144,
-    borderRadius: 30,
-    backgroundColor: '#151515',
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
+    width: 220,
+    height: 220,
+    borderRadius: 44,
+    backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
   },
   logo: {
-    width: 118,
-    height: 118,
-    borderRadius: 24,
-  },
-  stationName: {
-    marginTop: 22,
-    color: '#ffffff',
-    fontFamily: fonts.uiBold,
-    fontSize: 30,
-    letterSpacing: -0.3,
-  },
-  stationFrequency: {
-    marginTop: 4,
-    color: '#ffffff',
-    fontFamily: fonts.uiMedium,
-    fontSize: 20,
-    letterSpacing: 0.4,
+    width: 200,
+    height: 200,
+    borderRadius: 38,
   },
   progressTrack: {
     marginTop: 28,
@@ -113,11 +96,18 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 999,
     overflow: 'hidden',
-    backgroundColor: '#262626',
+    backgroundColor: '#e5e7eb',
   },
   progressFill: {
     height: '100%',
     borderRadius: 999,
-    backgroundColor: '#dc2626',
+    backgroundColor: '#60a5fa',
+  },
+  loadingText: {
+    marginTop: 12,
+    color: '#9ca3af',
+    fontFamily: fonts.uiRegular,
+    fontSize: 13,
+    letterSpacing: 0.2,
   },
 });

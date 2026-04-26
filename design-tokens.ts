@@ -52,7 +52,7 @@ export const appIdentity = {
   location: 'Istog, Kosovë',
   frequency: '98.8 FM',
   streamUrl: 'https://live.radiostreaming.al:8010/stream.mp3',
-  logo: require('./assets/applogortvfontana.jpg'),
+  logo: require('./assets/logoandroid.jpg'),
 } as const;
 
 export const elevation = {

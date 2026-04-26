@@ -52,7 +52,7 @@ function NewsCardComponent({ post, compact = false, onPress }: NewsCardProps) {
         </Text>
 
         {post.excerpt ? (
-          <Text numberOfLines={compact ? 2 : 3} style={styles.excerpt}>
+          <Text numberOfLines={2} style={styles.excerpt}>
             {post.excerpt}
           </Text>
         ) : null}
@@ -104,6 +104,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.sm,
+    overflow: 'hidden',
   },
   category: {
     color: colors.primary,
@@ -111,6 +112,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 0.4,
     textTransform: 'uppercase',
+    flexShrink: 1,
   },
   categoryBadge: {
     borderRadius: radius.pill,
@@ -119,13 +121,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.redTint,
     paddingHorizontal: 8,
     paddingVertical: 4,
+    maxWidth: '55%',
+    flexShrink: 1,
   },
   title: {
     color: colors.text,
     fontFamily: fonts.uiBold,
-    fontSize: 18,
-    lineHeight: 24,
+    fontSize: 15,
+    lineHeight: 21,
     letterSpacing: -0.2,
+    flexShrink: 1,
   },
   excerpt: {
     color: colors.textMuted,
@@ -133,12 +138,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     marginTop: -1,
+    flexShrink: 1,
   },
   bottomRow: {
     marginTop: 2,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    overflow: 'hidden',
   },
   author: {
     color: colors.textMuted,
@@ -146,5 +153,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     flex: 1,
     marginRight: spacing.sm,
+    flexShrink: 1,
   },
 });
