@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Component, useCallback, useEffect, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack, usePathname, useRouter } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -30,6 +31,35 @@ import { fetchLatestPosts } from '../services/api';
 import { colors } from '../design-tokens';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
+// ── Error boundary — catches any render crash and shows a readable message ────
+type EBState = { error: string | null };
+class RootErrorBoundary extends Component<{ children: React.ReactNode }, EBState> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(err: unknown): EBState {
+    const msg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    return { error: msg };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <View style={ebStyles.wrap}>
+          <Text style={ebStyles.title}>App crashed on startup</Text>
+          <Text style={ebStyles.msg}>{this.state.error}</Text>
+        </View>
+      );
+    }
+    return this.props.children as React.ReactElement;
+  }
+}
+const ebStyles = StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  title: { fontSize: 16, fontWeight: 'bold', color: '#dc2626', marginBottom: 12 },
+  msg: { fontSize: 13, color: '#374151', textAlign: 'center', lineHeight: 20 },
+});
 
 // Fired once inside PersistQueryClientProvider so useQueryClient() is available.
 // Prefetches the default news feed so the first visit is instant (served from cache).
@@ -72,7 +102,7 @@ export default function RootLayout() {
 
   // Load Inter (UI) and Merriweather (article bodies) in parallel.
   // We do NOT block rendering on Merriweather — articles are never the first screen.
-  const [interLoaded] = useFonts({
+  const [interLoaded, interFontError] = useFonts({
     InterVariable: Inter_400Regular,
     InterVariableMedium: Inter_500Medium,
     InterVariableBold: Inter_700Bold,
@@ -85,26 +115,29 @@ export default function RootLayout() {
     MerriweatherVariableBold: Merriweather_700Bold,
   });
 
-  // Kick off the native splash hide as soon as Inter (UI fonts) are ready.
+  // Kick off the native splash hide as soon as Inter (UI fonts) are ready or errored.
+  // If we only wait for interLoaded, a font error leaves the native splash stuck forever.
   useEffect(() => {
-    if (interLoaded && !nativeSplashHidden) {
+    if ((interLoaded || interFontError) && !nativeSplashHidden) {
       setNativeSplashHidden(true);
       SplashScreen.hideAsync().catch(() => undefined);
     }
-  }, [interLoaded, nativeSplashHidden]);
+  }, [interLoaded, interFontError, nativeSplashHidden]);
 
   const onLaunchSplashComplete = useCallback(() => {
     setShowLaunchSplash(false);
     router.replace('/(tabs)' as never);
   }, [router]);
 
-  // Don't block the tree on Inter either — show LaunchSplash over the top
-  // so the user sees the branded screen immediately while fonts finish loading.
-  if (!interLoaded) {
-    return null;
+  // After 22+ seconds of bundle loading the native splash is gone — returning null
+  // here would leave a grey screen. Show a white view (matches splash bg) while fonts
+  // load, and proceed even if font loading errored (fallback system font is fine).
+  if (!interLoaded && !interFontError) {
+    return <View style={{ flex: 1, backgroundColor: '#ffffff' }} />;
   }
 
   return (
+    <RootErrorBoundary>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <PersistQueryClientProvider
@@ -156,5 +189,6 @@ export default function RootLayout() {
         </PersistQueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
+    </RootErrorBoundary>
   );
 }
