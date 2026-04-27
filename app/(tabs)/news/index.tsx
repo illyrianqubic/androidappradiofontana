@@ -2,42 +2,131 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList, type FlashListRef, type ListRenderItemInfo } from '@shopify/flash-list';
 import { useQuery } from '@tanstack/react-query';
 import { NewsCard } from '../../../components/NewsCard';
 import { SkeletonCard } from '../../../components/SkeletonCard';
-import { StickyTopBar } from '../../../components/StickyTopBar';
 import { HamburgerButton } from '../../../components/HamburgerButton';
 import { colors, fonts, radius, spacing } from '../../../design-tokens';
 import {
+  buildSanityImageUrl,
+  defaultThumbhash,
   fetchAuthors,
   fetchLatestPosts,
   type Post,
 } from '../../../services/api';
 
-type NewsCategoryTab = {
-  label: string;
-  slug: string;
-};
+// ── Category tabs ─────────────────────────────────────────────────────────────
+type NewsCategoryTab = { label: string; slug: string };
 
 const NEWS_CATEGORY_TABS: NewsCategoryTab[] = [
   { label: 'Të Gjitha', slug: '' },
-  { label: 'Lajme', slug: 'lajme' },
-  { label: 'Sport', slug: 'sport' },
+  { label: 'Lajme',     slug: 'lajme' },
+  { label: 'Sport',     slug: 'sport' },
   { label: 'Teknologji', slug: 'teknologji' },
-  { label: 'Showbiz', slug: 'showbiz' },
+  { label: 'Showbiz',   slug: 'showbiz' },
   { label: 'Shëndetësi', slug: 'shendetesi' },
-  { label: 'Nga Bota', slug: 'nga-bota' },
+  { label: 'Nga Bota',  slug: 'nga-bota' },
 ];
 
+// ── Featured card (first item, large editorial) ───────────────────────────────
+function FeaturedCard({ post, onPress }: { post: Post; onPress: (p: Post) => void }) {
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const imageUri = buildSanityImageUrl(post.mainImageUrl, 1200);
+  const cat = post.categories?.[0] ?? 'Lajme';
+
+  return (
+    <Animated.View style={[SF.outer, animStyle]}>
+      <Pressable
+        onPress={() => onPress(post)}
+        onPressIn={() => { scale.value = withTiming(0.975, { duration: 100 }); }}
+        onPressOut={() => { scale.value = withTiming(1, { duration: 180 }); }}
+        style={SF.inner}
+      >
+        <Image
+          source={imageUri ? { uri: imageUri } : undefined}
+          placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
+          contentFit="cover"
+          transition={240}
+          style={SF.image}
+        />
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.76)']}
+          locations={[0.3, 0.6, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+        {/* Category badge */}
+        <View style={SF.catBadge}>
+          <Text style={SF.catText}>{cat.toUpperCase()}</Text>
+        </View>
+        {post.breaking ? (
+          <View style={SF.liveChip}>
+            <View style={SF.liveDot} />
+            <Text style={SF.liveText}>LIVE</Text>
+          </View>
+        ) : null}
+        {/* Text overlay */}
+        <View style={SF.overlay}>
+          <Text numberOfLines={3} style={SF.overlayTitle}>{post.title}</Text>
+          <View style={SF.overlayMeta}>
+            <Text style={SF.overlayAuthor}>{post.author ?? 'Redaksia Fontana'}</Text>
+            <View style={SF.overlaySep} />
+            <Text style={SF.overlayTime}>{relativeLabel(post.publishedAt)}</Text>
+          </View>
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+// ── Tiny relative-time helper (avoids extra component in this context) ─────────
+function relativeLabel(ts: string | undefined): string {
+  if (!ts) return '';
+  const diff = Date.now() - new Date(ts).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Tani';
+  if (mins < 60) return `${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} orë`;
+  const days = Math.floor(hrs / 24);
+  return `${days} ditë`;
+}
+
+// ── Category pill ─────────────────────────────────────────────────────────────
+function CategoryPill({
+  item,
+  active,
+  onPress,
+}: {
+  item: NewsCategoryTab;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[SP.pill, active && SP.pillActive]}
+    >
+      <Text style={[SP.pillText, active && SP.pillTextActive]}>{item.label}</Text>
+    </Pressable>
+  );
+}
+
+// ── Main screen ───────────────────────────────────────────────────────────────
 export default function NewsIndexScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -45,8 +134,10 @@ export default function NewsIndexScreen() {
   const [activeCategory, setActiveCategory] = useState<NewsCategoryTab>(NEWS_CATEGORY_TABS[0]);
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const loadingRows = useMemo(() => [1, 2, 3, 4], []);
-  const topInsetOffset = insets.top + 72;
+  const loadingRows = useMemo(() => [1, 2, 3], []);
+
+  // Header height: statusBar + titleRow(54) + search(54) + categories(50) + divider(1)
+  const HEADER_H = insets.top + 159;
   const bottomInsetOffset = insets.bottom + 190;
 
   const authorsQuery = useQuery({
@@ -60,8 +151,6 @@ export default function NewsIndexScreen() {
     placeholderData: (previousData) => previousData,
   });
 
-  const authorsCount = authorsQuery.data?.length ?? 0;
-
   const openPost = useCallback(
     (post: Post) => {
       router.push({ pathname: '/article/[slug]' as never, params: { slug: post.slug } as never });
@@ -69,17 +158,14 @@ export default function NewsIndexScreen() {
     [router],
   );
 
-  const onSelectCategory = useCallback((category: NewsCategoryTab) => {
-    setActiveCategory(category);
-    // Snap immediately — animated:true can race with placeholderData swap causing a jump.
+  const onSelectCategory = useCallback((tab: NewsCategoryTab) => {
+    setActiveCategory(tab);
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, []);
 
-  // Safety net: scroll to top after the render cycle that follows a category change.
-  // Handles the case where new data arrives before the synchronous scroll above takes effect.
   useEffect(() => {
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCategory.slug]);
 
   const refresh = useCallback(async () => {
@@ -90,96 +176,115 @@ export default function NewsIndexScreen() {
   }, [authorsQuery, postsQuery]);
 
   const initialLoading = postsQuery.isLoading && !postsQuery.data;
+  const posts = postsQuery.data ?? [];
 
   const renderLoadingItem = useCallback(() => <SkeletonCard height={180} />, []);
 
   const renderPostItem = useCallback(
-    ({ item }: ListRenderItemInfo<Post>) => <NewsCard post={item} onPress={openPost} />,
-    [openPost],
-  );
-
-  const renderCategoryItem = useCallback(
-    ({ item }: ListRenderItemInfo<NewsCategoryTab>) => {
-      const active = item.slug === activeCategory.slug;
-
-      return (
-        <Pressable
-          onPress={() => onSelectCategory(item)}
-          style={[styles.categoryPill, active && styles.categoryPillActive]}
-        >
-          <Text style={[styles.categoryPillText, active && styles.categoryPillTextActive]}>
-            {item.label}
-          </Text>
-        </Pressable>
-      );
+    ({ item, index }: ListRenderItemInfo<Post>) => {
+      if (index === 0 && !search && posts.length > 2) {
+        return <FeaturedCard post={item} onPress={openPost} />;
+      }
+      return <NewsCard post={item} onPress={openPost} />;
     },
-    [activeCategory, onSelectCategory],
+    [openPost, search, posts.length],
   );
 
-  const listHeader = useMemo(
-    () => (
-      <View>
-        {authorsCount > 0 ? (
-          <Text style={styles.subtitle}>Publikuar nga {authorsCount} autorë</Text>
-        ) : null}
+  // ── Empty state ────────────────────────────────────────────────────────────
+  const emptyState = (
+    <View style={S.emptyState}>
+      <Ionicons name="newspaper-outline" size={52} color={colors.border} />
+      <Text style={S.emptyTitle}>Nuk ka lajme</Text>
+      <Text style={S.emptySubtitle}>
+        {search ? 'Provo me fjalë kyçe tjetër' : 'Zgjidh një kategori tjetër ose kthehu pas pak.'}
+      </Text>
+    </View>
+  );
 
-        <View style={styles.searchWrap}>
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Kërko lajme..."
-            placeholderTextColor={colors.textTertiary}
-            style={styles.searchInput}
-            returnKeyType="search"
-          />
+  // ── Sticky header (absolutely positioned above the list) ───────────────────
+  const stickyHeader = (
+    <View style={[S.header, { paddingTop: insets.top }]}>
+      {/* Title row */}
+      <View style={S.headerTitleRow}>
+        <View style={S.headerAccent} />
+        <View style={S.headerTitleBlock}>
+          <Text style={S.headerTitle}>Lajme</Text>
+          {authorsQuery.data ? (
+            <Text style={S.headerSubtitle}>nga {authorsQuery.data.length} autorë · RTV Fontana</Text>
+          ) : (
+            <Text style={S.headerSubtitle}>RTV Fontana</Text>
+          )}
         </View>
-
-        <FlashList
-          horizontal
-          data={NEWS_CATEGORY_TABS}
-          keyExtractor={(item) => item.slug || 'all'}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryRail}
-          renderItem={renderCategoryItem}
-        />
+        <View style={{ flex: 1 }} />
+        <HamburgerButton />
       </View>
-    ),
-    [authorsCount, renderCategoryItem, search],
+
+      {/* Search */}
+      <View style={S.searchRow}>
+        <Ionicons name="search-outline" size={16} color={colors.textMuted} style={S.searchIcon} />
+        <TextInput
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Kërko lajme..."
+          placeholderTextColor={colors.textTertiary}
+          style={S.searchInput}
+          returnKeyType="search"
+          clearButtonMode="while-editing"
+        />
+        {search.length > 0 ? (
+          <Pressable onPress={() => setSearch('')} hitSlop={8} style={S.clearBtn}>
+            <Ionicons name="close-circle" size={16} color={colors.textMuted} />
+          </Pressable>
+        ) : null}
+      </View>
+
+      {/* Category pills */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={S.catScroll}
+      >
+        {NEWS_CATEGORY_TABS.map((tab) => (
+          <CategoryPill
+            key={tab.slug || 'all'}
+            item={tab}
+            active={tab.slug === activeCategory.slug}
+            onPress={() => onSelectCategory(tab)}
+          />
+        ))}
+      </ScrollView>
+
+      {/* Bottom divider */}
+      <View style={S.headerDivider} />
+    </View>
   );
 
+  // ── Loading state ──────────────────────────────────────────────────────────
   if (initialLoading) {
     return (
-      <View style={styles.screen}>
-        <StickyTopBar
-          title="Lajme"
-          subtitle="Përditësime nga RTV Fontana"
-          topInset={insets.top}
-          rightElement={<HamburgerButton />}
-        />
+      <View style={S.screen}>
+        {stickyHeader}
         <FlashList
           data={loadingRows}
           keyExtractor={(item) => String(item)}
-          contentContainerStyle={[
-            styles.loadingContent,
-            { paddingTop: topInsetOffset, paddingBottom: bottomInsetOffset },
-          ]}
+          contentContainerStyle={{
+            paddingTop: HEADER_H + 12,
+            paddingBottom: bottomInsetOffset,
+            paddingHorizontal: 16,
+          }}
           renderItem={renderLoadingItem}
         />
       </View>
     );
   }
 
+  // ── Main view ──────────────────────────────────────────────────────────────
   return (
-    <View style={styles.screen}>
-      <StickyTopBar
-        title="Lajme"
-        subtitle="Përditësime nga RTV Fontana"
-        topInset={insets.top}
-        rightElement={<HamburgerButton />}
-      />
+    <View style={S.screen}>
+      {stickyHeader}
       <FlashList
         ref={listRef}
-        data={postsQuery.data ?? []}
+        data={posts}
         keyExtractor={(item) => item._id}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -190,76 +295,235 @@ export default function NewsIndexScreen() {
           />
         }
         decelerationRate="fast"
-        contentContainerStyle={[
-          styles.listContent,
-          { paddingTop: topInsetOffset, paddingBottom: bottomInsetOffset },
-        ]}
+        contentContainerStyle={{
+          paddingTop: HEADER_H + 12,
+          paddingBottom: bottomInsetOffset,
+          paddingHorizontal: 16,
+        }}
         renderItem={renderPostItem}
-        ListHeaderComponent={listHeader}
+        ListEmptyComponent={emptyState}
       />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.surface,
+// ── Styles — featured card ────────────────────────────────────────────────────
+const SF = StyleSheet.create({
+  outer: {
+    borderRadius: 20,
+    marginBottom: 14,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 5,
   },
-  loadingContent: {
-    paddingHorizontal: 16,
+  inner: {
+    height: 240,
+    justifyContent: 'flex-end',
   },
-  listContent: {
-    paddingHorizontal: 16,
+  image: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#E5E7EB',
   },
-  subtitle: {
-    color: colors.textMuted,
-    fontFamily: fonts.uiMedium,
-    fontSize: 13,
-    marginTop: -4,
-    marginBottom: spacing.sm,
-  },
-  searchWrap: {
+  catBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    backgroundColor: 'rgba(255,255,255,0.18)',
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.button,
-    backgroundColor: colors.surfaceSubtle,
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.md,
+    borderColor: 'rgba(255,255,255,0.35)',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
   },
-  searchInput: {
-    height: 46,
-    color: colors.text,
-    fontFamily: fonts.uiRegular,
-    fontSize: 15,
-  },
-  categoryRail: {
-    paddingBottom: spacing.md,
-    gap: spacing.sm,
-  },
-  categoryPill: {
-    marginRight: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 9,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  categoryPillActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.redTint,
-  },
-  categoryPillText: {
-    color: colors.textMuted,
-    fontFamily: fonts.uiMedium,
-    fontSize: 13,
-    flexShrink: 1,
-  },
-  categoryPillTextActive: {
-    color: colors.primary,
+  catText: {
+    color: '#FFFFFF',
     fontFamily: fonts.uiBold,
-    flexShrink: 1,
+    fontSize: 9,
+    letterSpacing: 1,
+  },
+  liveChip: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFFFFF',
+  },
+  liveText: {
+    color: '#FFFFFF',
+    fontFamily: fonts.uiBold,
+    fontSize: 9,
+    letterSpacing: 1.2,
+  },
+  overlay: {
+    padding: 14,
+    gap: 6,
+  },
+  overlayTitle: {
+    color: '#FFFFFF',
+    fontFamily: fonts.uiBold,
+    fontSize: 19,
+    lineHeight: 25,
+    letterSpacing: -0.4,
+  },
+  overlayMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  overlayAuthor: {
+    color: 'rgba(255,255,255,0.78)',
+    fontFamily: fonts.uiMedium,
+    fontSize: 12,
+  },
+  overlaySep: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+  },
+  overlayTime: {
+    color: 'rgba(255,255,255,0.65)',
+    fontFamily: fonts.uiRegular,
+    fontSize: 12,
   },
 });
+
+// ── Styles — category pill ────────────────────────────────────────────────────
+const SP = StyleSheet.create({
+  pill: {
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: '#FFFFFF',
+    marginRight: 8,
+  },
+  pillActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary,
+  },
+  pillText: {
+    fontFamily: fonts.uiMedium,
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  pillTextActive: {
+    color: '#FFFFFF',
+    fontFamily: fonts.uiBold,
+  },
+});
+
+// ── Styles — screen ───────────────────────────────────────────────────────────
+const S = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  // Sticky header
+  header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 54,
+    gap: 10,
+  },
+  headerAccent: {
+    width: 4,
+    height: 26,
+    borderRadius: 2,
+    backgroundColor: colors.primary,
+  },
+  headerTitleBlock: {
+    gap: 1,
+  },
+  headerTitle: {
+    fontFamily: fonts.uiBold,
+    fontSize: 20,
+    color: colors.text,
+    letterSpacing: -0.4,
+    lineHeight: 24,
+  },
+  headerSubtitle: {
+    fontFamily: fonts.uiRegular,
+    fontSize: 11,
+    color: colors.textMuted,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radius.button,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 10,
+    marginBottom: 10,
+    height: 44,
+  },
+  searchIcon: {
+    marginRight: 7,
+  },
+  searchInput: {
+    flex: 1,
+    height: '100%',
+    color: colors.text,
+    fontFamily: fonts.uiRegular,
+    fontSize: 14,
+  },
+  clearBtn: {
+    padding: 2,
+    marginLeft: 4,
+  },
+  catScroll: {
+    paddingBottom: 10,
+  },
+  headerDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginHorizontal: -16,
+  },
+  // Empty state
+  emptyState: {
+    paddingTop: 60,
+    paddingBottom: 40,
+    alignItems: 'center',
+    gap: 10,
+  },
+  emptyTitle: {
+    fontFamily: fonts.uiBold,
+    fontSize: 18,
+    color: colors.text,
+    marginTop: 8,
+  },
+  emptySubtitle: {
+    fontFamily: fonts.uiRegular,
+    fontSize: 14,
+    color: colors.textMuted,
+    textAlign: 'center',
+    paddingHorizontal: 32,
+    lineHeight: 20,
+  },
+});
+

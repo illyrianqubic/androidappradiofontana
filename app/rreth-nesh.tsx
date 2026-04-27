@@ -1,21 +1,34 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { StickyTopBar } from '../components/StickyTopBar';
 import { colors, fonts, radius, spacing } from '../design-tokens';
 
 export default function AboutScreen() {
   const insets = useSafeAreaInsets();
-  const topInsetOffset = insets.top + 86;
+  const router = useRouter();
+  const headerHeight = insets.top + 52;
   const bottomInsetOffset = insets.bottom + 196;
 
   return (
     <View style={styles.screen}>
-      <StickyTopBar title="Rreth Nesh" subtitle="Kush jemi dhe çfarë përfaqësojmë" topInset={insets.top} />
+      {/* ── Custom header with back arrow ── */}
+      <View style={[styles.header, { paddingTop: insets.top }]}>
+        <Pressable
+          onPress={() => router.back()}
+          style={({ pressed }) => [styles.backBtn, pressed && styles.backBtnPressed]}
+          hitSlop={10}
+        >
+          <Ionicons name="arrow-back" size={22} color={colors.text} />
+        </Pressable>
+        <Text style={styles.headerTitle}>Rreth Nesh</Text>
+        <View style={styles.backBtnPlaceholder} />
+      </View>
 
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingTop: topInsetOffset, paddingBottom: bottomInsetOffset },
+          { paddingTop: headerHeight + 12, paddingBottom: bottomInsetOffset },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -53,6 +66,42 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.surface,
+  },
+  header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 40,
+    height: undefined,
+    paddingBottom: 10,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F3F4F6',
+  },
+  backBtnPressed: {
+    backgroundColor: '#E5E7EB',
+  },
+  backBtnPlaceholder: {
+    width: 40,
+  },
+  headerTitle: {
+    fontFamily: fonts.uiBold,
+    fontSize: 17,
+    color: colors.text,
+    letterSpacing: -0.2,
   },
   content: {
     paddingHorizontal: spacing.md,

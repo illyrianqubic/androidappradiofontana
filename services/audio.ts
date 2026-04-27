@@ -42,8 +42,8 @@ type AudioContextValue = {
   metadata: NowPlayingMetadata;
   playbackState: number;
   play: () => Promise<void>;
-  pause: () => Promise<void>;
-  toggle: () => Promise<void>;
+  pause: () => void;
+  toggle: () => void;
   reconnect: () => Promise<void>;
 };
 
@@ -71,6 +71,8 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptRef = useRef(0);
   const reconnectRef = useRef<() => Promise<void>>(async () => undefined);
+  // Gate: while true, status callbacks must not flip isPlaying/isBuffering back
+  const pauseIntentRef = useRef(false);
 
   const clearReconnectTimeout = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -89,6 +91,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       playbackStateLabel.includes('fail') || playbackStateLabel.includes('error');
 
     if (isFailureState) {
+      pauseIntentRef.current = false;
       setIsPlaying(false);
       setIsBuffering(false);
       setIsReconnecting(false);
@@ -102,6 +105,8 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (!status.isLoaded) {
+      // If user intends to be paused, ignore unloaded state (stream just draining)
+      if (pauseIntentRef.current) return;
       setIsPlaying(false);
       setIsBuffering(true);
       setIsReconnecting(true);
@@ -111,6 +116,22 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
     const buffering = status.isBuffering;
     const playing = status.playing;
+
+    // If user explicitly paused, ignore any playing/buffering callbacks until
+    // the player confirms it has stopped. This prevents the UI from flickering
+    // back to buffering/playing right after the user presses pause.
+    if (pauseIntentRef.current) {
+      if (!playing && !buffering) {
+        // Player has confirmed paused — safe to clear the gate
+        pauseIntentRef.current = false;
+        setIsPlaying(false);
+        setIsBuffering(false);
+        setIsReconnecting(false);
+        setPlaybackState(PlayerState.paused);
+      }
+      // While still draining, keep showing paused state — do NOT call setIsPlaying(true)
+      return;
+    }
 
     setIsPlaying(playing);
     setIsBuffering(buffering);
@@ -243,8 +264,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   }, [reconnect]);
 
   const play = useCallback(async () => {
+    // Clear pause gate so status callbacks resume normally
+    pauseIntentRef.current = false;
     await ensurePlayer();
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
 
     setIsReconnecting(true);
     setIsBuffering(true);
@@ -268,31 +290,38 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     }
   }, [ensurePlayer, reconnect]);
 
-  const pause = useCallback(async () => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+  const pause = useCallback(() => {
+    // Set intent gate FIRST — blocks any in-flight status callback from overriding
+    pauseIntentRef.current = true;
     cancelReconnect();
 
+    // Optimistic UI update — shows ▶ immediately
     setIsPlaying(false);
     setIsBuffering(false);
     setPlaybackState(PlayerState.paused);
 
     const player = playerRef.current;
     if (!player) {
+      pauseIntentRef.current = false;
       return;
     }
 
     if (player.playing) {
       player.pause();
+    } else {
+      pauseIntentRef.current = false;
     }
   }, [cancelReconnect]);
 
-  const toggle = useCallback(async () => {
-    if (isPlaying) {
-      await pause();
+  const toggle = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    // Consider "active" as: playing OR trying to play — so tapping again always pauses
+    if (isPlaying || isBuffering || isReconnecting) {
+      pause();
     } else {
-      await play();
+      void play();
     }
-  }, [isPlaying, pause, play]);
+  }, [isPlaying, isBuffering, isReconnecting, play, pause]);
 
   useEffect(() => {
     mountedRef.current = true;

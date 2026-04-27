@@ -24,6 +24,7 @@ import { MiniPlayer } from '../components/MiniPlayer';
 import { HamburgerDrawer } from '../components/HamburgerDrawer';
 import { AudioProvider } from '../services/audio';
 import { DrawerProvider } from '../context/DrawerContext';
+import { UIProvider } from '../context/UIContext';
 import { queryStorage } from '../services/storage';
 import { fetchLatestPosts } from '../services/api';
 import { colors } from '../design-tokens';
@@ -114,6 +115,7 @@ export default function RootLayout() {
           }}
         >
           <AudioProvider>
+            <UIProvider>
             <DrawerProvider>
               <StatusBar style="dark" />
               <PrefetchOnMount />
@@ -129,7 +131,6 @@ export default function RootLayout() {
                 />
                 <Stack.Screen name="rreth-nesh" />
                 <Stack.Screen name="na-kontakto" />
-                <Stack.Screen name="programi" />
                 <Stack.Screen
                   name="player"
                   options={{
@@ -150,6 +151,7 @@ export default function RootLayout() {
 
               <HamburgerDrawer />
             </DrawerProvider>
+            </UIProvider>
           </AudioProvider>
         </PersistQueryClientProvider>
       </SafeAreaProvider>

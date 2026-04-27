@@ -97,7 +97,6 @@ export default function RootLayout() {
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="rreth-nesh" />
                 <Stack.Screen name="na-kontakto" />
-                <Stack.Screen name="programi" />
                 <Stack.Screen
                   name="player"
                   options={{

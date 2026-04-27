@@ -112,7 +112,7 @@ export function FullPlayer({ isExpanded = true }: FullPlayerProps) {
           onPress={toggle}
           style={({ pressed }) => [styles.playButton, pressed && styles.playButtonPressed]}
         >
-          <Text style={styles.playIcon}>{isPlaying ? 'II' : '▶'}</Text>
+          <Text style={styles.playIcon}>{isPlaying ? 'II' : isReconnecting ? '···' : '▶'}</Text>
         </Pressable>
       </View>
 
@@ -207,6 +207,9 @@ const styles = StyleSheet.create({
   },
   playButtonPressed: {
     backgroundColor: colors.primaryPressed,
+  },
+  playButtonTransitioning: {
+    opacity: 0.6,
   },
   playIcon: {
     color: colors.surface,

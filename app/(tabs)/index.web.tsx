@@ -117,8 +117,7 @@ export default function HomeScreen() {
 
   const quickLinks = useMemo<QuickLink[]>(
     () => [
-      { icon: '📻', title: 'Programi', route: '/programi' },
-      { icon: '📞', title: 'Na Kontakto', route: '/na-kontakto' },
+      { icon: '', title: 'Na Kontakto', route: '/na-kontakto' },
       { icon: 'ℹ️', title: 'Rreth Nesh', route: '/rreth-nesh' },
     ],
     [],

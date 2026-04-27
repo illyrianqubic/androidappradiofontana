@@ -44,7 +44,6 @@ export type Post = {
   excerpt?: string;
   publishedAt: string;
   breaking: boolean;
-  featured?: boolean;
   views?: number;
   mainImageUrl?: string;
   thumbhash?: string;
@@ -108,14 +107,12 @@ const postProjection = `
   excerpt,
   publishedAt,
   "breaking": coalesce(breaking, false),
-  "featured": coalesce(featured, false),
   "views": coalesce(views, 0),
   "mainImageUrl": mainImage.asset->url,
   "thumbhash": mainImage.asset->metadata.thumbhash,
   "categories": array::compact(coalesce(categories[]->title, []) + [category->title]),
   "categorySlugs": array::compact(coalesce(categories[]->slug.current, []) + [category->slug.current]),
-  "author": author->name,
-  "body": select(count(coalesce(body, [])) > 0 => body, content)
+  "author": author->name
 `;
 
 export function buildSanityImageUrl(url?: string, width = 800) {
@@ -195,8 +192,8 @@ export async function fetchLatestPosts(
   return data ?? [];
 }
 
-export async function fetchFeaturedPosts(limit = 10): Promise<Post[]> {
-  const query = `*[_type == "post" && coalesce(featured, false) == true] | order(publishedAt desc)[0...${limit}] { ${postProjection} }`;
+export async function fetchLocalPosts(limit = 12): Promise<Post[]> {
+  const query = `*[_type == "post" && !('nga-bota' in array::compact(coalesce(categories[]->slug.current, []) + coalesce([category->slug.current], [])))] | order(publishedAt desc)[0...${limit}] { ${postProjection} }`;
   const data = await sanityFetch<Post[]>(query);
   return data ?? [];
 }
@@ -239,18 +236,6 @@ export async function fetchRelatedPosts(slug: string, categories: string[] = [])
   const query = `*[_type == "post" && slug.current != $slug && ($category in array::compact(coalesce(categories[]->title, []) + [category->title]) || $category == "")] | order(publishedAt desc)[0...6] { ${postProjection} }`;
   const data = await sanityFetch<Post[]>(query, { slug, category });
   return data ?? [];
-}
-
-export async function fetchCategories(): Promise<string[]> {
-  const query = `*[_type == "category"] | order(orderRank asc, title asc) { "title": title }`;
-
-  try {
-    const categories = await sanityFetch<Array<{ title: string }>>(query);
-    const titles = categories.map((item) => item.title).filter(Boolean);
-    return ['Të Gjitha', ...titles];
-  } catch {
-    return [...defaultCategories];
-  }
 }
 
 export async function fetchAuthors(): Promise<Author[]> {

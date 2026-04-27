@@ -10,33 +10,25 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  UIManager,
   View,
   useWindowDimensions,
 } from 'react-native';
-
-// LayoutAnimation on Android (needed for older architecture; harmless on New Arch)
-if (Platform.OS === 'android') {
-  UIManager.setLayoutAnimationEnabledExperimental?.(true);
-}
-import { Image } from 'expo-image';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
+  Easing,
   interpolate,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useDrawer } from '../context/DrawerContext';
 
-import { appIdentity, colors, fonts } from '../design-tokens';
+import { colors, fonts } from '../design-tokens';
 
 // ── TikTok SVG logo (simple-icons) ──────────────────────────────────────────
 function TikTokIcon({ size = 22, color = '#010101' }: { size?: number; color?: string }) {
@@ -79,8 +71,11 @@ const SOCIAL_LINKS: SocialLink[] = [
   { icon: null,        label: 'TikTok',    color: '#010101', url: 'https://www.tiktok.com/@rtvfontanalive' },
 ];
 
-// Spring config — snappy, premium feel
-const SPRING = { damping: 22, stiffness: 400, mass: 0.7 } as const;
+// Open/close easing — silky premium feel
+const OPEN_EASING  = Easing.out(Easing.cubic);
+const CLOSE_EASING = Easing.in(Easing.cubic);
+const OPEN_DURATION  = 260;
+const CLOSE_DURATION = 200;
 
 // Per-category tag color palette
 const CAT_COLORS = [
@@ -104,18 +99,18 @@ export function HamburgerDrawer() {
   const [lajmeExpanded, setLajmeExpanded] = useState(false);
   const [showScrollHint, setShowScrollHint] = useState(true);
   const scrollHintOpacity = useSharedValue(1);
+  const scrollRef = useRef<ScrollView>(null);
 
   const progress = useSharedValue(0);
-  const panelWidthSV = useSharedValue(0);
 
   useEffect(() => {
     if (isOpen) {
       setIsInteractive(true);
-      progress.value = withSpring(1, SPRING);
+      progress.value = withTiming(1, { duration: OPEN_DURATION, easing: OPEN_EASING });
     } else {
       // Collapse accordion immediately (hidden by drawer animation)
       setLajmeExpanded(false);
-      progress.value = withSpring(0, SPRING, (finished) => {
+      progress.value = withTiming(0, { duration: CLOSE_DURATION, easing: CLOSE_EASING }, (finished) => {
         if (finished) runOnJS(setIsInteractive)(false);
       });
     }
@@ -132,6 +127,7 @@ export function HamburgerDrawer() {
   // Reset scroll hint whenever drawer opens
   useEffect(() => {
     if (isOpen) {
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
       setShowScrollHint(true);
       scrollHintOpacity.value = withTiming(1, { duration: 300 });
     }
@@ -153,15 +149,9 @@ export function HamburgerDrawer() {
   }));
 
   const panelStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: interpolate(progress.value, [0, 1], [panelWidthSV.value, 0]) }],
+    opacity: progress.value,
+    transform: [{ scale: interpolate(progress.value, [0, 1], [0.94, 1]) }],
   }));
-
-  const backdropGesture = Gesture.Race(
-    Gesture.Tap().onEnd(() => runOnJS(close)()),
-    Gesture.Pan().onEnd((e) => {
-      if (e.translationX > 30 || e.velocityX > 300) runOnJS(close)();
-    }),
-  );
 
   const navigate = (path: string) => { close(); router.push(path as never); };
 
@@ -190,30 +180,37 @@ export function HamburgerDrawer() {
   const topBarBottom = insets.top + TOP_BAR_H;
   const panelBottom = TAB_BAR_H + insets.bottom;
   const panelWidth = Math.round(windowWidth * 0.78);
-  panelWidthSV.value = panelWidth;
 
   return (
     <View
       style={StyleSheet.absoluteFill}
-      pointerEvents={isInteractive ? 'box-none' : 'none'}
+      pointerEvents={isInteractive ? 'auto' : 'none'}
     >
-      {/* Backdrop — full strip left of panel */}
-      <Animated.View
-        style={[S.backdrop, { top: topBarBottom, bottom: panelBottom, left: 0, right: panelWidth }, backdropStyle]}
-        pointerEvents={isInteractive ? 'auto' : 'none'}
-      >
-        <GestureDetector gesture={backdropGesture}>
-          <View style={StyleSheet.absoluteFill} />
-        </GestureDetector>
-      </Animated.View>
+      {/* Full-screen touch blocker — captures ALL touches when drawer is open,
+          preventing underlying tab content from receiving any events.
+          Rendered first (lowest z-index among siblings) so the panel, which
+          is rendered last, sits on top and handles its own touches normally. */}
+      {isInteractive && (
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={close}
+        />
+      )}
 
-      {/* Panel — outer: elevation only; inner: all-corners clipping */}
+      {/* Animated dark overlay — visual only, positioned between top bar and tab bar */}
+      <Animated.View
+        style={[S.backdrop, { top: topBarBottom, bottom: panelBottom, left: 0, right: 0 }, backdropStyle]}
+        pointerEvents="none"
+      />
+
+      {/* Panel — rendered last = highest z-index, handles its own touches */}
       <Animated.View
         style={[S.panelOuter, { top: topBarBottom, bottom: panelBottom, right: 0, width: panelWidth }, panelStyle]}
         pointerEvents={isInteractive ? 'auto' : 'none'}
       >
         <View style={S.panelInner}>
           <ScrollView
+            ref={scrollRef}
             showsVerticalScrollIndicator={false}
             bounces={false}
             keyboardShouldPersistTaps="handled"
@@ -221,17 +218,6 @@ export function HamburgerDrawer() {
             onScroll={onScroll}
             scrollEventThrottle={16}
           >
-            {/* ── HEADER ─────────────────────────────────────────── */}
-            <View style={S.header}>
-              <View style={S.headerBody}>
-                <View style={S.logoWrap}>
-                  <Image source={appIdentity.logo} contentFit="cover" style={S.logoImg} />
-                </View>
-                <Text style={S.headerName}>{appIdentity.name}</Text>
-                <Text style={S.headerFreq}>{appIdentity.frequency} · {appIdentity.location}</Text>
-              </View>
-            </View>
-
             {/* ── MENUJA ─────────────────────────────────────────── */}
             <View style={S.navCard}>
               <Text style={S.sectionLabel}>MENUJA</Text>
@@ -302,13 +288,6 @@ export function HamburgerDrawer() {
             {/* ── TJETËR ─────────────────────────────────────────── */}
             <View style={[S.navCard, S.navCardSpaced]}>
               <Text style={S.sectionLabel}>TJETËR</Text>
-              <NavItem
-                icon="calendar-outline"
-                label="Programi"
-                iconColor="#15803D"
-                iconBg="#F0FDF4"
-                onPress={() => navigate('/programi')}
-              />
               <NavItem
                 icon="information-circle-outline"
                 label="Rreth Nesh"
@@ -390,8 +369,14 @@ export function HamburgerDrawer() {
           </ScrollView>
         </View>
           {/* Scroll hint — fades away after first scroll */}
-          <Animated.View style={[S.scrollHint, scrollHintStyle]} pointerEvents="none">
-            <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
+          <Animated.View style={[S.scrollHint, scrollHintStyle]} pointerEvents="box-none">
+            <Pressable
+              style={({ pressed }) => [S.scrollHintBtn, pressed && S.scrollHintBtnPressed]}
+              onPress={() => scrollRef.current?.scrollTo({ y: 300, animated: true })}
+              hitSlop={12}
+            >
+              <Ionicons name="chevron-down" size={18} color="#374151" />
+            </Pressable>
           </Animated.View>
       </Animated.View>
     </View>
@@ -463,45 +448,6 @@ const S = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 32,
-  },
-
-  // ── Header — pure white ─────────────────────────────────────────────────────
-  header: {
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    paddingBottom: 20,
-    paddingTop: 16,
-  },
-  headerBody: {
-    paddingHorizontal: 20,
-    alignItems: 'flex-start',
-  },
-  logoWrap: {
-    width: 58,
-    height: 58,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    marginBottom: 12,
-  },
-  logoImg: {
-    width: '100%',
-    height: '100%',
-  },
-  headerName: {
-    color: '#111827',
-    fontFamily: fonts.uiBold,
-    fontSize: 17,
-    letterSpacing: -0.4,
-    lineHeight: 23,
-  },
-  headerFreq: {
-    color: '#9CA3AF',
-    fontFamily: fonts.uiMedium,
-    fontSize: 12,
-    marginTop: 3,
   },
 
   // ── Nav cards ───────────────────────────────────────────────────────────────
@@ -705,13 +651,30 @@ const S = StyleSheet.create({
 
   scrollHint: {
     position: 'absolute',
-    bottom: 0,
+    bottom: 12,
     left: 0,
     right: 0,
-    height: 52,
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingBottom: 8,
+    justifyContent: 'center',
+  },
+  scrollHintBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.14,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  scrollHintBtnPressed: {
+    backgroundColor: '#F3F4F6',
+    transform: [{ scale: 0.92 }],
   },
 
   // ── Copyright ───────────────────────────────────────────────────────────────
