@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   BackHandler,
   LayoutAnimation,
   Linking,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   Platform,
   Pressable,
   ScrollView,
@@ -26,6 +28,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -99,6 +102,8 @@ export function HamburgerDrawer() {
 
   const [isInteractive, setIsInteractive] = useState(false);
   const [lajmeExpanded, setLajmeExpanded] = useState(false);
+  const [showScrollHint, setShowScrollHint] = useState(true);
+  const scrollHintOpacity = useSharedValue(1);
 
   const progress = useSharedValue(0);
   const panelWidthSV = useSharedValue(0);
@@ -123,6 +128,25 @@ export function HamburgerDrawer() {
     return () => sub.remove();
   }, [isOpen, close]);
 
+
+  // Reset scroll hint whenever drawer opens
+  useEffect(() => {
+    if (isOpen) {
+      setShowScrollHint(true);
+      scrollHintOpacity.value = withTiming(1, { duration: 300 });
+    }
+  }, [isOpen, scrollHintOpacity]);
+
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (e.nativeEvent.contentOffset.y > 20 && showScrollHint) {
+      setShowScrollHint(false);
+      scrollHintOpacity.value = withTiming(0, { duration: 220 });
+    }
+  };
+
+  const scrollHintStyle = useAnimatedStyle(() => ({
+    opacity: scrollHintOpacity.value,
+  }));
 
   const backdropStyle = useAnimatedStyle(() => ({
     opacity: progress.value,
@@ -194,6 +218,8 @@ export function HamburgerDrawer() {
             bounces={false}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={S.scrollContent}
+            onScroll={onScroll}
+            scrollEventThrottle={16}
           >
             {/* ── HEADER ─────────────────────────────────────────── */}
             <View style={S.header}>
@@ -363,6 +389,10 @@ export function HamburgerDrawer() {
             <Text style={S.copyright}>© 2026 Radio Fontana · Të gjitha të drejtat e rezervuara</Text>
           </ScrollView>
         </View>
+          {/* Scroll hint — fades away after first scroll */}
+          <Animated.View style={[S.scrollHint, scrollHintStyle]} pointerEvents="none">
+            <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
+          </Animated.View>
       </Animated.View>
     </View>
   );
@@ -671,6 +701,17 @@ const S = StyleSheet.create({
     fontFamily: fonts.uiBold,
     fontSize: 9,
     letterSpacing: 0.9,
+  },
+
+  scrollHint: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingBottom: 8,
   },
 
   // ── Copyright ───────────────────────────────────────────────────────────────
