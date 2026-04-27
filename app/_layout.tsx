@@ -100,16 +100,16 @@ export default function RootLayout() {
   const [showLaunchSplash, setShowLaunchSplash] = useState(true);
   const [nativeSplashHidden, setNativeSplashHidden] = useState(false);
 
-  // Load Inter (UI) and Merriweather (article bodies) in parallel.
-  // We do NOT block rendering on Merriweather — articles are never the first screen.
+  // Fonts are pre-embedded in the APK via the expo-font plugin (app.json), so they
+  // are already available natively. useFonts() will complete synchronously (already
+  // loaded) or very fast. interFontError handles the edge case of an asset failure.
   const [interLoaded, interFontError] = useFonts({
     InterVariable: Inter_400Regular,
     InterVariableMedium: Inter_500Medium,
     InterVariableBold: Inter_700Bold,
   });
 
-  // Merriweather is only needed when reading an article. Load it opportunistically
-  // in the background so it's ready when the user first opens an article.
+  // Merriweather is pre-embedded too — load opportunistically for article screens.
   useFonts({
     MerriweatherVariable: Merriweather_400Regular,
     MerriweatherVariableBold: Merriweather_700Bold,
