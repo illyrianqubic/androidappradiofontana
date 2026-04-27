@@ -18,28 +18,21 @@ if (Platform.OS === 'android') {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
 }
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
-  cancelAnimation,
-  Easing,
   interpolate,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withRepeat,
-  withSequence,
   withSpring,
-  withTiming,
 } from 'react-native-reanimated';
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useDrawer } from '../context/DrawerContext';
-import { useAudio } from '../services/audio';
-import { EqualizerBars } from './EqualizerBars';
+
 import { appIdentity, colors, fonts } from '../design-tokens';
 
 // ── TikTok SVG logo (simple-icons) ──────────────────────────────────────────
@@ -61,7 +54,6 @@ const LAJME_CATEGORIES = [
   { label: 'Nga Bota',   slug: 'nga-bota' },
   { label: 'Biznes',     slug: 'biznes' },
 ];
-const CAT_H = 36;
 
 // Height of the StickyTopBar content below the status bar.
 // Matches topInsetOffset = insets.top + 72 used in every tab screen, minus 5px
@@ -100,7 +92,6 @@ const CAT_COLORS = [
 
 export function HamburgerDrawer() {
   const { isOpen, close } = useDrawer();
-  const { isPlaying } = useAudio();
   const { width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
@@ -111,7 +102,6 @@ export function HamburgerDrawer() {
 
   const progress = useSharedValue(0);
   const panelWidthSV = useSharedValue(0);
-  const glowAnim = useSharedValue(1);
 
   useEffect(() => {
     if (isOpen) {
@@ -133,22 +123,6 @@ export function HamburgerDrawer() {
     return () => sub.remove();
   }, [isOpen, close]);
 
-  useEffect(() => {
-    if (isPlaying) {
-      glowAnim.value = withRepeat(
-        withSequence(
-          withTiming(1.4, { duration: 950, easing: Easing.inOut(Easing.sin) }),
-          withTiming(1, { duration: 950, easing: Easing.inOut(Easing.sin) }),
-        ),
-        -1,
-        false,
-      );
-    } else {
-      cancelAnimation(glowAnim);
-      glowAnim.value = withTiming(1, { duration: 300 });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPlaying]);
 
   const backdropStyle = useAnimatedStyle(() => ({
     opacity: progress.value * 0.5,
@@ -156,11 +130,6 @@ export function HamburgerDrawer() {
 
   const panelStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: interpolate(progress.value, [0, 1], [panelWidthSV.value, 0]) }],
-  }));
-
-  const glowStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: glowAnim.value }],
-    opacity: interpolate(glowAnim.value, [1, 1.4], [0.45, 0]),
   }));
 
   const backdropGesture = Gesture.Race(
@@ -214,7 +183,7 @@ export function HamburgerDrawer() {
         </GestureDetector>
       </Animated.View>
 
-      {/* Panel — outer: elevation only; inner: clipping */}
+      {/* Panel — outer: elevation only; inner: all-corners clipping */}
       <Animated.View
         style={[S.panelOuter, { top: topBarBottom, bottom: panelBottom, right: 0, width: panelWidth }, panelStyle]}
         pointerEvents={isInteractive ? 'auto' : 'none'}
@@ -226,68 +195,23 @@ export function HamburgerDrawer() {
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={S.scrollContent}
           >
-            {/* ════════════════════════════════════════════════════ */}
-            {/* HERO                                                 */}
-            {/* ════════════════════════════════════════════════════ */}
-            <LinearGradient
-              colors={['#3b0000', '#7f1d1d', '#dc2626']}
-              start={{ x: 0.0, y: 0.0 }}
-              end={{ x: 1.1, y: 1.1 }}
-              style={S.hero}
-            >
-              {/* Decorative SVG geometry */}
-              <Svg
-                style={StyleSheet.absoluteFill}
-                viewBox="0 0 260 180"
-                preserveAspectRatio="xMaxYMin slice"
-              >
-                <Circle cx="230" cy="-20" r="100" fill="rgba(255,255,255,0.04)" />
-                <Circle cx="260" cy="130" r="70"  fill="rgba(255,255,255,0.03)" />
-                <Circle cx="-20" cy="170" r="90"  fill="rgba(0,0,0,0.12)" />
-                <Circle cx="110" cy="20"  r="35"  fill="rgba(255,255,255,0.025)" />
-              </Svg>
-
-              {/* Close button */}
-              <View style={S.heroTopRow}>
+            {/* ── HEADER ─────────────────────────────────────────── */}
+            <View style={S.header}>
+              <View style={S.headerTopRow}>
                 <Pressable onPress={close} style={S.closeBtn} hitSlop={14}>
-                  <Ionicons name="close" size={16} color="rgba(255,255,255,0.85)" />
+                  <Ionicons name="close" size={17} color="#6B7280" />
                 </Pressable>
               </View>
-
-              {/* Logo + pulsing glow */}
-              <View style={S.heroBody}>
-                <View style={S.logoStack}>
-                  <Animated.View style={[S.glowRing, glowStyle]} />
-                  <View style={S.logoRing}>
-                    <Image source={appIdentity.logo} contentFit="cover" style={S.logoImg} />
-                  </View>
+              <View style={S.headerBody}>
+                <View style={S.logoWrap}>
+                  <Image source={appIdentity.logo} contentFit="cover" style={S.logoImg} />
                 </View>
-
-                <Text style={S.heroName}>{appIdentity.name}</Text>
-
-                <View style={S.freqBadge}>
-                  <Text style={S.freqText}>{appIdentity.frequency}</Text>
-                  <View style={S.freqDot} />
-                  <Text style={S.freqText}>{appIdentity.location}</Text>
-                </View>
-
-                {/* Live status pill */}
-                <View style={S.livePill}>
-                  {isPlaying ? (
-                    <EqualizerBars playing bars={3} variant="mini" color="#FFFFFF" height={10} />
-                  ) : (
-                    <View style={S.liveDot} />
-                  )}
-                  <Text style={S.livePillText}>
-                    {isPlaying ? 'DUKE LUAJTUR' : 'LIVE 24/7'}
-                  </Text>
-                </View>
+                <Text style={S.headerName}>{appIdentity.name}</Text>
+                <Text style={S.headerFreq}>{appIdentity.frequency} · {appIdentity.location}</Text>
               </View>
-            </LinearGradient>
+            </View>
 
-            {/* ════════════════════════════════════════════════════ */}
-            {/* PRIMARY NAV CARD  (lifts over hero)                 */}
-            {/* ════════════════════════════════════════════════════ */}
+            {/* ── MENUJA ─────────────────────────────────────────── */}
             <View style={S.navCard}>
               <Text style={S.sectionLabel}>MENUJA</Text>
 
@@ -304,7 +228,7 @@ export function HamburgerDrawer() {
                 label="Drejtpërdrejt"
                 active={isLiveActive}
                 iconColor={colors.primary}
-                iconBg={colors.redTint}
+                iconBg="#fee2e2"
                 onPress={() => navigate('/(tabs)/live')}
               />
 
@@ -318,7 +242,7 @@ export function HamburgerDrawer() {
                 ]}
               >
                 {isNewsActive && <View style={S.activeBar} />}
-                <View style={[S.iconChip, { backgroundColor: isNewsActive ? colors.redTint : '#FFFBEB' }]}>
+                <View style={[S.iconChip, { backgroundColor: isNewsActive ? '#fee2e2' : '#FFFBEB' }]}>
                   <Ionicons
                     name="newspaper-outline"
                     size={17}
@@ -335,29 +259,26 @@ export function HamburgerDrawer() {
                 />
               </Pressable>
 
-              {/* Category accordion — conditional render keeps navCard layout accurate */}
+              {/* Category accordion — conditional render, LayoutAnimation drives expansion */}
               {lajmeExpanded && (
                 <View style={S.accordion}>
                   {LAJME_CATEGORIES.map((cat, i) => (
-                    <Pressable
-                      key={cat.slug}
-                      onPress={() => navigate('/(tabs)/news')}
-                      style={({ pressed }) => [S.catItem, pressed && S.catItemPressed]}
-                    >
-                      <View style={[S.catTag, { backgroundColor: CAT_COLORS[i % CAT_COLORS.length].bg }]}>
-                        <Text style={[S.catTagText, { color: CAT_COLORS[i % CAT_COLORS.length].text }]}>
-                          {cat.label}
-                        </Text>
-                      </View>
-                    </Pressable>
+                    <View key={cat.slug}>
+                      <Pressable
+                        onPress={() => navigate('/(tabs)/news')}
+                        style={({ pressed }) => [S.catRow, pressed && S.catRowPressed]}
+                      >
+                        <View style={[S.catDot, { backgroundColor: CAT_COLORS[i % CAT_COLORS.length].text }]} />
+                        <Text style={S.catLabel}>{cat.label}</Text>
+                      </Pressable>
+                      {i < LAJME_CATEGORIES.length - 1 && <View style={S.catSep} />}
+                    </View>
                   ))}
                 </View>
               )}
             </View>
 
-            {/* ════════════════════════════════════════════════════ */}
-            {/* SECONDARY NAV CARD                                  */}
-            {/* ════════════════════════════════════════════════════ */}
+            {/* ── TJETËR ─────────────────────────────────────────── */}
             <View style={[S.navCard, S.navCardSpaced]}>
               <Text style={S.sectionLabel}>TJETËR</Text>
               <NavItem
@@ -383,11 +304,9 @@ export function HamburgerDrawer() {
               />
             </View>
 
-            {/* ════════════════════════════════════════════════════ */}
-            {/* SOCIAL CARD                                         */}
-            {/* ════════════════════════════════════════════════════ */}
-            <View style={[S.navCard, S.navCardSpaced]}>
-              <Text style={S.sectionLabel}>NA NDIQNI</Text>
+            {/* ── SOCIAL ─────────────────────────────────────────── */}
+            <View style={[S.navCard, S.navCardSpaced, S.navCardWhite]}>
+              <Text style={[S.sectionLabel, S.sectionLabelDark]}>NA NDIQNI</Text>
               <View style={S.socialGrid}>
                 {SOCIAL_LINKS.map((link) => (
                   <Pressable
@@ -411,10 +330,8 @@ export function HamburgerDrawer() {
               </View>
             </View>
 
-            {/* ════════════════════════════════════════════════════ */}
-            {/* CONTACT CARD                                        */}
-            {/* ════════════════════════════════════════════════════ */}
-            <View style={[S.navCard, S.navCardSpaced]}>
+            {/* ── CONTACT ─────────────────────────────────────────── */}
+            <View style={[S.navCard, S.navCardSpaced, S.navCardWhite]}>
               <Pressable
                 onPress={() => Linking.openURL('tel:+38344150027').catch(() => undefined)}
                 style={({ pressed }) => [S.infoRow, pressed && S.infoRowPressed]}
@@ -504,172 +421,140 @@ const S = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(0,0,0,1)',
   },
+  // Outer: elevation/shadow — NO overflow:hidden (Android blanks children)
   panelOuter: {
     position: 'absolute',
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#F3F4F6',
     shadowColor: '#000',
-    shadowOpacity: 0.28,
-    shadowRadius: 36,
-    shadowOffset: { width: -10, height: 0 },
-    elevation: 32,
+    shadowOpacity: 0.20,
+    shadowRadius: 32,
+    shadowOffset: { width: -8, height: 0 },
+    elevation: 28,
   },
+  // Inner: all-corners clip — rounded on every edge, not just left
   panelInner: {
     flex: 1,
     overflow: 'hidden',
-    backgroundColor: '#F2F3F5',
+    backgroundColor: '#F3F4F6',
     borderTopLeftRadius: 22,
     borderBottomLeftRadius: 22,
-    borderTopRightRadius: 0,
-    borderBottomRightRadius: 0,
+    borderTopRightRadius: 22,
+    borderBottomRightRadius: 22,
   },
   scrollContent: {
     paddingBottom: 32,
   },
 
-  // ── Hero ────────────────────────────────────────────────────────────────────
-  hero: {
-    minHeight: 172,
-    paddingBottom: 28,
+  // ── Header — pure white ─────────────────────────────────────────────────────
+  header: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    paddingBottom: 20,
   },
-  heroTopRow: {
+  headerTopRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    paddingTop: 12,
-    paddingHorizontal: 12,
-    marginBottom: 4,
+    paddingTop: 10,
+    paddingHorizontal: 10,
+    marginBottom: 6,
   },
   closeBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  heroBody: {
+  headerBody: {
     paddingHorizontal: 20,
     alignItems: 'flex-start',
   },
-  logoStack: {
-    width: 74,
-    height: 74,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-  },
-  glowRing: {
-    position: 'absolute',
-    width: 74,
-    height: 74,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.4)',
-  },
-  logoRing: {
-    width: 66,
-    height: 66,
-    borderRadius: 20,
-    borderWidth: 2.5,
-    borderColor: 'rgba(255,255,255,0.45)',
+  logoWrap: {
+    width: 58,
+    height: 58,
+    borderRadius: 16,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 12,
   },
   logoImg: {
     width: '100%',
     height: '100%',
   },
-  heroName: {
-    color: '#FFFFFF',
+  headerName: {
+    color: '#111827',
     fontFamily: fonts.uiBold,
-    fontSize: 20,
-    letterSpacing: -0.5,
-    lineHeight: 26,
+    fontSize: 17,
+    letterSpacing: -0.4,
+    lineHeight: 23,
   },
-  freqBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 3,
-    marginBottom: 16,
-  },
-  freqText: {
-    color: 'rgba(255,255,255,0.65)',
+  headerFreq: {
+    color: '#9CA3AF',
     fontFamily: fonts.uiMedium,
-    fontSize: 11,
-    letterSpacing: 0.2,
-  },
-  freqDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-  },
-  livePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    backgroundColor: 'rgba(0,0,0,0.28)',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    alignSelf: 'flex-start',
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#FFFFFF',
-  },
-  livePillText: {
-    color: '#FFFFFF',
-    fontFamily: fonts.uiBold,
-    fontSize: 9,
-    letterSpacing: 1.4,
+    fontSize: 12,
+    marginTop: 3,
   },
 
   // ── Nav cards ───────────────────────────────────────────────────────────────
+  // MENUJA + TJETËR: warm red-tinted #fef2f2 — intentional, pairs with red accents
   navCard: {
     marginHorizontal: 10,
-    marginTop: -22,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    paddingTop: 14,
-    paddingBottom: 8,
-    paddingHorizontal: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    marginTop: 10,
+    backgroundColor: '#fef2f2',
+    borderRadius: 16,
+    paddingTop: 10,
+    paddingBottom: 6,
+    paddingHorizontal: 6,
+    shadowColor: '#dc2626',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
   },
   navCardSpaced: {
     marginTop: 8,
   },
+  // Override for social/contact cards: clean white
+  navCardWhite: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+  },
+  // Section label on #fef2f2 background — warm pinkish-muted
   sectionLabel: {
     paddingHorizontal: 10,
-    paddingBottom: 4,
-    color: '#B0B4BC',
+    paddingBottom: 2,
+    color: '#C8A0A0',
     fontFamily: fonts.uiBold,
     fontSize: 9,
     letterSpacing: 2.0,
     textTransform: 'uppercase',
+  },
+  // Override for white-bg cards
+  sectionLabelDark: {
+    color: '#B0B4BC',
   },
 
   // ── Nav items ───────────────────────────────────────────────────────────────
   navItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 52,
+    minHeight: 50,
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 13,
+    paddingVertical: 3,
+    borderRadius: 12,
     gap: 12,
     position: 'relative',
     overflow: 'hidden',
   },
   navItemActive: {
-    backgroundColor: '#FFF1F1',
+    backgroundColor: 'rgba(220,38,38,0.10)',
   },
   navItemPressed: {
-    backgroundColor: '#F7F8FA',
+    backgroundColor: 'rgba(220,38,38,0.06)',
   },
   activeBar: {
     position: 'absolute',
@@ -681,9 +566,9 @@ const S = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   iconChip: {
-    width: 36,
-    height: 36,
-    borderRadius: 11,
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -702,29 +587,40 @@ const S = StyleSheet.create({
   // ── Category accordion ──────────────────────────────────────────────────────
   accordion: {
     marginLeft: 58,
-    marginRight: 6,
-    paddingTop: 4,
-    paddingBottom: 6,
+    marginRight: 8,
+    marginTop: 4,
+    marginBottom: 8,
+    backgroundColor: 'rgba(255,255,255,0.65)',
+    borderRadius: 10,
+    overflow: 'hidden',
   },
-  catItem: {
-    height: CAT_H,
-    justifyContent: 'center',
-    borderRadius: 8,
-    paddingHorizontal: 2,
+  catRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
   },
-  catItemPressed: {
-    opacity: 0.55,
+  catRowPressed: {
+    backgroundColor: 'rgba(220,38,38,0.06)',
   },
-  catTag: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 7,
+  catDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    flexShrink: 0,
   },
-  catTagText: {
+  catLabel: {
+    color: '#374151',
     fontFamily: fonts.uiMedium,
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 18,
+    flex: 1,
+  },
+  catSep: {
+    height: 1,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    marginHorizontal: 12,
   },
 
   // ── Social grid ─────────────────────────────────────────────────────────────
@@ -733,15 +629,15 @@ const S = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     paddingHorizontal: 6,
-    paddingTop: 4,
+    paddingTop: 6,
     paddingBottom: 6,
   },
   socialBtn: {
     flex: 1,
     minWidth: '43%',
     flexBasis: '43%',
-    height: 58,
-    borderRadius: 14,
+    height: 54,
+    borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
@@ -763,8 +659,8 @@ const S = StyleSheet.create({
     alignItems: 'center',
     gap: 11,
     paddingHorizontal: 10,
-    paddingVertical: 11,
-    borderRadius: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
   },
   infoRowPressed: {
     backgroundColor: '#F7F8FA',
@@ -786,7 +682,7 @@ const S = StyleSheet.create({
   infoSep: {
     height: 1,
     backgroundColor: '#F3F4F6',
-    marginHorizontal: 12,
+    marginHorizontal: 10,
   },
   openBadge: {
     backgroundColor: '#ECFDF5',
