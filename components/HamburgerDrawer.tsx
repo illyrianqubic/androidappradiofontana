@@ -125,7 +125,7 @@ export function HamburgerDrawer() {
 
 
   const backdropStyle = useAnimatedStyle(() => ({
-    opacity: progress.value * 0.5,
+    opacity: progress.value,
   }));
 
   const panelStyle = useAnimatedStyle(() => ({
@@ -173,9 +173,9 @@ export function HamburgerDrawer() {
       style={StyleSheet.absoluteFill}
       pointerEvents={isInteractive ? 'box-none' : 'none'}
     >
-      {/* Backdrop */}
+      {/* Backdrop — full strip left of panel */}
       <Animated.View
-        style={[S.backdrop, { top: topBarBottom, bottom: panelBottom, right: panelWidth }, backdropStyle]}
+        style={[S.backdrop, { top: topBarBottom, bottom: panelBottom, left: 0, right: panelWidth }, backdropStyle]}
         pointerEvents={isInteractive ? 'auto' : 'none'}
       >
         <GestureDetector gesture={backdropGesture}>
@@ -411,15 +411,12 @@ const S = StyleSheet.create({
   // ── Shell ───────────────────────────────────────────────────────────────────
   backdrop: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,1)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
   // Outer: elevation/shadow — NO overflow:hidden (Android blanks children)
   panelOuter: {
     position: 'absolute',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#FFFFFF',
     shadowColor: '#000',
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -432,7 +429,7 @@ const S = StyleSheet.create({
   // Inner: flex fill — panelOuter handles clipping
   panelInner: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#FFFFFF',
   },
   scrollContent: {
     paddingBottom: 32,
