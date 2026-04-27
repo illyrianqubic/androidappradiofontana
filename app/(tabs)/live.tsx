@@ -25,7 +25,7 @@ export default function LiveScreen() {
   const insets = useSafeAreaInsets();
   const { isPlaying, isReconnecting, toggle } = useAudio();
   const liveQuery = useQuery({ queryKey: ['live-stream'], queryFn: fetchLiveStream });
-  const topInsetOffset = insets.top + 84;
+  const topInsetOffset = insets.top + 62;
   const bottomInsetOffset = insets.bottom + 196;
 
   const todaysSchedule = useMemo(() => {
@@ -169,8 +169,8 @@ const styles = StyleSheet.create({
   heroSection: {
     alignItems: 'center',
     gap: spacing.md,
-    overflow: 'hidden',
     width: '100%',
+    paddingBottom: spacing.xl,
   },
   logo: {
     width: '55%',

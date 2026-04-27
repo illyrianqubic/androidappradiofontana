@@ -197,11 +197,6 @@ export function HamburgerDrawer() {
           >
             {/* ── HEADER ─────────────────────────────────────────── */}
             <View style={S.header}>
-              <View style={S.headerTopRow}>
-                <Pressable onPress={close} style={S.closeBtn} hitSlop={14}>
-                  <Ionicons name="close" size={17} color="#6B7280" />
-                </Pressable>
-              </View>
               <View style={S.headerBody}>
                 <View style={S.logoWrap}>
                   <Image source={appIdentity.logo} contentFit="cover" style={S.logoImg} />
@@ -426,20 +421,18 @@ const S = StyleSheet.create({
     position: 'absolute',
     backgroundColor: '#F3F4F6',
     shadowColor: '#000',
-    shadowOpacity: 0.20,
-    shadowRadius: 32,
-    shadowOffset: { width: -8, height: 0 },
-    elevation: 28,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: -4, height: 0 },
+    elevation: 16,
+    overflow: 'hidden',
+    borderTopLeftRadius: 20,
+    borderBottomLeftRadius: 20,
   },
-  // Inner: all-corners clip — rounded on every edge, not just left
+  // Inner: flex fill — panelOuter handles clipping
   panelInner: {
     flex: 1,
-    overflow: 'hidden',
     backgroundColor: '#F3F4F6',
-    borderTopLeftRadius: 22,
-    borderBottomLeftRadius: 22,
-    borderTopRightRadius: 22,
-    borderBottomRightRadius: 22,
   },
   scrollContent: {
     paddingBottom: 32,
@@ -451,21 +444,7 @@ const S = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
     paddingBottom: 20,
-  },
-  headerTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingTop: 10,
-    paddingHorizontal: 10,
-    marginBottom: 6,
-  },
-  closeBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingTop: 16,
   },
   headerBody: {
     paddingHorizontal: 20,
