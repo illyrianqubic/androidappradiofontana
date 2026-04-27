@@ -30,6 +30,8 @@ import {
   type Post,
 } from '../../services/api';
 
+const BREAKING_H = 42;
+
 type LatestGridItem = Post | { _skeleton: string };
 
 function isSkeletonItem(item: LatestGridItem): item is { _skeleton: string } {
@@ -81,19 +83,17 @@ function BreakingTicker({ headlines }: { headlines: string[] }) {
 
   return (
     <View style={styles.breakingStrip}>
-      <View style={styles.breakingFixedLabelWrap}>
-        <Text numberOfLines={1} style={styles.breakingFixedLabelText}>
-          BREAKING
-        </Text>
+      <View style={styles.breakingLabel}>
+        <View style={styles.breakingDot} />
+        <Text style={styles.breakingLabelText}>LIVE</Text>
       </View>
-
       <View style={styles.breakingTickerViewport}>
         <Animated.View style={[styles.breakingTickerTrack, tickerStyle]}>
           <Text onLayout={onMeasureSegment} numberOfLines={1} style={styles.breakingTickerText}>
-            {`🔴 ${marqueeText}     `}
+            {`  ${marqueeText}     `}
           </Text>
           <Text numberOfLines={1} style={styles.breakingTickerText}>
-            {`🔴 ${marqueeText}     `}
+            {`  ${marqueeText}     `}
           </Text>
         </Animated.View>
       </View>
@@ -107,7 +107,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const headerHeight = insets.top + 58;
-  const topInsetOffset = headerHeight + 14;
+  const topInsetOffset = headerHeight + BREAKING_H + 14;
   const bottomInsetOffset = insets.bottom + 208;
 
   const latestSkeleton = useMemo(
@@ -169,23 +169,21 @@ export default function HomeScreen() {
       <Pressable onPress={() => onPressPost(item)} style={styles.popularCard}>
         <View style={styles.popularImageWrap}>
           <Image
-            source={item.mainImageUrl ? { uri: buildSanityImageUrl(item.mainImageUrl, 480) } : undefined}
+            source={item.mainImageUrl ? { uri: buildSanityImageUrl(item.mainImageUrl, 600) } : undefined}
             placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
             contentFit="cover"
             style={styles.popularImage}
           />
-
           <View style={styles.popularRankBadge}>
             <Text style={styles.popularRankText}>{index + 1}</Text>
           </View>
         </View>
-
         <View style={styles.popularBody}>
-          <Text numberOfLines={2} style={styles.popularTitle}>
-            {item.title}
-          </Text>
           <Text numberOfLines={1} style={styles.popularCategory}>
             {item.categories?.[0] ?? 'Lajme'}
+          </Text>
+          <Text numberOfLines={2} style={styles.popularTitle}>
+            {item.title}
           </Text>
         </View>
       </Pressable>
@@ -248,59 +246,56 @@ export default function HomeScreen() {
   const listHeader = useMemo(
     () => (
       <View>
+        {/* ── HERO ──────────────────────────────────────────── */}
         <View style={styles.sectionBlock}>
           {hero ? (
-            <Pressable onPress={() => onPressPost(hero)} style={styles.heroCard}>
-              <Image
-                source={heroImageUri ? { uri: heroImageUri } : undefined}
-                placeholder={{ thumbhash: hero.thumbhash || defaultThumbhash }}
-                contentFit="cover"
-                transition={220}
-                style={styles.heroImage}
-              />
-
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.80)']}
-                style={styles.heroGradientOverlay}
-              >
-                <View style={styles.heroBadgeRow}>
+            <>
+              <Pressable onPress={() => onPressPost(hero)} style={styles.heroCard}>
+                <Image
+                  source={heroImageUri ? { uri: heroImageUri } : undefined}
+                  placeholder={{ thumbhash: hero.thumbhash || defaultThumbhash }}
+                  contentFit="cover"
+                  transition={220}
+                  style={styles.heroImage}
+                />
+                <LinearGradient
+                  colors={['transparent', 'rgba(0,0,0,0.62)', 'rgba(0,0,0,0.88)']}
+                  locations={[0.3, 0.65, 1]}
+                  style={styles.heroOverlay}
+                >
                   <View style={styles.heroCategoryBadge}>
                     <Text numberOfLines={1} style={styles.heroCategoryBadgeText}>
                       {hero.categories?.[0] ?? 'Lajme'}
                     </Text>
                   </View>
-
-                  <View style={styles.heroTagBadge}>
-                    <Text style={styles.heroTagBadgeText}>{hero.breaking ? 'BREAKING' : 'E SPIKATUR'}</Text>
-                  </View>
-                </View>
-
-                <Text numberOfLines={3} style={styles.heroHeadline}>
-                  {hero.title}
+                  <Text numberOfLines={3} style={styles.heroHeadline}>
+                    {hero.title}
+                  </Text>
+                </LinearGradient>
+              </Pressable>
+              <View style={styles.heroMetaRow}>
+                <Text numberOfLines={1} style={styles.heroMetaAuthor}>
+                  {hero.author ?? 'Redaksia Fontana'}
                 </Text>
-              </LinearGradient>
-            </Pressable>
+                <RelativeTime timestamp={hero.publishedAt} />
+              </View>
+            </>
           ) : (
-            <SkeletonCard height={214} style={styles.heroSkeleton} />
+            <SkeletonCard height={220} style={styles.heroSkeleton} />
           )}
+        </View>
 
-          {hero ? (
-            <View style={styles.heroMetaRow}>
-              <Text numberOfLines={1} style={styles.heroMetaAuthor}>
-                {hero.author ?? 'Redaksia Fontana'}
-              </Text>
-              <RelativeTime timestamp={hero.publishedAt} />
+        {/* ── MË TË LEXUARA ─────────────────────────────────── */}
+        <View style={styles.sectionBlock}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionHeaderLeft}>
+              <View style={styles.sectionAccentBar} />
+              <Text style={styles.sectionTitle}>Më të Lexuara</Text>
             </View>
-          ) : null}
-        </View>
-
-        <View style={styles.sectionBlock}>
-          <BreakingTicker headlines={breakingData.map((item) => item.title)} />
-        </View>
-
-        <View style={styles.sectionBlock}>
-          <Text style={styles.sectionTitle}>Më të Lexuara</Text>
-
+            <Pressable onPress={onHeaderSearch}>
+              <Text style={styles.seeAllLink}>Shiko të gjitha →</Text>
+            </Pressable>
+          </View>
           <FlashList
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -308,12 +303,16 @@ export default function HomeScreen() {
             keyExtractor={(item) => item._id}
             contentContainerStyle={styles.popularRail}
             renderItem={renderPopularItem}
-            ListEmptyComponent={<SkeletonCard height={108} style={styles.popularSkeleton} />}
+            ListEmptyComponent={<SkeletonCard height={190} style={styles.popularSkeleton} />}
           />
         </View>
 
-        <View style={[styles.sectionBlock, styles.latestHeaderRow]}>
-          <Text style={styles.sectionTitle}>Lajmet e Fundit</Text>
+        {/* ── LAJMET E FUNDIT — section header ──────────────── */}
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionHeaderLeft}>
+            <View style={styles.sectionAccentBar} />
+            <Text style={styles.sectionTitle}>Lajmet e Fundit</Text>
+          </View>
           <Pressable onPress={onHeaderSearch}>
             <Text style={styles.seeAllLink}>Shiko të gjitha →</Text>
           </Pressable>
@@ -321,7 +320,6 @@ export default function HomeScreen() {
       </View>
     ),
     [
-      breakingData,
       hero,
       heroImageUri,
       onHeaderSearch,
@@ -333,18 +331,22 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={[styles.headerShell, { paddingTop: insets.top + 6 }]}>
-        <View style={[styles.headerRow, { height: headerHeight - insets.top - 6 }]}>
+      {/* ── Fixed top bar ─────────────────────────────────── */}
+      <View style={[styles.headerShell, { paddingTop: insets.top }]}>
+        <View style={styles.headerRow}>
           <Image source={appIdentity.logo} contentFit="cover" style={styles.headerLogo} />
-
           <View style={styles.headerActions}>
-            <Pressable onPress={onHeaderSearch} style={styles.headerIconButton}>
+            <Pressable onPress={onHeaderSearch} style={styles.headerIconBtn} hitSlop={8}>
               <Ionicons name="search-outline" size={20} color={colors.text} />
             </Pressable>
-
             <HamburgerButton />
           </View>
         </View>
+      </View>
+
+      {/* ── Breaking ticker — fixed below header ──────────── */}
+      <View style={[styles.breakingBand, { top: headerHeight }]}>
+        <BreakingTicker headlines={breakingData.map((p) => p.title)} />
       </View>
 
       <FlashList
@@ -352,12 +354,15 @@ export default function HomeScreen() {
         numColumns={2}
         keyExtractor={(item) => (isSkeletonItem(item) ? item._skeleton : item._id)}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl tintColor={colors.primary} refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={
+          <RefreshControl tintColor={colors.primary} refreshing={refreshing} onRefresh={onRefresh} />
+        }
         decelerationRate="fast"
-        contentContainerStyle={[
-          styles.listContent,
-          { paddingTop: topInsetOffset, paddingBottom: bottomInsetOffset },
-        ]}
+        contentContainerStyle={{
+          paddingTop: topInsetOffset,
+          paddingBottom: bottomInsetOffset,
+          paddingHorizontal: 16,
+        }}
         ListHeaderComponent={listHeader}
         renderItem={renderLatestItem}
       />
@@ -368,8 +373,10 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F2F3F5',
   },
+
+  // ── Top bar ───────────────────────────────────────────────────────────────
   headerShell: {
     position: 'absolute',
     top: 0,
@@ -377,24 +384,20 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 40,
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    shadowColor: '#000000',
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    borderBottomWidth: 2,
+    borderBottomColor: colors.primary,
   },
   headerRow: {
+    height: 58,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   headerLogo: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
+    width: 42,
+    height: 42,
+    borderRadius: 10,
     backgroundColor: colors.surfaceSubtle,
   },
   headerActions: {
@@ -402,47 +405,125 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  headerIconButton: {
+  headerIconBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F3F4F6',
   },
-  listContent: {
-    paddingHorizontal: 16,
+
+  // ── Breaking band (position:absolute, below header) ───────────────────────
+  breakingBand: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    zIndex: 39,
+    height: BREAKING_H,
   },
-  sectionBlock: {
-    marginBottom: 24,
+  breakingStrip: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  heroCard: {
-    borderRadius: 16,
-    overflow: 'hidden',
+  breakingLabel: {
+    paddingHorizontal: 14,
+    height: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(255,255,255,0.28)',
+  },
+  breakingDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
     backgroundColor: '#FFFFFF',
+    opacity: 0.92,
+  },
+  breakingLabelText: {
+    color: '#FFFFFF',
+    fontFamily: fonts.uiBold,
+    fontSize: 10,
+    letterSpacing: 1.8,
+    textTransform: 'uppercase',
+  },
+  breakingTickerViewport: {
+    flex: 1,
+    overflow: 'hidden',
+    height: '100%',
+    justifyContent: 'center',
+  },
+  breakingTickerTrack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  breakingTickerText: {
+    color: '#FFFFFF',
+    fontFamily: fonts.uiMedium,
+    fontSize: 13,
+    lineHeight: BREAKING_H,
+  },
+
+  // ── Section layout ────────────────────────────────────────────────────────
+  sectionBlock: {
+    marginBottom: 28,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  sectionAccentBar: {
+    width: 3,
+    height: 20,
+    borderRadius: 2,
+    backgroundColor: colors.primary,
+  },
+  sectionTitle: {
+    color: colors.text,
+    fontFamily: fonts.uiBold,
+    fontSize: 18,
+    letterSpacing: -0.25,
+  },
+  seeAllLink: {
+    color: colors.primary,
+    fontFamily: fonts.uiBold,
+    fontSize: 13,
+  },
+
+  // ── Hero card ─────────────────────────────────────────────────────────────
+  heroCard: {
+    borderRadius: 18,
+    overflow: 'hidden',
+    backgroundColor: '#E5E7EB',
     ...elevation.card,
   },
   heroSkeleton: {
-    borderRadius: 16,
+    borderRadius: 18,
   },
   heroImage: {
     width: '100%',
     aspectRatio: 16 / 9,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#E5E7EB',
   },
-  heroGradientOverlay: {
+  heroOverlay: {
     ...StyleSheet.absoluteFillObject,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
     justifyContent: 'space-between',
-  },
-  heroBadgeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 8,
   },
   heroCategoryBadge: {
+    alignSelf: 'flex-start',
     borderRadius: radius.pill,
     backgroundColor: colors.primary,
     paddingHorizontal: 10,
@@ -453,125 +534,65 @@ const styles = StyleSheet.create({
     fontFamily: fonts.uiBold,
     fontSize: 10,
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  heroTagBadge: {
-    borderRadius: radius.pill,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  heroTagBadgeText: {
-    color: '#FFFFFF',
-    fontFamily: fonts.uiBold,
-    fontSize: 10,
-    textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   heroHeadline: {
     color: '#FFFFFF',
     fontFamily: fonts.uiBold,
-    fontSize: 22,
-    lineHeight: 28,
-    letterSpacing: -0.3,
-    flexShrink: 1,
+    fontSize: 23,
+    lineHeight: 30,
+    letterSpacing: -0.5,
   },
   heroMetaRow: {
-    marginTop: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginTop: 10,
+    paddingHorizontal: 2,
     overflow: 'hidden',
   },
   heroMetaAuthor: {
     color: colors.text,
     fontFamily: fonts.uiMedium,
     fontSize: 13,
+    flex: 1,
+    flexShrink: 1,
     marginRight: 12,
-    flex: 1,
-    flexShrink: 1,
   },
-  breakingStrip: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 44,
-  },
-  breakingFixedLabelWrap: {
-    paddingHorizontal: 12,
-    borderRightWidth: 1,
-    borderRightColor: 'rgba(255,255,255,0.28)',
-    justifyContent: 'center',
-    height: '100%',
-  },
-  breakingFixedLabelText: {
-    color: '#FFFFFF',
-    fontFamily: fonts.uiBold,
-    fontSize: 12,
-    letterSpacing: 0.4,
-  },
-  breakingTickerViewport: {
-    flex: 1,
-    overflow: 'hidden',
-  },
-  breakingTickerTrack: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  breakingTickerText: {
-    color: '#FFFFFF',
-    fontFamily: fonts.uiMedium,
-    fontSize: 13,
-    lineHeight: 20,
-    paddingVertical: 10,
-  },
-  sectionTitle: {
-    color: colors.text,
-    fontFamily: fonts.uiBold,
-    fontSize: 20,
-    lineHeight: 26,
-    letterSpacing: -0.2,
-    flexShrink: 1,
-  },
+
+  // ── Popular rail (vertical cards, horizontal scroll) ──────────────────────
   popularRail: {
-    marginTop: 10,
-    paddingBottom: 2,
-    gap: 10,
+    paddingBottom: 4,
+    gap: 12,
   },
   popularSkeleton: {
-    width: 290,
-    borderRadius: 12,
+    width: 190,
+    borderRadius: 14,
   },
   popularCard: {
-    width: 300,
-    borderRadius: 12,
+    width: 190,
+    borderRadius: 14,
     overflow: 'hidden',
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#EEF2F7',
-    flexDirection: 'row',
     ...elevation.card,
   },
   popularImageWrap: {
-    width: 126,
+    width: '100%',
+    height: 112,
     position: 'relative',
   },
   popularImage: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#E5E7EB',
   },
   popularRankBadge: {
     position: 'absolute',
     top: 8,
     left: 8,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -579,41 +600,30 @@ const styles = StyleSheet.create({
   popularRankText: {
     color: '#FFFFFF',
     fontFamily: fonts.uiBold,
-    fontSize: 12,
+    fontSize: 13,
   },
   popularBody: {
-    flex: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  popularTitle: {
-    color: colors.text,
-    fontFamily: fonts.uiBold,
-    fontSize: 14,
-    lineHeight: 20,
-    flexShrink: 1,
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    paddingBottom: 11,
+    gap: 5,
   },
   popularCategory: {
     color: colors.primary,
     fontFamily: fonts.uiBold,
-    fontSize: 11,
+    fontSize: 9,
     textTransform: 'uppercase',
-    letterSpacing: 0.3,
-    flexShrink: 1,
+    letterSpacing: 1.0,
   },
-  latestHeaderRow: {
-    marginTop: -2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  seeAllLink: {
-    color: colors.primary,
+  popularTitle: {
+    color: colors.text,
     fontFamily: fonts.uiBold,
     fontSize: 13,
+    lineHeight: 18,
+    flexShrink: 1,
   },
+
+  // ── Latest grid ───────────────────────────────────────────────────────────
   latestColumn: {
     flex: 1,
     marginBottom: 12,
@@ -630,8 +640,6 @@ const styles = StyleSheet.create({
   latestCard: {
     borderRadius: 12,
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#EEF2F7',
     overflow: 'hidden',
     ...elevation.card,
   },
@@ -641,44 +649,44 @@ const styles = StyleSheet.create({
   latestImage: {
     width: '100%',
     aspectRatio: 16 / 9,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#E5E7EB',
   },
   latestCategoryBadge: {
     position: 'absolute',
-    top: 8,
-    left: 8,
+    top: 6,
+    left: 6,
     borderRadius: radius.pill,
     backgroundColor: colors.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
   },
   latestCategoryBadgeText: {
     color: '#FFFFFF',
     fontFamily: fonts.uiBold,
-    fontSize: 10,
+    fontSize: 9,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
     maxWidth: 90,
   },
   latestBody: {
     paddingHorizontal: 10,
-    paddingTop: 10,
+    paddingTop: 9,
     paddingBottom: 10,
-    gap: 8,
-    minHeight: 98,
+    gap: 7,
+    minHeight: 90,
   },
   latestTitle: {
     color: colors.text,
     fontFamily: fonts.uiBold,
-    fontSize: 14,
-    lineHeight: 19,
+    fontSize: 13,
+    lineHeight: 18,
     flexShrink: 1,
   },
   latestMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 8,
+    gap: 4,
     overflow: 'hidden',
   },
   latestAuthor: {
