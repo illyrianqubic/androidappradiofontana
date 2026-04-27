@@ -16,11 +16,9 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { EqualizerBars } from '../../components/EqualizerBars';
 import { RelativeTime } from '../../components/RelativeTime';
 import { SkeletonCard } from '../../components/SkeletonCard';
 import { appIdentity, colors, elevation, fonts, radius } from '../../design-tokens';
-import { useAudio } from '../../services/audio';
 import {
   buildSanityImageUrl,
   defaultThumbhash,
@@ -111,7 +109,6 @@ function BreakingTicker({ headlines }: { headlines: string[] }) {
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { isPlaying, isBuffering, isReconnecting, toggle } = useAudio();
   const [refreshing, setRefreshing] = useState(false);
 
   const headerHeight = insets.top + 58;
@@ -187,14 +184,6 @@ export default function HomeScreen() {
     router.push('/na-kontakto' as never);
   }, [router]);
 
-  const onOpenLiveTab = useCallback(() => {
-    router.push('/(tabs)/live' as never);
-  }, [router]);
-
-  const onToggleLive = useCallback(async () => {
-    await toggle();
-  }, [toggle]);
-
   const heroImageUri = useMemo(
     () => buildSanityImageUrl(hero?.mainImageUrl, 1600),
     [hero?.mainImageUrl],
@@ -205,7 +194,7 @@ export default function HomeScreen() {
       <Pressable onPress={() => onPressPost(item)} style={styles.popularCard}>
         <View style={styles.popularImageWrap}>
           <Image
-            source={item.mainImageUrl ? { uri: buildSanityImageUrl(item.mainImageUrl, 720) } : undefined}
+            source={item.mainImageUrl ? { uri: buildSanityImageUrl(item.mainImageUrl, 480) } : undefined}
             placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
             contentFit="cover"
             style={styles.popularImage}
@@ -348,42 +337,6 @@ export default function HomeScreen() {
           />
         </View>
 
-        <View style={styles.sectionBlock}>
-          <Pressable onPress={onOpenLiveTab} style={styles.liveNowCard}>
-            <LinearGradient
-              colors={['#ef4444', '#dc2626', '#991b1b']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.liveNowGradient}
-            >
-              <View style={styles.liveNowLeft}>
-                <Text style={styles.liveNowEyebrow}>Drejtpërdrejt Tani</Text>
-
-                <View style={styles.liveNowStationRow}>
-                  <Image source={appIdentity.logo} contentFit="cover" style={styles.liveNowLogo} />
-                  <View style={styles.liveNowTextWrap}>
-                    <Text numberOfLines={1} style={styles.liveNowTitle}>
-                      Radio Fontana 98.8 FM
-                    </Text>
-                    <Text numberOfLines={1} style={styles.liveNowSubtitle}>
-                      Transmetim live 24/7
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.liveNowFooter}>
-                  <EqualizerBars bars={3} playing={isPlaying} variant="mini" color="#ffffff" height={16} />
-                  <Text style={styles.liveNowCta}>Dëgjo Live</Text>
-                </View>
-              </View>
-
-              <Pressable onPress={onToggleLive} style={styles.liveNowPlayButton}>
-                <Text style={styles.liveNowPlayText}>{isBuffering || isReconnecting ? '...' : isPlaying ? 'II' : '▶'}</Text>
-              </Pressable>
-            </LinearGradient>
-          </Pressable>
-        </View>
-
         <View style={[styles.sectionBlock, styles.latestHeaderRow]}>
           <Text style={styles.sectionTitle}>Lajmet e Fundit</Text>
           <Pressable onPress={onHeaderSearch}>
@@ -396,13 +349,8 @@ export default function HomeScreen() {
       breakingData,
       hero,
       heroImageUri,
-      isBuffering,
-      isPlaying,
-      isReconnecting,
       onHeaderSearch,
-      onOpenLiveTab,
       onPressPost,
-      onToggleLive,
       popularData,
       renderPopularItem,
     ],
@@ -700,81 +648,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
-  },
-  liveNowCard: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    ...elevation.card,
-  },
-  liveNowGradient: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  liveNowLeft: {
-    flex: 1,
-  },
-  liveNowEyebrow: {
-    color: '#FFFFFF',
-    fontFamily: fonts.uiBold,
-    fontSize: 13,
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
-  liveNowStationRow: {
-    marginTop: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  liveNowLogo: {
-    width: 52,
-    height: 52,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-  },
-  liveNowTextWrap: {
-    flex: 1,
-  },
-  liveNowTitle: {
-    color: '#FFFFFF',
-    fontFamily: fonts.uiBold,
-    fontSize: 19,
-    lineHeight: 23,
-  },
-  liveNowSubtitle: {
-    marginTop: 2,
-    color: 'rgba(255,255,255,0.9)',
-    fontFamily: fonts.uiMedium,
-    fontSize: 13,
-  },
-  liveNowFooter: {
-    marginTop: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  liveNowCta: {
-    color: '#FFFFFF',
-    fontFamily: fonts.uiBold,
-    fontSize: 15,
-  },
-  liveNowPlayButton: {
-    width: 66,
-    height: 66,
-    borderRadius: 33,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-  },
-  liveNowPlayText: {
-    color: colors.primary,
-    fontFamily: fonts.uiBold,
-    fontSize: 18,
-    lineHeight: 18,
   },
   latestHeaderRow: {
     marginTop: -2,

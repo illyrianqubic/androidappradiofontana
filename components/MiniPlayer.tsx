@@ -1,12 +1,9 @@
-import { useCallback, useEffect } from 'react';
+import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
-  runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,72 +16,50 @@ type MiniPlayerProps = {
   onOpenPlayer: () => void;
 };
 
-export function MiniPlayer({ onOpenPlayer }: MiniPlayerProps) {
+export function MiniPlayer({ onOpenPlayer: _onOpenPlayer }: MiniPlayerProps) {
   const insets = useSafeAreaInsets();
   const { isPlaying, isBuffering, isReconnecting, toggle } = useAudio();
   const { isOpen: drawerOpen } = useDrawer();
   const miniPlayerBottom = insets.bottom + 76;
 
-  const translateY = useSharedValue(0);
   const hideOffset = useSharedValue(0);
 
   useEffect(() => {
     hideOffset.value = withTiming(drawerOpen ? 1 : 0, { duration: 180 });
   }, [drawerOpen, hideOffset]);
 
-  const openPlayer = useCallback(() => {
-    onOpenPlayer();
-  }, [onOpenPlayer]);
-
-  const panGesture = Gesture.Pan()
-    .onUpdate((event) => {
-      if (event.translationY < 0) {
-        translateY.value = event.translationY * 0.35;
-      }
-    })
-    .onEnd((event) => {
-      const shouldOpen = event.translationY < -30 || event.velocityY < -520;
-      if (shouldOpen) {
-        runOnJS(openPlayer)();
-      }
-
-      translateY.value = withSpring(0, motion.spring);
-    });
-
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value + hideOffset.value * 100 }],
+    transform: [{ translateY: hideOffset.value * 100 }],
     opacity: 1 - hideOffset.value,
   }));
 
   return (
-    <GestureDetector gesture={panGesture}>
-      <Animated.View style={[styles.outer, animatedStyle, { bottom: miniPlayerBottom }]}>
-        <Pressable style={styles.inner} onPress={openPlayer}>
-          <View style={styles.leftWrap}>
-            <Image source={appIdentity.logo} style={styles.logo} contentFit="cover" />
-            {isPlaying ? <EqualizerBars variant="mini" bars={3} playing={isPlaying} color={colors.primary} /> : null}
-          </View>
+    <Animated.View style={[styles.outer, animatedStyle, { bottom: miniPlayerBottom }]}>
+      <View style={styles.inner}>
+        <View style={styles.leftWrap}>
+          <Image source={appIdentity.logo} style={styles.logo} contentFit="cover" />
+          {isPlaying ? <EqualizerBars variant="mini" bars={3} playing={isPlaying} color={colors.primary} /> : null}
+        </View>
 
-          <View style={styles.textWrap}>
-            <Text numberOfLines={1} style={styles.title}>
-              Radio Fontana 98.8 FM
-            </Text>
-            <Text numberOfLines={1} style={styles.subtitle}>
-              {isReconnecting ? 'Po lidhet me stream...' : appIdentity.location}
-            </Text>
-          </View>
+        <View style={styles.textWrap}>
+          <Text numberOfLines={1} style={styles.title}>
+            Radio Fontana 98.8 FM
+          </Text>
+          <Text numberOfLines={1} style={styles.subtitle}>
+            {isReconnecting ? 'Po lidhet me stream...' : appIdentity.location}
+          </Text>
+        </View>
 
-          <Pressable
-            onPress={toggle}
-            style={({ pressed }) => [styles.playButton, pressed && styles.playButtonPressed]}
-          >
-            <Text style={styles.playButtonLabel}>
-              {isBuffering || isReconnecting ? '...' : isPlaying ? 'II' : '▶'}
-            </Text>
-          </Pressable>
+        <Pressable
+          onPress={toggle}
+          style={({ pressed }) => [styles.playButton, pressed && styles.playButtonPressed]}
+        >
+          <Text style={styles.playButtonLabel}>
+            {isBuffering || isReconnecting ? '...' : isPlaying ? 'II' : '▶'}
+          </Text>
         </Pressable>
-      </Animated.View>
-    </GestureDetector>
+      </View>
+    </Animated.View>
   );
 }
 

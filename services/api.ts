@@ -88,7 +88,8 @@ async function sanityFetch<T>(
 
   const response = await fetch(url, {
     headers: {
-      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
     },
   });
 
@@ -117,12 +118,14 @@ const postProjection = `
   "body": select(count(coalesce(body, [])) > 0 => body, content)
 `;
 
-export function buildSanityImageUrl(url?: string, width = 1200) {
+export function buildSanityImageUrl(url?: string, width = 800) {
   if (!url) {
     return undefined;
   }
 
-  return `${url}?w=${width}&h=${Math.round(width * 0.5625)}&auto=format&fit=crop&q=82`;
+  // Keep aspect ratio 16:9. Use WebP for ~30% smaller payloads on supported clients.
+  const h = Math.round(width * 0.5625);
+  return `${url}?w=${width}&h=${h}&auto=format&fit=crop&q=75&fm=webp`;
 }
 
 export async function fetchHeroPost(): Promise<Post | null> {

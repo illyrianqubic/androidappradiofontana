@@ -1,0 +1,9 @@
+{
+  "typescript.tsserver.watchOptions": {
+    "excludeDirectories": ["**/node_modules/**"]
+  },
+  "typescript.preferences.includePackageJsonAutoImports": "on",
+  "files.watcherExclude": {
+    "**/node_modules/**": true
+  }
+}

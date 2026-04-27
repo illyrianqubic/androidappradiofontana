@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack, usePathname, useRouter } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -51,29 +51,31 @@ export default function RootLayout() {
   const [showLaunchSplash, setShowLaunchSplash] = useState(true);
   const [nativeSplashHidden, setNativeSplashHidden] = useState(false);
 
-  const [fontsLoaded] = useFonts({
+  const [interLoaded] = useFonts({
     InterVariable: Inter_400Regular,
     InterVariableMedium: Inter_500Medium,
     InterVariableBold: Inter_700Bold,
+  });
+
+  // Merriweather loads in background — only needed in article bodies, never on first screen
+  useFonts({
     MerriweatherVariable: Merriweather_400Regular,
     MerriweatherVariableBold: Merriweather_700Bold,
   });
 
-  const onLaunchSplashReady = useCallback(() => {
-    if (nativeSplashHidden) {
-      return;
+  useEffect(() => {
+    if (interLoaded && !nativeSplashHidden) {
+      setNativeSplashHidden(true);
+      SplashScreen.hideAsync().catch(() => undefined);
     }
-
-    setNativeSplashHidden(true);
-    SplashScreen.hideAsync().catch(() => undefined);
-  }, [nativeSplashHidden]);
+  }, [interLoaded, nativeSplashHidden]);
 
   const onLaunchSplashComplete = useCallback(() => {
     setShowLaunchSplash(false);
     router.replace('/(tabs)' as never);
   }, [router]);
 
-  if (!fontsLoaded) {
+  if (!interLoaded) {
     return null;
   }
 
@@ -112,7 +114,6 @@ export default function RootLayout() {
 
               {showLaunchSplash ? (
                 <LaunchSplash
-                  onReady={onLaunchSplashReady}
                   onComplete={onLaunchSplashComplete}
                 />
               ) : null}

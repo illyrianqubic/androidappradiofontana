@@ -11,10 +11,12 @@ type ContactAction = {
 };
 
 const CONTACT_ACTIONS: ContactAction[] = [
-  { label: 'Telefon', value: '+383 49 000 000', href: 'tel:+38349000000' },
-  { label: 'Email', value: 'info@rtvfontana.com', href: 'mailto:info@rtvfontana.com' },
-  { label: 'Facebook', value: 'facebook.com/rtvfontana', href: 'https://facebook.com' },
-  { label: 'Instagram', value: '@rtvfontana', href: 'https://instagram.com' },
+  { label: 'Telefon', value: '+383 44 150 027', href: 'tel:+38344150027' },
+  { label: 'Email', value: 'rtvfontana@gmail.com', href: 'mailto:rtvfontana@gmail.com' },
+  { label: 'Facebook', value: 'facebook.com/rtvfontanalive', href: 'https://www.facebook.com/rtvfontanalive' },
+  { label: 'Instagram', value: '@rtvfontana', href: 'https://www.instagram.com/rtvfontana/' },
+  { label: 'YouTube', value: '@RTVFontana', href: 'https://www.youtube.com/@RTVFontana' },
+  { label: 'TikTok', value: '@rtvfontanalive', href: 'https://www.tiktok.com/@rtvfontanalive' },
 ];
 
 export default function ContactScreen() {

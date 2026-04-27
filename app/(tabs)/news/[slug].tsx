@@ -113,7 +113,7 @@ export default function ArticleDetailScreen() {
 
   const onOpenRelatedPost = useCallback(
     (nextPost: Post) => {
-      router.push({ pathname: '/(tabs)/news/[slug]' as never, params: { slug: nextPost.slug } as never });
+      router.push({ pathname: '/article/[slug]' as never, params: { slug: nextPost.slug } as never });
     },
     [router],
   );
@@ -178,7 +178,7 @@ export default function ArticleDetailScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: bottomInsetOffset },
+          { paddingTop: navBarHeight, paddingBottom: bottomInsetOffset },
         ]}
         style={{ flex: 1 }}
       >

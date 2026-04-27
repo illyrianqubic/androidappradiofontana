@@ -1,5 +1,6 @@
 import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { buildSanityImageUrl, defaultThumbhash, type Post } from '../services/api';
 import { colors, elevation, fonts, radius, spacing } from '../design-tokens';
@@ -14,23 +15,28 @@ type NewsCardProps = {
 
 function NewsCardComponent({ post, compact = false, onPress }: NewsCardProps) {
   const imageUri = useMemo(
-    () => buildSanityImageUrl(post.mainImageUrl, compact ? 700 : 1200),
+    () => buildSanityImageUrl(post.mainImageUrl, compact ? 480 : 720),
     [compact, post.mainImageUrl],
   );
+
+  const scale = useSharedValue(1);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
 
   const onCardPress = useCallback(() => {
     onPress?.(post);
   }, [onPress, post]);
 
   return (
-    <Pressable
-      onPress={onCardPress}
-      style={({ pressed }) => [
-        styles.card,
-        compact && styles.compactCard,
-        pressed && styles.cardPressed,
-      ]}
-    >
+    <Animated.View style={[styles.cardOuter, compact && styles.compactCardOuter, animStyle]}>
+      <Pressable
+        onPress={onCardPress}
+        onPressIn={() => { scale.value = withSpring(0.97, { damping: 18, stiffness: 380, mass: 0.6 }); }}
+        onPressOut={() => { scale.value = withSpring(1, { damping: 16, stiffness: 260 }); }}
+        style={[styles.card, compact && styles.compactCard]}
+      >
       <Image
         source={imageUri ? { uri: imageUri } : undefined}
         placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
@@ -64,28 +70,36 @@ function NewsCardComponent({ post, compact = false, onPress }: NewsCardProps) {
           <RelativeTime timestamp={post.publishedAt} />
         </View>
       </View>
-    </Pressable>
+      </Pressable>
+    </Animated.View>
   );
 }
 
 export const NewsCard = memo(NewsCardComponent);
 
 const styles = StyleSheet.create({
+  // Outer wrapper: carries scale transform + shadow + margin
+  // No overflow:hidden here so the shadow renders on Android
+  cardOuter: {
+    borderRadius: radius.card,
+    marginBottom: spacing.md,
+    ...elevation.card,
+  },
+  compactCardOuter: {
+    width: 270,
+    marginRight: spacing.sm,
+    marginBottom: 0,
+  },
+  // Inner Pressable: clips content with overflow:hidden
   card: {
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.card,
     overflow: 'hidden',
-    marginBottom: spacing.md,
-    ...elevation.card,
   },
   compactCard: {
-    width: 270,
-    marginRight: spacing.sm,
-  },
-  cardPressed: {
-    opacity: 0.92,
+    // width and margin live on cardOuter for compact
   },
   image: {
     width: '100%',

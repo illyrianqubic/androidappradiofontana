@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Pressable,
   RefreshControl,
@@ -64,15 +64,23 @@ export default function NewsIndexScreen() {
 
   const openPost = useCallback(
     (post: Post) => {
-      router.push({ pathname: '/(tabs)/news/[slug]' as never, params: { slug: post.slug } as never });
+      router.push({ pathname: '/article/[slug]' as never, params: { slug: post.slug } as never });
     },
     [router],
   );
 
   const onSelectCategory = useCallback((category: NewsCategoryTab) => {
     setActiveCategory(category);
-    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    // Snap immediately — animated:true can race with placeholderData swap causing a jump.
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, []);
+
+  // Safety net: scroll to top after the render cycle that follows a category change.
+  // Handles the case where new data arrives before the synchronous scroll above takes effect.
+  useEffect(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCategory.slug]);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -181,6 +189,7 @@ export default function NewsIndexScreen() {
             onRefresh={refresh}
           />
         }
+        decelerationRate="fast"
         contentContainerStyle={[
           styles.listContent,
           { paddingTop: topInsetOffset, paddingBottom: bottomInsetOffset },
