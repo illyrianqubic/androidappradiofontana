@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Pressable,
   RefreshControl,
@@ -43,7 +43,7 @@ const NEWS_CATEGORY_TABS: NewsCategoryTab[] = [
 ];
 
 // ── Featured card (first item, large editorial) ───────────────────────────────
-function FeaturedCard({ post, onPress }: { post: Post; onPress: (p: Post) => void }) {
+const FeaturedCard = memo(function FeaturedCard({ post, onPress }: { post: Post; onPress: (p: Post) => void }) {
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const imageUri = buildSanityImageUrl(post.mainImageUrl, 1200);
@@ -61,7 +61,7 @@ function FeaturedCard({ post, onPress }: { post: Post; onPress: (p: Post) => voi
           source={imageUri ? { uri: imageUri } : undefined}
           placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
           contentFit="cover"
-          transition={240}
+          transition={0}
           style={SF.image}
         />
         <LinearGradient
@@ -91,7 +91,7 @@ function FeaturedCard({ post, onPress }: { post: Post; onPress: (p: Post) => voi
       </Pressable>
     </Animated.View>
   );
-}
+});
 
 // ── Tiny relative-time helper (avoids extra component in this context) ─────────
 function relativeLabel(ts: string | undefined): string {
@@ -107,7 +107,7 @@ function relativeLabel(ts: string | undefined): string {
 }
 
 // ── Category pill ─────────────────────────────────────────────────────────────
-function CategoryPill({
+const CategoryPill = memo(function CategoryPill({
   item,
   active,
   onPress,
@@ -124,7 +124,7 @@ function CategoryPill({
       <Text style={[SP.pillText, active && SP.pillTextActive]}>{item.label}</Text>
     </Pressable>
   );
-}
+});
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function NewsIndexScreen() {
@@ -170,7 +170,7 @@ export default function NewsIndexScreen() {
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
     await Promise.all([postsQuery.refetch(), authorsQuery.refetch()]);
     setRefreshing(false);
   }, [authorsQuery, postsQuery]);
@@ -313,36 +313,34 @@ const SF = StyleSheet.create({
     borderRadius: 20,
     marginBottom: 14,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 5,
+    shadowColor: colors.navy,
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
   },
   inner: {
-    height: 240,
+    height: 260,
     justifyContent: 'flex-end',
   },
   image: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.surfaceElevated,
   },
   catBadge: {
     position: 'absolute',
     top: 12,
     left: 12,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-    paddingHorizontal: 9,
+    backgroundColor: 'rgba(15,23,42,0.54)',
+    paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
   },
   catText: {
-    color: '#FFFFFF',
+    color: 'rgba(255,255,255,0.95)',
     fontFamily: fonts.uiBold,
     fontSize: 9,
-    letterSpacing: 1,
+    letterSpacing: 1.1,
   },
   liveChip: {
     position: 'absolute',
@@ -375,9 +373,9 @@ const SF = StyleSheet.create({
   overlayTitle: {
     color: '#FFFFFF',
     fontFamily: fonts.uiBold,
-    fontSize: 19,
-    lineHeight: 25,
-    letterSpacing: -0.4,
+    fontSize: 20,
+    lineHeight: 27,
+    letterSpacing: -0.5,
   },
   overlayMeta: {
     flexDirection: 'row',
@@ -405,26 +403,27 @@ const SF = StyleSheet.create({
 // ── Styles — category pill ────────────────────────────────────────────────────
 const SP = StyleSheet.create({
   pill: {
-    paddingHorizontal: 15,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 999,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: '#FFFFFF',
-    marginRight: 8,
+    backgroundColor: colors.surface,
+    marginRight: 7,
   },
   pillActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary,
+    borderColor: colors.navy,
+    backgroundColor: colors.navy,
   },
   pillText: {
     fontFamily: fonts.uiMedium,
-    fontSize: 13,
+    fontSize: 12.5,
     color: colors.textMuted,
   },
   pillTextActive: {
     color: '#FFFFFF',
     fontFamily: fonts.uiBold,
+    letterSpacing: 0.1,
   },
 });
 
@@ -432,7 +431,7 @@ const SP = StyleSheet.create({
 const S = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surfaceSubtle,
   },
   // Sticky header
   header: {
@@ -441,8 +440,13 @@ const S = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     paddingHorizontal: 16,
+    shadowColor: colors.navy,
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
   headerTitleRow: {
     flexDirection: 'row',
@@ -451,8 +455,8 @@ const S = StyleSheet.create({
     gap: 10,
   },
   headerAccent: {
-    width: 4,
-    height: 26,
+    width: 2.5,
+    height: 22,
     borderRadius: 2,
     backgroundColor: colors.primary,
   },
@@ -461,10 +465,10 @@ const S = StyleSheet.create({
   },
   headerTitle: {
     fontFamily: fonts.uiBold,
-    fontSize: 20,
+    fontSize: 21,
     color: colors.text,
-    letterSpacing: -0.4,
-    lineHeight: 24,
+    letterSpacing: -0.5,
+    lineHeight: 25,
   },
   headerSubtitle: {
     fontFamily: fonts.uiRegular,
@@ -474,13 +478,13 @@ const S = StyleSheet.create({
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.button,
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: colors.surfaceSubtle,
+    paddingHorizontal: 11,
     marginBottom: 10,
-    height: 44,
+    height: 42,
   },
   searchIcon: {
     marginRight: 7,

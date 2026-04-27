@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { memo, useEffect } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 import Animated, {
   Easing,
@@ -15,7 +15,7 @@ type SkeletonCardProps = {
   style?: ViewStyle;
 };
 
-export function SkeletonCard({ height = 120, style }: SkeletonCardProps) {
+export const SkeletonCard = memo(function SkeletonCard({ height = 120, style }: SkeletonCardProps) {
   const shimmer = useSharedValue(0);
 
   useEffect(() => {
@@ -38,7 +38,7 @@ export function SkeletonCard({ height = 120, style }: SkeletonCardProps) {
       <Animated.View style={[styles.shimmer, shimmerStyle]} />
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {

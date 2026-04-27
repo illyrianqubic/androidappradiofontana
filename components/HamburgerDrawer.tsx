@@ -365,6 +365,21 @@ export function HamburgerDrawer() {
               </View>
             </View>
 
+            <View style={S.legalLinks}>
+              <Pressable
+                onPress={() => Linking.openURL('https://radiofontana.org/privacy').catch(() => undefined)}
+                style={({ pressed }) => [S.legalLink, pressed && S.legalLinkPressed]}
+              >
+                <Text style={S.legalLinkText}>Politika e Privatësisë</Text>
+              </Pressable>
+              <Text style={S.legalDot}>·</Text>
+              <Pressable
+                onPress={() => Linking.openURL('https://radiofontana.org/terms').catch(() => undefined)}
+                style={({ pressed }) => [S.legalLink, pressed && S.legalLinkPressed]}
+              >
+                <Text style={S.legalLinkText}>Kushtet e Shërbimit</Text>
+              </Pressable>
+            </View>
             <Text style={S.copyright}>© 2026 Radio Fontana · Të gjitha të drejtat e rezervuara</Text>
           </ScrollView>
         </View>
@@ -426,25 +441,25 @@ const S = StyleSheet.create({
   // ── Shell ───────────────────────────────────────────────────────────────────
   backdrop: {
     position: 'absolute',
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.48)',
   },
   // Outer: elevation/shadow — NO overflow:hidden (Android blanks children)
   panelOuter: {
     position: 'absolute',
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    shadowOffset: { width: -4, height: 0 },
-    elevation: 16,
+    backgroundColor: colors.surface,
+    shadowColor: colors.navy,
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    shadowOffset: { width: -6, height: 0 },
+    elevation: 18,
     overflow: 'hidden',
-    borderTopLeftRadius: 20,
-    borderBottomLeftRadius: 20,
+    borderTopLeftRadius: 22,
+    borderBottomLeftRadius: 22,
   },
   // Inner: flex fill — panelOuter handles clipping
   panelInner: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
   },
   scrollContent: {
     paddingBottom: 32,
@@ -455,65 +470,58 @@ const S = StyleSheet.create({
   navCard: {
     marginHorizontal: 10,
     marginTop: 10,
-    backgroundColor: '#fef2f2',
-    borderRadius: 16,
-    paddingTop: 10,
-    paddingBottom: 6,
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: 14,
+    paddingTop: 8,
+    paddingBottom: 4,
     paddingHorizontal: 6,
-    shadowColor: '#dc2626',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
   },
   navCardSpaced: {
     marginTop: 8,
   },
-  // Override for social/contact cards: clean white
   navCardWhite: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
   },
-  // Section label on #fef2f2 background — warm pinkish-muted
   sectionLabel: {
     paddingHorizontal: 10,
-    paddingBottom: 2,
-    color: '#C8A0A0',
+    paddingBottom: 4,
+    color: colors.textTertiary,
     fontFamily: fonts.uiBold,
     fontSize: 9,
-    letterSpacing: 2.0,
+    letterSpacing: 1.8,
     textTransform: 'uppercase',
   },
-  // Override for white-bg cards
   sectionLabelDark: {
-    color: '#B0B4BC',
+    color: colors.textTertiary,
   },
 
   // ── Nav items ───────────────────────────────────────────────────────────────
   navItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 50,
+    minHeight: 48,
     paddingHorizontal: 10,
     paddingVertical: 3,
-    borderRadius: 12,
+    borderRadius: 10,
     gap: 12,
     position: 'relative',
     overflow: 'hidden',
   },
   navItemActive: {
-    backgroundColor: 'rgba(220,38,38,0.10)',
+    backgroundColor: colors.redTint,
   },
   navItemPressed: {
-    backgroundColor: 'rgba(220,38,38,0.06)',
+    backgroundColor: colors.surfaceElevated,
   },
   activeBar: {
     position: 'absolute',
     left: 0,
     top: 10,
     bottom: 10,
-    width: 3,
+    width: 2.5,
     borderRadius: 2,
     backgroundColor: colors.primary,
   },
@@ -525,10 +533,10 @@ const S = StyleSheet.create({
     justifyContent: 'center',
   },
   navLabel: {
-    color: '#1C2230',
+    color: colors.text,
     fontFamily: fonts.uiMedium,
     fontSize: 14,
-    letterSpacing: -0.15,
+    letterSpacing: -0.2,
     flexShrink: 1,
   },
   navLabelActive: {
@@ -588,8 +596,8 @@ const S = StyleSheet.create({
     flex: 1,
     minWidth: '43%',
     flexBasis: '43%',
-    height: 54,
-    borderRadius: 13,
+    height: 52,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
@@ -675,6 +683,36 @@ const S = StyleSheet.create({
   scrollHintBtnPressed: {
     backgroundColor: '#F3F4F6',
     transform: [{ scale: 0.92 }],
+  },
+
+  // ── Legal links ─────────────────────────────────────────────────────────────
+  legalLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 16,
+    paddingHorizontal: 16,
+  },
+  legalLink: {
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    borderRadius: 4,
+  },
+  legalLinkPressed: {
+    opacity: 0.55,
+  },
+  legalLinkText: {
+    color: '#9CA3AF',
+    fontFamily: fonts.uiMedium,
+    fontSize: 11,
+    letterSpacing: 0.1,
+    textDecorationLine: 'underline',
+  },
+  legalDot: {
+    color: '#D1D5DB',
+    fontFamily: fonts.uiRegular,
+    fontSize: 11,
   },
 
   // ── Copyright ───────────────────────────────────────────────────────────────

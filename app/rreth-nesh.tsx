@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -56,6 +56,30 @@ export default function AboutScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Vlerat</Text>
           <Text style={styles.cardText}>Integritet editorial, respekt për publikun, transparencë dhe inovacion.</Text>
+        </View>
+
+        <View style={styles.legalCard}>
+          <Pressable
+            onPress={() => Linking.openURL('https://radiofontana.org/privacy').catch(() => undefined)}
+            style={({ pressed }) => [styles.legalRow, pressed && styles.legalRowPressed]}
+          >
+            <View style={styles.legalIconWrap}>
+              <Ionicons name="shield-checkmark-outline" size={16} color="#6D28D9" />
+            </View>
+            <Text style={styles.legalLabel}>Politika e Privatësisë</Text>
+            <Ionicons name="open-outline" size={14} color="#9CA3AF" />
+          </Pressable>
+          <View style={styles.legalSep} />
+          <Pressable
+            onPress={() => Linking.openURL('https://radiofontana.org/terms').catch(() => undefined)}
+            style={({ pressed }) => [styles.legalRow, pressed && styles.legalRowPressed]}
+          >
+            <View style={styles.legalIconWrap}>
+              <Ionicons name="document-text-outline" size={16} color="#0369A1" />
+            </View>
+            <Text style={styles.legalLabel}>Kushtet e Shërbimit</Text>
+            <Ionicons name="open-outline" size={14} color="#9CA3AF" />
+          </Pressable>
         </View>
       </ScrollView>
     </View>
@@ -155,5 +179,50 @@ const styles = StyleSheet.create({
     fontFamily: fonts.uiRegular,
     fontSize: 15,
     lineHeight: 23,
+  },
+  legalCard: {
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    marginBottom: spacing.sm,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
+  },
+  legalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 13,
+    borderRadius: 10,
+  },
+  legalRowPressed: {
+    backgroundColor: '#F7F8FA',
+  },
+  legalIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  legalLabel: {
+    flex: 1,
+    color: colors.text,
+    fontFamily: fonts.uiMedium,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  legalSep: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginHorizontal: 10,
   },
 });

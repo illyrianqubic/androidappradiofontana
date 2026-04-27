@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Pressable,
   RefreshControl,
@@ -73,7 +73,7 @@ async function fetchWeatherIstog(): Promise<WeatherResponse> {
 }
 
 // ── WeatherWidget ──────────────────────────────────────────────────────────────
-function WeatherWidget() {
+const WeatherWidget = memo(function WeatherWidget() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['weather-istog'],
     queryFn: fetchWeatherIstog,
@@ -137,10 +137,10 @@ function WeatherWidget() {
       </LinearGradient>
     </View>
   );
-}
+});
 
 // ── BreakingTicker ─────────────────────────────────────────────────────────────
-function BreakingTicker({ headlines }: { headlines: string[] }) {
+const BreakingTicker = memo(function BreakingTicker({ headlines }: { headlines: string[] }) {
   const marqueeText = useMemo(
     () =>
       headlines.length > 0
@@ -202,10 +202,10 @@ function BreakingTicker({ headlines }: { headlines: string[] }) {
       </View>
     </View>
   );
-}
+});
 
 // ── HeroCard ───────────────────────────────────────────────────────────────────
-function HeroCard({
+const HeroCard = memo(function HeroCard({
   hero,
   heroImageUri,
   onPress,
@@ -234,7 +234,7 @@ function HeroCard({
           source={heroImageUri ? { uri: heroImageUri } : undefined}
           placeholder={{ thumbhash: hero.thumbhash || defaultThumbhash }}
           contentFit="cover"
-          transition={280}
+          transition={0}
           style={styles.heroImage}
         />
         <LinearGradient
@@ -274,10 +274,10 @@ function HeroCard({
       </Pressable>
     </Animated.View>
   );
-}
+});
 
 // ── LocalCard (compact overlay card for horizontal rail) ──────────────────────
-function LocalCard({ post, onPress }: { post: Post; onPress: (p: Post) => void }) {
+const LocalCard = memo(function LocalCard({ post, onPress }: { post: Post; onPress: (p: Post) => void }) {
   const scale = useSharedValue(1);
   const scaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const imageUri = buildSanityImageUrl(post.mainImageUrl, 640);
@@ -294,7 +294,7 @@ function LocalCard({ post, onPress }: { post: Post; onPress: (p: Post) => void }
           source={imageUri ? { uri: imageUri } : undefined}
           placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
           contentFit="cover"
-          transition={200}
+          transition={0}
           style={StyleSheet.absoluteFill}
         />
         <LinearGradient
@@ -314,10 +314,10 @@ function LocalCard({ post, onPress }: { post: Post; onPress: (p: Post) => void }
       </Pressable>
     </Animated.View>
   );
-}
+});
 
 // ── SectionHeader (reusable inside header/footer) ─────────────────────────────
-function SectionHeader({
+const SectionHeader = memo(function SectionHeader({
   title,
   onSeeAll,
 }: {
@@ -337,7 +337,7 @@ function SectionHeader({
       ) : null}
     </View>
   );
-}
+});
 
 // ── HomeScreen ─────────────────────────────────────────────────────────────────
 export default function HomeScreen() {
@@ -390,7 +390,7 @@ export default function HomeScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
     await Promise.all([
       heroQuery.refetch(),
       breakingQuery.refetch(),
@@ -403,7 +403,7 @@ export default function HomeScreen() {
 
   const onHeaderSearch = useCallback(() => {
     setIsSearchActive(true);
-    setTimeout(() => searchInputRef.current?.focus(), 80);
+    searchInputRef.current?.focus();
   }, []);
 
   const exitSearch = useCallback(() => {
@@ -435,7 +435,7 @@ export default function HomeScreen() {
                 source={imageUri ? { uri: imageUri } : undefined}
                 placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
                 contentFit="cover"
-                transition={220}
+                transition={0}
                 style={styles.gridImg}
               />
               <View style={styles.gridCatBadge}>
@@ -736,7 +736,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F2F3F5',
+    backgroundColor: colors.surfaceSubtle,
   },
 
   // ── Top bar ─────────────────────────────────────────────────────────────────
@@ -746,9 +746,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 40,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 2,
-    borderBottomColor: colors.primary,
+    backgroundColor: colors.surface,
+    shadowColor: colors.navy,
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
   headerRow: {
     height: 66,
@@ -809,30 +812,31 @@ const styles = StyleSheet.create({
   },
   breakingStrip: {
     flex: 1,
-    backgroundColor: colors.primary,
+    backgroundColor: '#5C1213',
     flexDirection: 'row',
     alignItems: 'center',
   },
   breakingLabel: {
-    paddingHorizontal: 13,
+    paddingHorizontal: 14,
     height: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    gap: 8,
+    backgroundColor: '#7B1516',
     borderRightWidth: 1,
-    borderRightColor: 'rgba(255,255,255,0.24)',
+    borderRightColor: 'rgba(255,255,255,0.12)',
   },
   breakingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#FFFFFF',
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#FCA5A5',
   },
   breakingLabelText: {
-    color: '#FFFFFF',
+    color: 'rgba(255,255,255,0.92)',
     fontFamily: fonts.uiBold,
-    fontSize: 9.5,
-    letterSpacing: 1.4,
+    fontSize: 9,
+    letterSpacing: 1.8,
     textTransform: 'uppercase',
   },
   breakingViewport: {
@@ -846,7 +850,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   breakingTickerText: {
-    color: '#FFFFFF',
+    color: 'rgba(255,255,255,0.88)',
     fontFamily: fonts.uiMedium,
     fontSize: 13,
     lineHeight: BREAKING_H,
@@ -868,16 +872,16 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   sectionAccent: {
-    width: 3,
-    height: 22,
+    width: 2,
+    height: 18,
     borderRadius: 2,
     backgroundColor: colors.primary,
   },
   sectionTitle: {
     color: colors.text,
     fontFamily: fonts.uiBold,
-    fontSize: 19,
-    letterSpacing: -0.3,
+    fontSize: 18,
+    letterSpacing: -0.4,
   },
   seeAll: {
     color: colors.primary,
@@ -887,7 +891,7 @@ const styles = StyleSheet.create({
 
   // ── Hero card ───────────────────────────────────────────────────────────────
   heroOuter: {
-    borderRadius: 22,
+    borderRadius: 20,
     shadowColor: '#000',
     shadowOpacity: 0.14,
     shadowRadius: 18,
@@ -895,7 +899,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   heroInner: {
-    borderRadius: 22,
+    borderRadius: 20,
     overflow: 'hidden',
     minHeight: 248,
   },
@@ -964,9 +968,9 @@ const styles = StyleSheet.create({
   heroTitle: {
     color: '#FFFFFF',
     fontFamily: fonts.uiBold,
-    fontSize: 24,
-    lineHeight: 31,
-    letterSpacing: -0.55,
+    fontSize: 22,
+    lineHeight: 29,
+    letterSpacing: -0.6,
   },
   heroMeta: {
     flexDirection: 'row',
@@ -1112,11 +1116,11 @@ const styles = StyleSheet.create({
     height: 210,
     borderRadius: 18,
     marginRight: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.10,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    shadowColor: colors.navy,
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
   },
   localInner: {
     width: 170,
@@ -1182,9 +1186,9 @@ const styles = StyleSheet.create({
     width: 190,
     borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     marginRight: 12,
-    shadowColor: '#000',
+    shadowColor: colors.navy,
     shadowOpacity: 0.07,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
@@ -1207,10 +1211,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     left: 8,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.navy,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1,
@@ -1218,7 +1222,8 @@ const styles = StyleSheet.create({
   popularRankText: {
     color: '#FFFFFF',
     fontFamily: fonts.uiBold,
-    fontSize: 13,
+    fontSize: 12,
+    letterSpacing: -0.2,
   },
   popularBody: {
     paddingHorizontal: 10,
@@ -1262,9 +1267,13 @@ const styles = StyleSheet.create({
   },
   gridCard: {
     borderRadius: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     overflow: 'hidden',
-    ...elevation.card,
+    shadowColor: colors.navy,
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   gridCardPressed: {
     opacity: 0.94,
@@ -1282,16 +1291,16 @@ const styles = StyleSheet.create({
     top: 6,
     left: 6,
     borderRadius: radius.pill,
-    backgroundColor: colors.primary,
+    backgroundColor: 'rgba(15,23,42,0.58)',
     paddingHorizontal: 7,
     paddingVertical: 3,
   },
   gridCatText: {
-    color: '#FFFFFF',
+    color: 'rgba(255,255,255,0.92)',
     fontFamily: fonts.uiBold,
-    fontSize: 9,
+    fontSize: 8.5,
     textTransform: 'uppercase',
-    letterSpacing: 0.3,
+    letterSpacing: 0.5,
     maxWidth: 90,
   },
   gridBody: {
@@ -1305,7 +1314,8 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: fonts.uiBold,
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 18.5,
+    letterSpacing: -0.2,
     flexShrink: 1,
   },
   gridMetaRow: {
@@ -1335,20 +1345,20 @@ const styles = StyleSheet.create({
   },
   footerCardContact: {
     flex: 1,
-    borderRadius: 20,
+    borderRadius: 18,
     overflow: 'hidden',
     shadowColor: colors.primary,
-    shadowOpacity: 0.30,
+    shadowOpacity: 0.28,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
     elevation: 4,
   },
   footerCardAbout: {
     flex: 1,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    backgroundColor: colors.surface,
     overflow: 'hidden',
-    shadowColor: '#000',
+    shadowColor: colors.navy,
     shadowOpacity: 0.07,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
@@ -1438,7 +1448,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 38,
-    backgroundColor: '#F2F3F5',
+    backgroundColor: colors.surfaceSubtle,
   },
   searchOverlayContent: {
     paddingHorizontal: 16,
@@ -1475,14 +1485,14 @@ const styles = StyleSheet.create({
   },
   searchResultCard: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: 14,
     marginBottom: 10,
     overflow: 'hidden',
-    shadowColor: '#000',
+    shadowColor: colors.navy,
     shadowOpacity: 0.06,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
     elevation: 2,
   },
   searchResultPressed: {

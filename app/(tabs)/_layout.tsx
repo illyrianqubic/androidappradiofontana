@@ -3,11 +3,16 @@ import { Tabs } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, radius } from '../../design-tokens';
+import { colors, fonts } from '../../design-tokens';
 
-const iconByRoute: Record<string, keyof typeof Ionicons.glyphMap> = {
+const ICONS_ACTIVE: Record<string, keyof typeof Ionicons.glyphMap> = {
+  index: 'home',
+  live: 'pulse',
+  news: 'newspaper',
+};
+const ICONS_INACTIVE: Record<string, keyof typeof Ionicons.glyphMap> = {
   index: 'home-outline',
-  live: 'radio-outline',
+  live: 'pulse-outline',
   news: 'newspaper-outline',
 };
 
@@ -24,8 +29,8 @@ export default function TabsLayout() {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textMuted,
-        tabBarActiveBackgroundColor: colors.redTint,
+        tabBarInactiveTintColor: 'rgba(255,255,255,0.42)',
+        tabBarActiveBackgroundColor: 'transparent',
         tabBarStyle: [
           styles.tabBar,
           {
@@ -36,72 +41,68 @@ export default function TabsLayout() {
         tabBarItemStyle: styles.tabItem,
         tabBarLabelStyle: styles.tabLabel,
         tabBarHideOnKeyboard: true,
-        tabBarIcon: ({ color }) => (
+        tabBarIcon: ({ color, focused }) => (
           <View style={styles.iconWrap}>
+            {focused && <View style={styles.activeIndicator} />}
             <Ionicons
-              size={24}
+              size={22}
               color={color}
-              name={iconByRoute[route.name] ?? 'ellipse-outline'}
+              name={
+                focused
+                  ? (ICONS_ACTIVE[route.name] ?? 'ellipse')
+                  : (ICONS_INACTIVE[route.name] ?? 'ellipse-outline')
+              }
             />
           </View>
         ),
         animation: 'shift',
       })}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Kryefaqja',
-        }}
-      />
-
-      <Tabs.Screen
-        name="live"
-        options={{
-          title: 'Drejtpërdrejt',
-        }}
-      />
-
-      <Tabs.Screen
-        name="news"
-        options={{
-          title: 'Lajme',
-        }}
-      />
-
-      <Tabs.Screen
-        name="library"
-        options={{
-          href: null,
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: 'Kryefaqja' }} />
+      <Tabs.Screen name="live" options={{ title: 'Live' }} />
+      <Tabs.Screen name="news" options={{ title: 'Lajme' }} />
+      <Tabs.Screen name="library" options={{ href: null }} />
     </Tabs>
   );
 }
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: colors.surface,
-    borderTopColor: colors.border,
-    borderTopWidth: 1,
-    paddingTop: 6,
+    backgroundColor: colors.navy,
+    borderTopWidth: 0,
+    paddingTop: 4,
+    // Android elevation
+    elevation: 0,
   },
   tabItem: {
-    marginHorizontal: 6,
-    borderRadius: radius.pill,
-    paddingTop: 3,
+    marginHorizontal: 4,
+    paddingTop: 0,
   },
   iconWrap: {
-    minWidth: 40,
-    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 2,
-    paddingHorizontal: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    gap: 4,
+    minWidth: 44,
+  },
+  activeIndicator: {
+    left: 0,
+    right: 0,
+    height: 3,
+    borderRadius: 3,
+    backgroundColor: colors.primary,
+    position: 'absolute',
+    top: 0,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.6,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
   },
   tabLabel: {
     fontFamily: fonts.uiMedium,
-    fontSize: 11,
-    marginTop: 4,
+    fontSize: 10.5,
+    marginTop: 2,
+    letterSpacing: 0.2,
   },
 });

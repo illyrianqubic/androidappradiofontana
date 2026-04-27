@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,14 +8,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
-import Animated, {
-  Extrapolation,
-  interpolate,
-  interpolateColor,
-  useAnimatedScrollHandler,
-  useAnimatedStyle,
-  useSharedValue,
-} from 'react-native-reanimated';
+
 import { HamburgerButton } from '../../../components/HamburgerButton';
 import { NewsCard } from '../../../components/NewsCard';
 import { RelativeTime } from '../../../components/RelativeTime';
@@ -32,10 +25,8 @@ import {
 } from '../../../services/api';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const HERO_H = 270;
+const HERO_H = 300;
 const ARTICLE_NAV_H = 62;
-const FADE_START = HERO_H - 110;
-const FADE_END = HERO_H - 28;
 
 // ── Body block renderer ───────────────────────────────────────────────────────
 function renderBodyBlock(block: PortableTextBlock, index: number) {
@@ -122,36 +113,8 @@ export default function ArticleDetailScreen() {
     queryFn: () => fetchRelatedPosts(slug, postQuery.data?.categories),
   });
 
-  // ── Scroll-driven nav animation ───────────────────────────────────────────
-  const scrollY = useSharedValue(0);
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (e) => { scrollY.value = e.contentOffset.y; },
-  });
   const navBarHeight = insets.top + ARTICLE_NAV_H;
   const tabBarHeight = insets.bottom + 72;
-
-  const navBgStyle = useAnimatedStyle(() => ({
-    backgroundColor: `rgba(255,255,255,${interpolate(scrollY.value, [FADE_START, FADE_END], [0, 1], Extrapolation.CLAMP)})`,
-  }));
-  const navBorderStyle = useAnimatedStyle(() => ({
-    borderBottomWidth: interpolate(scrollY.value, [FADE_START, FADE_END], [0, 2], Extrapolation.CLAMP),
-    borderBottomColor: `rgba(220,38,38,${interpolate(scrollY.value, [FADE_START, FADE_END], [0, 1], Extrapolation.CLAMP)})`,
-    shadowOpacity: interpolate(scrollY.value, [FADE_START, FADE_END], [0, 0.07], Extrapolation.CLAMP),
-  }));
-  const backBtnBgStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(scrollY.value, [0, FADE_END], ['rgba(0,0,0,0.38)', '#F3F4F6']),
-    borderColor: interpolateColor(scrollY.value, [0, FADE_END], ['rgba(255,255,255,0.15)', 'rgba(0,0,0,0.05)']),
-  }));
-  const whiteIconStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(scrollY.value, [FADE_START, FADE_END], [1, 0], Extrapolation.CLAMP),
-  }));
-  const darkIconStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(scrollY.value, [FADE_START, FADE_END], [0, 1], Extrapolation.CLAMP),
-  }));
-  const centerLogoStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(scrollY.value, [FADE_START, FADE_END], [0, 1], Extrapolation.CLAMP),
-    transform: [{ scale: interpolate(scrollY.value, [FADE_START, FADE_END], [0.86, 1], Extrapolation.CLAMP) }],
-  }));
 
   const articleWebUrl = useCallback(
     (p: Post) => `https://radiofontana.org/lajme/${p.slug}`,
@@ -187,44 +150,38 @@ export default function ArticleDetailScreen() {
   const relatedPosts = useMemo(() => relatedQuery.data ?? [], [relatedQuery.data]);
   const post = postQuery.data;
 
-  // ── Animated nav ──────────────────────────────────────────────────────────
+  // ── Sticky nav bar ─────────────────────────────────────────────────────────
   const articleNav = (
-    <Animated.View style={[styles.articleNav, { paddingTop: insets.top }, navBgStyle, navBorderStyle]}>
+    <View style={[styles.articleNav, { paddingTop: insets.top + 10 }]}>
       <View style={styles.articleNavSlot}>
         <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Animated.View style={[styles.articleNavButton, backBtnBgStyle]}>
-            <Animated.View style={[StyleSheet.absoluteFillObject, styles.iconCenter, whiteIconStyle]}>
-              <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
-            </Animated.View>
-            <Animated.View style={[StyleSheet.absoluteFillObject, styles.iconCenter, darkIconStyle]}>
-              <Ionicons name="chevron-back" size={22} color={colors.text} />
-            </Animated.View>
-          </Animated.View>
+          <View style={styles.articleNavButton}>
+            <Ionicons name="chevron-back" size={22} color={colors.text} />
+          </View>
         </Pressable>
       </View>
-      <Animated.View style={[styles.articleNavCenter, centerLogoStyle]}>
+      <View style={styles.articleNavCenter}>
         <Image source={appIdentity.logo} contentFit="cover" style={styles.articleNavLogo} />
-        <Text style={styles.articleNavTitle}>Radio Fontana</Text>
-      </Animated.View>
+      </View>
       <View style={styles.articleNavSlot}>
         <HamburgerButton />
       </View>
-    </Animated.View>
+    </View>
   );
 
   // ── Bottom tab bar ────────────────────────────────────────────────────────
   const bottomTabBar = (
     <View style={[styles.articleTabBar, { height: tabBarHeight, paddingBottom: insets.bottom + 4 }]}>
       <Pressable style={styles.articleTabItem} onPress={() => router.replace('/(tabs)' as never)}>
-        <Ionicons name="home-outline" size={24} color={colors.textMuted} />
+        <Ionicons name="home-outline" size={22} color="rgba(255,255,255,0.55)" />
         <Text style={styles.articleTabLabel}>Kryefaqja</Text>
       </Pressable>
       <Pressable style={styles.articleTabItem} onPress={() => router.replace('/(tabs)/live' as never)}>
-        <Ionicons name="radio-outline" size={24} color={colors.textMuted} />
+        <Ionicons name="radio-outline" size={22} color="rgba(255,255,255,0.55)" />
         <Text style={styles.articleTabLabel}>Drejtpërdrejt</Text>
       </Pressable>
       <Pressable style={styles.articleTabItem} onPress={() => router.replace('/(tabs)/news' as never)}>
-        <Ionicons name="newspaper-outline" size={24} color={colors.textMuted} />
+        <Ionicons name="newspaper-outline" size={22} color="rgba(255,255,255,0.55)" />
         <Text style={styles.articleTabLabel}>Lajme</Text>
       </Pressable>
     </View>
@@ -235,15 +192,13 @@ export default function ArticleDetailScreen() {
     return (
       <View style={styles.screen}>
         {articleNav}
-        <Animated.ScrollView
-          onScroll={scrollHandler}
-          scrollEventThrottle={16}
+        <ScrollView
           contentContainerStyle={{ paddingTop: navBarHeight + 12, paddingBottom: tabBarHeight + 80, paddingHorizontal: spacing.lg, gap: spacing.sm }}
         >
           {Array.from({ length: 5 }, (_, i) => (
             <SkeletonCard key={`sk-${i}`} height={180} style={{ borderRadius: radius.card }} />
           ))}
-        </Animated.ScrollView>
+        </ScrollView>
         {bottomTabBar}
       </View>
     );
@@ -271,10 +226,8 @@ export default function ArticleDetailScreen() {
     <View style={styles.screen}>
       {articleNav}
 
-      <Animated.ScrollView
-        onScroll={scrollHandler}
-        scrollEventThrottle={16}
-        contentContainerStyle={{ paddingBottom: tabBarHeight + 80 }}
+      <ScrollView
+        contentContainerStyle={{ paddingTop: navBarHeight, paddingBottom: tabBarHeight + 80 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Full-bleed hero */}
@@ -312,7 +265,7 @@ export default function ArticleDetailScreen() {
               onPress={onShare}
               style={({ pressed }) => [styles.shareQuickBtn, pressed && { opacity: 0.75 }]}
             >
-              <Ionicons name="share-outline" size={15} color={colors.primary} />
+              <Ionicons name="share-outline" size={15} color="#FFFFFF" />
               <Text style={styles.shareQuickLabel}>Ndaj</Text>
             </Pressable>
 
@@ -364,7 +317,7 @@ export default function ArticleDetailScreen() {
             ) : null}
           </View>
         </View>
-      </Animated.ScrollView>
+      </ScrollView>
 
       {bottomTabBar}
     </View>
@@ -375,7 +328,7 @@ export default function ArticleDetailScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F2F3F5',
+    backgroundColor: colors.surface,
   },
 
   // ── Nav bar ───────────────────────────────────────────────────────────────
@@ -390,10 +343,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 14,
     paddingBottom: 10,
-    shadowColor: '#000',
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
+    backgroundColor: colors.surface,
+    shadowColor: colors.navy,
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
   },
   articleNavSlot: {
     width: 44,
@@ -401,31 +356,19 @@ const styles = StyleSheet.create({
   },
   articleNavCenter: {
     alignItems: 'center',
-    gap: 2,
-  },
-  articleNavTitle: {
-    fontFamily: fonts.uiBold,
-    fontSize: 10,
-    color: colors.primary,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
   },
   articleNavLogo: {
     width: 38,
     height: 38,
     borderRadius: 9,
-    backgroundColor: colors.surfaceSubtle,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.07)',
+    marginTop: 8,
   },
   articleNavButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     overflow: 'hidden',
-    borderWidth: 1,
-  },
-  iconCenter: {
+    backgroundColor: colors.surfaceElevated,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -438,15 +381,15 @@ const styles = StyleSheet.create({
   },
   heroCatBadge: {
     position: 'absolute',
-    bottom: 42,
+    bottom: 46,
     left: 18,
-    backgroundColor: colors.primary,
+    backgroundColor: 'rgba(15,23,42,0.58)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
   },
   heroCatText: {
-    color: '#FFFFFF',
+    color: 'rgba(255,255,255,0.95)',
     fontFamily: fonts.uiBold,
     fontSize: 9,
     letterSpacing: 1.2,
@@ -455,19 +398,19 @@ const styles = StyleSheet.create({
   // ── Content card ──────────────────────────────────────────────────────────
   articleCard: {
     backgroundColor: colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    marginTop: -28,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    marginTop: -32,
     minHeight: 400,
   },
   cardHandle: {
     alignSelf: 'center',
-    marginTop: 10,
-    marginBottom: 2,
-    width: 36,
-    height: 4,
+    marginTop: 12,
+    marginBottom: 0,
+    width: 32,
+    height: 3.5,
     borderRadius: 2,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.border,
   },
   articleColumn: {
     width: '100%',
@@ -480,9 +423,9 @@ const styles = StyleSheet.create({
   title: {
     color: colors.text,
     fontFamily: fonts.uiBold,
-    fontSize: 24,
-    lineHeight: 31,
-    letterSpacing: -0.4,
+    fontSize: 25,
+    lineHeight: 33,
+    letterSpacing: -0.6,
     flexShrink: 1,
     marginBottom: spacing.sm,
   },
@@ -500,10 +443,10 @@ const styles = StyleSheet.create({
     marginRight: spacing.md,
   },
   metaAuthorDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.primary,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: colors.navyMuted,
     flexShrink: 0,
   },
   author: {
@@ -520,30 +463,29 @@ const styles = StyleSheet.create({
   shareQuickBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
     alignSelf: 'flex-start',
-    backgroundColor: colors.redTint,
-    borderWidth: 1,
-    borderColor: 'rgba(220,38,38,0.15)',
-    paddingHorizontal: 13,
-    paddingVertical: 7,
+    backgroundColor: colors.navy,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 999,
     marginBottom: spacing.md,
   },
   shareQuickLabel: {
     fontFamily: fonts.uiMedium,
     fontSize: 13,
-    color: colors.primary,
+    color: '#FFFFFF',
+    letterSpacing: 0.1,
   },
   bodyWrap: {
     gap: spacing.lg,
     marginBottom: spacing.xl,
   },
   paragraph: {
-    color: colors.text,
+    color: colors.textSecondary,
     fontFamily: fonts.articleRegular,
     fontSize: 17,
-    lineHeight: 30,
+    lineHeight: 31,
     flexShrink: 1,
   },
   bulletRow: {
@@ -731,14 +673,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingTop: 6,
+    paddingTop: 0,
   },
   articleTabItem: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
     gap: 3,
-    paddingVertical: 4,
+    paddingBottom: 10,
   },
   articleTabLabel: {
     fontFamily: fonts.uiMedium,
