@@ -8,7 +8,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { appIdentity, colors, fonts, radius, spacing } from '../design-tokens';
-import { useAudio } from '../services/audio';
+import { useAudioActions, useAudioState } from '../services/audio';
 import { DAYS, schedule } from '../constants/schedule';
 import { EqualizerBars } from './EqualizerBars';
 import { LiveBadge } from './LiveBadge';
@@ -33,12 +33,21 @@ function getTodaySchedule() {
   };
 }
 
+// Module-level cached formatter — Intl.DateTimeFormat construction parses
+// locale data and is expensive; reuse a single instance across all renders.
+const clockFormatter = new Intl.DateTimeFormat('sq-AL', {
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+});
+
 type FullPlayerProps = {
   isExpanded?: boolean;
 };
 
 export function FullPlayer({ isExpanded = true }: FullPlayerProps) {
-  const { isPlaying, isReconnecting, metadata, toggle } = useAudio();
+  const { isPlaying, isReconnecting, metadata } = useAudioState();
+  const { toggle } = useAudioActions();
   const [renderedTitle, setRenderedTitle] = useState(metadata.title);
   const [renderedArtist, setRenderedArtist] = useState(metadata.artist);
   const [clockTick, setClockTick] = useState(() => Date.now());
@@ -67,12 +76,7 @@ export function FullPlayer({ isExpanded = true }: FullPlayerProps) {
   }, []);
 
   const currentTime = useMemo(
-    () =>
-      new Intl.DateTimeFormat('sq-AL', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      }).format(new Date(clockTick)),
+    () => clockFormatter.format(new Date(clockTick)),
     [clockTick],
   );
 

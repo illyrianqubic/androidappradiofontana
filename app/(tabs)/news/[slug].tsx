@@ -1,8 +1,9 @@
-import { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BackHandler, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
+// A-3: deep import skips loading all other icon sets' glyph maps.
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
@@ -13,8 +14,8 @@ import { HamburgerButton } from '../../../components/HamburgerButton';
 import { NewsCard } from '../../../components/NewsCard';
 import { RelativeTime } from '../../../components/RelativeTime';
 import { SkeletonCard } from '../../../components/SkeletonCard';
-import { useUI } from '../../../context/UIContext';
 import { appIdentity, colors, elevation, fonts, radius, spacing } from '../../../design-tokens';
+import { ms, s, vs } from '../../../lib/responsive';
 import {
   buildSanityImageUrl,
   defaultThumbhash,
@@ -25,30 +26,36 @@ import {
 } from '../../../services/api';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const HERO_H = 300;
+const HERO_H = vs(300);
 const ARTICLE_NAV_H = 62;
 
 // ── Body block renderer ───────────────────────────────────────────────────────
 function renderBodyBlock(block: PortableTextBlock, index: number) {
   if (block._type === 'image' && block.imageUrl) {
-    const imageUri = buildSanityImageUrl(block.imageUrl, 1200);
+    // Use 900px for inline images — fast to load, crisp enough on mobile
+    const imageUri = buildSanityImageUrl(block.imageUrl, 900);
     if (!imageUri) {
       return null;
     }
 
     return (
       <View key={`${block._key}-${index}`} style={styles.inlineImageCard}>
-        <Image source={{ uri: imageUri }} contentFit="cover" style={styles.inlineImage} />
+        <Image source={{ uri: imageUri }} contentFit="cover" transition={0} style={styles.inlineImage} />
         {block.caption ? <Text style={styles.inlineImageCaption}>{block.caption}</Text> : null}
       </View>
     );
   }
 
-  if (block._type !== 'block') {
-    return null;
-  }
-
-  const text = block.children?.map((child) => child.text).join('')?.trim();
+  // Permissive text extraction: any block with a `children` array of
+  // text-bearing spans renders, regardless of `_type`. Some Sanity schemas
+  // use custom block names like 'paragraph', 'heading', etc. that don't
+  // satisfy the strict `_type === 'block'` check, which made them invisible.
+  const text = Array.isArray(block.children)
+    ? block.children
+        .map((child) => (child && typeof child.text === 'string' ? child.text : ''))
+        .join('')
+        .trim()
+    : '';
   if (!text) {
     return null;
   }
@@ -91,30 +98,47 @@ export default function ArticleDetailScreen() {
   const params = useLocalSearchParams<{ slug: string }>();
   const slug = params.slug;
   const [linkCopied, setLinkCopied] = useState(false);
-  const { hideMiniPlayer, showMiniPlayer } = useUI();
-
-  // ── Auto-hide MiniPlayer while reading ───────────────────────────────────
-  useFocusEffect(
-    useCallback(() => {
-      hideMiniPlayer();
-      return () => { showMiniPlayer(); };
-    }, [hideMiniPlayer, showMiniPlayer]),
-  );
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const postQuery = useQuery({
     queryKey: ['post-detail', slug],
     enabled: Boolean(slug),
     queryFn: () => fetchPostBySlug(slug),
+    // M28: 10min staleTime so re-entering the same article within a session
+    // never re-hits Sanity. The body field is the heaviest payload in the
+    // entire app (up to 100KB of portable text + asset URLs).
+    staleTime: 10 * 60 * 1000,
   });
 
+  // Stable string queryKey for related posts — array references would change
+  // identity on every parent re-render and trigger spurious refetches.
+  const categoriesKey = postQuery.data?.categories?.join('|') ?? '';
   const relatedQuery = useQuery({
-    queryKey: ['related-posts', slug, postQuery.data?.categories],
+    queryKey: ['related-posts', slug, categoriesKey],
     enabled: Boolean(postQuery.data && slug),
     queryFn: () => fetchRelatedPosts(slug, postQuery.data?.categories),
   });
 
   const navBarHeight = insets.top + ARTICLE_NAV_H;
   const tabBarHeight = insets.bottom + 72;
+
+  // H15: stable contentContainerStyle refs.
+  const loadingContentContainerStyle = useMemo(
+    () => ({
+      paddingTop: navBarHeight + 12,
+      paddingBottom: tabBarHeight + 80,
+      paddingHorizontal: spacing.lg,
+      gap: spacing.sm,
+    }),
+    [navBarHeight, tabBarHeight],
+  );
+  const articleContentContainerStyle = useMemo(
+    () => ({
+      paddingTop: navBarHeight,
+      paddingBottom: tabBarHeight + 80,
+    }),
+    [navBarHeight, tabBarHeight],
+  );
 
   const articleWebUrl = useCallback(
     (p: Post) => `https://radiofontana.org/lajme/${p.slug}`,
@@ -132,7 +156,8 @@ export default function ArticleDetailScreen() {
     const p = postQuery.data; if (!p) return;
     await Clipboard.setStringAsync(articleWebUrl(p));
     setLinkCopied(true);
-    setTimeout(() => setLinkCopied(false), 2400);
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setLinkCopied(false), 2400);
   }, [postQuery.data, articleWebUrl]);
   const onShare = useCallback(async () => {
     const post = postQuery.data; if (!post) return;
@@ -141,7 +166,10 @@ export default function ArticleDetailScreen() {
   }, [postQuery.data]);
   const onOpenRelatedPost = useCallback(
     (nextPost: Post) => {
-      router.push({ pathname: '/article/[slug]' as never, params: { slug: nextPost.slug } as never });
+      // Do NOT seed ['post-detail', slug] with the shallow related-post object
+      // — it has no body[], and writing it as fresh data (staleTime 10min)
+      // would prevent fetchPostBySlug from running on the next screen.
+      router.push({ pathname: '/news/[slug]' as never, params: { slug: nextPost.slug } as never });
     },
     [router],
   );
@@ -150,11 +178,47 @@ export default function ArticleDetailScreen() {
   const relatedPosts = useMemo(() => relatedQuery.data ?? [], [relatedQuery.data]);
   const post = postQuery.data;
 
+  // Debug: log body length + types whenever it lands so we can verify the
+  // GROQ projection is returning every block. No truncation/slice anywhere.
+  useEffect(() => {
+    if (!articleBody.length) return;
+    // eslint-disable-next-line no-console
+    console.log(
+      `[ArticleDetail] slug=${slug} blocks=${articleBody.length} types=${articleBody.map((b) => b._type).join(',')}`,
+    );
+  }, [articleBody, slug]);
+
+  // Render all blocks immediately — no InteractionManager defer, no slice.
+  const visibleBody = articleBody;
+
+  // Cleanup pending "link copied" timer on unmount
+  useEffect(() => () => {
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+  }, []);
+
   // ── Sticky nav bar ─────────────────────────────────────────────────────────
+  // Back from an article always lands on the Lajme listing — even when the
+  // article was opened from the Home tab. Using router.back() would pop to
+  // whichever screen pushed the slug (often Home), which meant the listing
+  // never got a chance to render and "back" felt like it skipped a page.
+  const onBack = useCallback(() => {
+    router.replace('/(tabs)/news' as never);
+  }, [router]);
+
+  // Android hardware back: route through onBack so it lands on the Lajme
+  // listing instead of popping back to whichever tab pushed the article.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      onBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [onBack]);
+
   const articleNav = (
     <View style={[styles.articleNav, { paddingTop: insets.top + 10 }]}>
       <View style={styles.articleNavSlot}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
+        <Pressable onPress={onBack} hitSlop={12}>
           <View style={styles.articleNavButton}>
             <Ionicons name="chevron-back" size={22} color={colors.text} />
           </View>
@@ -169,37 +233,18 @@ export default function ArticleDetailScreen() {
     </View>
   );
 
-  // ── Bottom tab bar ────────────────────────────────────────────────────────
-  const bottomTabBar = (
-    <View style={[styles.articleTabBar, { height: tabBarHeight, paddingBottom: insets.bottom + 4 }]}>
-      <Pressable style={styles.articleTabItem} onPress={() => router.replace('/(tabs)' as never)}>
-        <Ionicons name="home-outline" size={22} color="rgba(255,255,255,0.55)" />
-        <Text style={styles.articleTabLabel}>Kryefaqja</Text>
-      </Pressable>
-      <Pressable style={styles.articleTabItem} onPress={() => router.replace('/(tabs)/live' as never)}>
-        <Ionicons name="radio-outline" size={22} color="rgba(255,255,255,0.55)" />
-        <Text style={styles.articleTabLabel}>Drejtpërdrejt</Text>
-      </Pressable>
-      <Pressable style={styles.articleTabItem} onPress={() => router.replace('/(tabs)/news' as never)}>
-        <Ionicons name="newspaper-outline" size={22} color="rgba(255,255,255,0.55)" />
-        <Text style={styles.articleTabLabel}>Lajme</Text>
-      </Pressable>
-    </View>
-  );
-
   // ── Loading ────────────────────────────────────────────────────────────────
   if (postQuery.isLoading) {
     return (
       <View style={styles.screen}>
         {articleNav}
         <ScrollView
-          contentContainerStyle={{ paddingTop: navBarHeight + 12, paddingBottom: tabBarHeight + 80, paddingHorizontal: spacing.lg, gap: spacing.sm }}
+          contentContainerStyle={loadingContentContainerStyle}
         >
           {Array.from({ length: 5 }, (_, i) => (
             <SkeletonCard key={`sk-${i}`} height={180} style={{ borderRadius: radius.card }} />
           ))}
         </ScrollView>
-        {bottomTabBar}
       </View>
     );
   }
@@ -214,12 +259,15 @@ export default function ArticleDetailScreen() {
           <Text style={styles.emptyStateTitle}>Artikulli nuk u gjet</Text>
           <Text style={styles.emptyStateSubtitle}>Provo përsëri pas pak ose kthehu te lista e lajmeve.</Text>
         </View>
-        {bottomTabBar}
       </View>
     );
   }
 
-  const heroImageUri = buildSanityImageUrl(post.mainImageUrl, 1200);
+  // C-A7: hero rendered at 480 px (was 900). Matches the URL prefetched
+  // from the home + news lists so it lands from memory cache on arrival.
+  const heroImageUri = buildSanityImageUrl(post.mainImageUrl, 480);
+  const heroCategory = (post.categories?.[0] ?? 'Lajme').trim();
+  const isBreakingCategory = post.breaking || /^lajm i fundit$/i.test(heroCategory);
 
   // ── Main article view ──────────────────────────────────────────────────────
   return (
@@ -227,7 +275,7 @@ export default function ArticleDetailScreen() {
       {articleNav}
 
       <ScrollView
-        contentContainerStyle={{ paddingTop: navBarHeight, paddingBottom: tabBarHeight + 80 }}
+        contentContainerStyle={articleContentContainerStyle}
         showsVerticalScrollIndicator={false}
       >
         {/* Full-bleed hero */}
@@ -236,6 +284,7 @@ export default function ArticleDetailScreen() {
             source={heroImageUri ? { uri: heroImageUri } : undefined}
             placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
             contentFit="cover"
+            transition={0}
             style={StyleSheet.absoluteFillObject}
           />
           <LinearGradient
@@ -243,8 +292,11 @@ export default function ArticleDetailScreen() {
             locations={[0.38, 0.70, 1]}
             style={StyleSheet.absoluteFillObject}
           />
-          <View style={styles.heroCatBadge}>
-            <Text style={styles.heroCatText}>{(post.categories?.[0] ?? 'Lajme').toUpperCase()}</Text>
+          <View style={[styles.heroCatBadge, isBreakingCategory && styles.heroCatBadgeBreaking]}>
+            {isBreakingCategory ? <View style={styles.heroCatDot} /> : null}
+            <Text style={[styles.heroCatText, isBreakingCategory && styles.heroCatTextBreaking]}>
+              {heroCategory.toUpperCase()}
+            </Text>
           </View>
         </View>
 
@@ -270,7 +322,13 @@ export default function ArticleDetailScreen() {
             </Pressable>
 
             <View style={styles.bodyWrap}>
-              {articleBody.map((block, idx) => renderBodyBlock(block, idx))}
+              {visibleBody.length > 0 ? (
+                visibleBody.map((block, idx) => renderBodyBlock(block, idx))
+              ) : post.excerpt ? (
+                // Fallback: if Sanity returned no body/content blocks, render
+                // the excerpt so the user always sees article text.
+                <Text style={styles.paragraph}>{post.excerpt}</Text>
+              ) : null}
             </View>
 
             {/* Share section */}
@@ -318,8 +376,6 @@ export default function ArticleDetailScreen() {
           </View>
         </View>
       </ScrollView>
-
-      {bottomTabBar}
     </View>
   );
 }
@@ -351,22 +407,22 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   articleNavSlot: {
-    width: 44,
+    width: s(44),
     alignItems: 'center',
   },
   articleNavCenter: {
     alignItems: 'center',
   },
   articleNavLogo: {
-    width: 38,
-    height: 38,
-    borderRadius: 9,
+    width: s(38),
+    height: s(38),
+    borderRadius: s(9),
     marginTop: 8,
   },
   articleNavButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: s(38),
+    height: s(38),
+    borderRadius: s(19),
     overflow: 'hidden',
     backgroundColor: colors.surfaceElevated,
     alignItems: 'center',
@@ -387,12 +443,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  heroCatBadgeBreaking: {
+    backgroundColor: '#FF3333',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.82)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    shadowColor: '#FF3333',
+    shadowOpacity: 0.32,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 7,
+  },
+  heroCatDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#FFFFFF',
   },
   heroCatText: {
     color: 'rgba(255,255,255,0.95)',
     fontFamily: fonts.uiBold,
     fontSize: 9,
     letterSpacing: 1.2,
+  },
+  heroCatTextBreaking: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    letterSpacing: 1.4,
   },
 
   // ── Content card ──────────────────────────────────────────────────────────
@@ -423,8 +505,8 @@ const styles = StyleSheet.create({
   title: {
     color: colors.text,
     fontFamily: fonts.uiBold,
-    fontSize: 25,
-    lineHeight: 33,
+    fontSize: ms(25),
+    lineHeight: ms(33),
     letterSpacing: -0.6,
     flexShrink: 1,
     marginBottom: spacing.sm,
@@ -484,8 +566,8 @@ const styles = StyleSheet.create({
   paragraph: {
     color: colors.textSecondary,
     fontFamily: fonts.articleRegular,
-    fontSize: 17,
-    lineHeight: 31,
+    fontSize: ms(17),
+    lineHeight: ms(31),
     flexShrink: 1,
   },
   bulletRow: {
@@ -660,32 +742,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     textAlign: 'center',
-  },
-
-  // ── Bottom tab bar ────────────────────────────────────────────────────────
-  articleTabBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    zIndex: 20,
-    flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 0,
-  },
-  articleTabItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 3,
-    paddingBottom: 10,
-  },
-  articleTabLabel: {
-    fontFamily: fonts.uiMedium,
-    fontSize: 11,
-    color: colors.textMuted,
-    marginTop: 2,
   },
 });

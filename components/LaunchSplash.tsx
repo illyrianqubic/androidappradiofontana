@@ -23,9 +23,9 @@ const RING_BASE = LOGO_SIZE + 6;       // ring diameter before scale animation
 const SHIMMER_W = Math.round(LOGO_SIZE * 0.52);
 const PRIMARY = '#dc2626';
 
-// total visible duration ~2.5 s (logo in 600 ms → hold + pulse + shimmer → exit 300 ms)
-const EXIT_DELAY = 2200;
-const EXIT_DURATION = 320;
+// total visible duration ~1.5 s (logo in 600 ms → hold + pulse + shimmer → exit 200 ms)
+const EXIT_DELAY = 1300;
+const EXIT_DURATION = 200;
 
 // ─── types ────────────────────────────────────────────────────────────────────
 type LaunchSplashProps = {

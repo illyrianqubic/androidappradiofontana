@@ -34,35 +34,101 @@ type NowPlayingMetadata = {
   artist: string;
 };
 
-type AudioContextValue = {
+type AudioStateValue = {
   isReady: boolean;
   isPlaying: boolean;
   isBuffering: boolean;
   isReconnecting: boolean;
   metadata: NowPlayingMetadata;
   playbackState: number;
+};
+
+type AudioActionsValue = {
   play: () => Promise<void>;
   pause: () => void;
   toggle: () => void;
   reconnect: () => Promise<void>;
 };
 
-const AudioContext = createContext<AudioContextValue | null>(null);
+// Combined value preserved for backward-compat consumers that still call useAudio().
+type AudioContextValue = AudioStateValue & AudioActionsValue;
+
+// Split contexts: consumers reading only callbacks never re-render on status ticks.
+const AudioStateContext = createContext<AudioStateValue | null>(null);
+const AudioActionsContext = createContext<AudioActionsValue | null>(null);
 
 export async function playbackService() {
   return;
 }
 
-export function AudioProvider({ children }: { children: React.ReactNode }) {
-  const [isReady, setIsReady] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isBuffering, setIsBuffering] = useState(false);
-  const [isReconnecting, setIsReconnecting] = useState(false);
-  const [playbackState, setPlaybackState] = useState<number>(PlayerState.none);
-  const [metadata, setMetadata] = useState<NowPlayingMetadata>({
+type PlayerStateShape = {
+  isReady: boolean;
+  isPlaying: boolean;
+  isBuffering: boolean;
+  isReconnecting: boolean;
+  playbackState: number;
+  metadata: NowPlayingMetadata;
+};
+
+const initialPlayerState: PlayerStateShape = {
+  isReady: false,
+  isPlaying: false,
+  isBuffering: false,
+  isReconnecting: false,
+  playbackState: PlayerState.none,
+  metadata: {
     title: appIdentity.stationName,
     artist: appIdentity.location,
-  });
+  },
+};
+
+export function AudioProvider({ children }: { children: React.ReactNode }) {
+  const [state, setState] = useState<PlayerStateShape>(initialPlayerState);
+  const stateRef = useRef<PlayerStateShape>(initialPlayerState);
+
+  // Single batched updater — only triggers a re-render if at least one field changed.
+  // For `metadata` (an object), do a deep compare on title/artist so that fresh
+  // object literals from status callbacks don't force a re-render every 500ms.
+  const updateState = useCallback((patch: Partial<PlayerStateShape>) => {
+    const prev = stateRef.current;
+    let changed = false;
+    // R-9: revert M-C2. Hermes is bytecode-interpreted (no JIT) and shortcuts
+    // for...in over plain literal objects via its inline-cache fast path \u2014
+    // zero allocations. Object.keys() always allocates a fresh Array + string
+    // entries. The "Object.keys is faster" rule is a V8/JIT-era heuristic
+    // that is wrong on Hermes for monomorphic patches.
+    for (const k in patch) {
+      if (k === 'metadata') {
+        const nextMeta = patch.metadata;
+        if (
+          nextMeta &&
+          (nextMeta.title !== prev.metadata.title ||
+            nextMeta.artist !== prev.metadata.artist)
+        ) {
+          changed = true;
+          break;
+        }
+      } else if (prev[k as keyof PlayerStateShape] !== patch[k as keyof PlayerStateShape]) {
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) return;
+    // Reuse prev.metadata reference when the patch's metadata is value-equal,
+    // so downstream consumers that compare metadata identity stay stable.
+    const next: PlayerStateShape = { ...prev, ...patch };
+    if (
+      patch.metadata &&
+      patch.metadata.title === prev.metadata.title &&
+      patch.metadata.artist === prev.metadata.artist
+    ) {
+      next.metadata = prev.metadata;
+    }
+    stateRef.current = next;
+    setState(next);
+  }, []);
+
+  const { isReady, isPlaying, isBuffering, isReconnecting, playbackState, metadata } = state;
 
   const playerRef = useRef<AudioPlayer | null>(null);
   const statusSubscriptionRef = useRef<{ remove: () => void } | null>(null);
@@ -73,6 +139,19 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const reconnectRef = useRef<() => Promise<void>>(async () => undefined);
   // Gate: while true, status callbacks must not flip isPlaying/isBuffering back
   const pauseIntentRef = useRef(false);
+  // C-A2: monotonic generation counter. play()/pause() increment it. Each
+  // status callback captures the generation that was current at the time the
+  // callback was scheduled; if the user toggled in the interim (incrementing
+  // the counter), the callback's effects are dropped. This eliminates the
+  // pause→play race where a stale "paused" status from an in-flight callback
+  // overrode a freshly-issued play().
+  const intentGenerationRef = useRef(0);
+  // C-A2: latest user-driven intent. Used in the status callback's "stopped"
+  // fallthrough to drop stale "stopped" callbacks that arrive AFTER the user
+  // pressed play (the player will report stopped briefly between the old
+  // pause completing and the new play taking effect — without this guard the
+  // UI flickers back to ▶ for ~500 ms mid-press).
+  const userIntentRef = useRef<'play' | 'pause' | 'idle'>('idle');
 
   const clearReconnectTimeout = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -86,19 +165,26 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // C-A2: capture the user-intent generation at callback entry. If the user
+    // has issued a new play()/pause() since this status was queued, the
+    // generation will differ and we drop status-driven state writes that would
+    // contradict the latest user intent (e.g. a stale pause-callback flipping
+    // us back to "paused" right after the user pressed play).
+    const cbGen = intentGenerationRef.current;
+    const generationMatches = () => intentGenerationRef.current === cbGen;
+
     const playbackStateLabel = (status.playbackState ?? '').toLowerCase();
     const isFailureState =
       playbackStateLabel.includes('fail') || playbackStateLabel.includes('error');
 
     if (isFailureState) {
       pauseIntentRef.current = false;
-      setIsPlaying(false);
-      setIsBuffering(false);
-      setIsReconnecting(false);
-      setPlaybackState(PlayerState.error);
-      setMetadata({
-        title: 'Gabim në stream',
-        artist: 'Po rilidhet automatikisht',
+      updateState({
+        isPlaying: false,
+        isBuffering: false,
+        isReconnecting: false,
+        playbackState: PlayerState.error,
+        metadata: { title: 'Gabim në stream', artist: 'Po rilidhet automatikisht' },
       });
       void reconnectRef.current();
       return;
@@ -107,10 +193,13 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     if (!status.isLoaded) {
       // If user intends to be paused, ignore unloaded state (stream just draining)
       if (pauseIntentRef.current) return;
-      setIsPlaying(false);
-      setIsBuffering(true);
-      setIsReconnecting(true);
-      setPlaybackState(PlayerState.connecting);
+      if (!generationMatches()) return;
+      updateState({
+        isPlaying: false,
+        isBuffering: true,
+        isReconnecting: true,
+        playbackState: PlayerState.connecting,
+      });
       return;
     }
 
@@ -122,40 +211,60 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     // back to buffering/playing right after the user presses pause.
     if (pauseIntentRef.current) {
       if (!playing && !buffering) {
-        // Player has confirmed paused — safe to clear the gate
+        // Player has confirmed paused — but only honour it if no new user
+        // action has been issued since we entered this callback (C-A2).
+        if (!generationMatches()) return;
         pauseIntentRef.current = false;
-        setIsPlaying(false);
-        setIsBuffering(false);
-        setIsReconnecting(false);
-        setPlaybackState(PlayerState.paused);
+        updateState({
+          isPlaying: false,
+          isBuffering: false,
+          isReconnecting: false,
+          playbackState: PlayerState.paused,
+        });
       }
       // While still draining, keep showing paused state — do NOT call setIsPlaying(true)
       return;
     }
 
-    setIsPlaying(playing);
-    setIsBuffering(buffering);
-
     if (buffering) {
-      setIsReconnecting(true);
-      setPlaybackState(PlayerState.buffering);
+      if (!generationMatches()) return;
+      updateState({
+        isPlaying: playing,
+        isBuffering: true,
+        isReconnecting: true,
+        playbackState: PlayerState.buffering,
+      });
       return;
     }
 
     if (playing) {
       reconnectAttemptRef.current = 0;
-      setIsReconnecting(false);
-      setPlaybackState(PlayerState.playing);
-      setMetadata({
-        title: appIdentity.stationName,
-        artist: appIdentity.location,
+      if (!generationMatches()) return;
+      updateState({
+        isPlaying: true,
+        isBuffering: false,
+        isReconnecting: false,
+        playbackState: PlayerState.playing,
+        metadata: { title: appIdentity.stationName, artist: appIdentity.location },
       });
       return;
     }
 
-    setIsReconnecting(false);
-    setPlaybackState(PlayerState.paused);
-  }, []);
+    // Final fallthrough: not playing, not buffering, not paused-intent.
+    // C-A2: if the user's latest action is play, this "stopped" status is a
+    // stale artifact (the player paused briefly between the old pause and
+    // the new play taking effect) — drop it rather than flipping the UI
+    // back to ▶ mid-press. Generation check defends against any further
+    // queued callbacks issued before the latest user action.
+    if (userIntentRef.current === 'play') return;
+    if (!generationMatches()) return;
+    updateState({
+      isPlaying: false,
+      isBuffering: false,
+      isReconnecting: false,
+      playbackState: PlayerState.paused,
+    });
+  }, [updateState]);
 
   const releaseCurrentPlayer = useCallback(() => {
     statusSubscriptionRef.current?.remove();
@@ -172,7 +281,13 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       const player = createAudioPlayer(
         { uri: STREAM_URL },
         {
-          updateInterval: 250,
+          // C-A8: 2000ms interval. expo-audio's status callback drives only
+          // 4 meaningful UI transitions per session (connecting → buffering
+          // → playing → paused), so 2/sec is wasteful: at 70k devices it is
+          // 140k JSI hops/sec aggregate and ~2 % per-device battery drain
+          // per listening hour. 0.5 Hz preserves snappy UI without the wake-
+          // up tax.
+          updateInterval: 2000,
           keepAudioSessionActive: true,
         },
       );
@@ -211,66 +326,116 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       });
 
       createAndAttachPlayer(false);
-      setIsReady(true);
-      setPlaybackState(PlayerState.paused);
-      setMetadata({
-        title: appIdentity.stationName,
-        artist: appIdentity.location,
+      updateState({
+        isReady: true,
+        playbackState: PlayerState.paused,
+        metadata: { title: appIdentity.stationName, artist: appIdentity.location },
       });
     } finally {
       initializingRef.current = false;
     }
-  }, [createAndAttachPlayer]);
+  }, [createAndAttachPlayer, updateState]);
 
   const cancelReconnect = useCallback(() => {
     clearReconnectTimeout();
-    setIsReconnecting(false);
-  }, [clearReconnectTimeout]);
+    // A-2: also drop any pending debounce so a user-initiated pause cancels
+    // a queued reconnect attempt cleanly.
+    if (reconnectDebounceRef.current) {
+      clearTimeout(reconnectDebounceRef.current);
+      reconnectDebounceRef.current = null;
+    }
+    updateState({ isReconnecting: false });
+  }, [clearReconnectTimeout, updateState]);
+
+  // A-2: debounce window for failure-storm coalescing. ExoPlayer can fire
+  // 5–10 failure callbacks in 2 seconds during a brief network blip; without
+  // debouncing, each one would increment reconnectAttemptRef and the next
+  // backoff slot would jump straight to 30 s. We coalesce all failures
+  // inside a 500 ms window into ONE reconnect attempt and ONE counter
+  // increment.
+  const reconnectDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const reconnect = useCallback(async () => {
+    // A-2: if a reconnect is already debounced, this call collapses into it.
+    if (reconnectDebounceRef.current) return;
+    reconnectDebounceRef.current = setTimeout(() => {
+      reconnectDebounceRef.current = null;
+      void doReconnectRef.current();
+    }, 500);
+  }, []);
+
+  // The actual reconnect body, only invoked once per debounce window.
+  const doReconnect = useCallback(async () => {
     await ensurePlayer();
     clearReconnectTimeout();
 
-    setIsReconnecting(true);
-    setIsBuffering(true);
-    setPlaybackState(PlayerState.connecting);
+    updateState({
+      isReconnecting: true,
+      isBuffering: true,
+      playbackState: PlayerState.connecting,
+    });
 
     const attempt = reconnectAttemptRef.current;
     const delay = reconnectDelaysMs[Math.min(attempt, reconnectDelaysMs.length - 1)];
     reconnectAttemptRef.current += 1;
 
-    reconnectTimeoutRef.current = setTimeout(() => {
-      reconnectTimeoutRef.current = null;
+    // A-1: Doze-resistant scheduling.
+    //   On Android, plain setTimeout is subject to Doze coalescing once the
+    //   device enters deep idle (screen off, no foreground activity). The
+    //   timer can be deferred by minutes, leaving the stream silent. expo-
+    //   audio holds a foreground service that keeps THIS process alive, so
+    //   we don't need a true wake-up alarm — just a timer the OS won't
+    //   batch with other apps' deferred work. We chain short (≤200 ms)
+    //   setTimeouts; Doze coalesces ≥ 1 s timers, so sub-second ticks ride
+    //   the audio service's CPU keep-alive and resume promptly.
+    const start = Date.now();
+    const tick = () => {
+      if (!mountedRef.current) return;
+      const elapsed = Date.now() - start;
+      if (elapsed >= delay) {
+        reconnectTimeoutRef.current = null;
+        void (async () => {
+          try {
+            createAndAttachPlayer(true);
+            updateState({ isReady: true });
+          } catch {
+            updateState({
+              playbackState: PlayerState.error,
+              metadata: { title: 'Gabim në stream', artist: 'Po rilidhet automatikisht' },
+            });
+            void reconnectRef.current();
+          }
+        })();
+        return;
+      }
+      reconnectTimeoutRef.current = setTimeout(tick, Math.min(200, delay - elapsed));
+    };
+    tick();
+  }, [clearReconnectTimeout, createAndAttachPlayer, ensurePlayer, updateState]);
 
-      void (async () => {
-        try {
-          createAndAttachPlayer(true);
-
-          setIsReady(true);
-        } catch {
-          setPlaybackState(PlayerState.error);
-          setMetadata({
-            title: 'Gabim në stream',
-            artist: 'Po rilidhet automatikisht',
-          });
-          void reconnectRef.current();
-        }
-      })();
-    }, delay);
-  }, [clearReconnectTimeout, createAndAttachPlayer, ensurePlayer]);
+  // Stable ref to the latest doReconnect identity for use inside debounce.
+  const doReconnectRef = useRef<() => Promise<void>>(async () => undefined);
+  useEffect(() => { doReconnectRef.current = doReconnect; }, [doReconnect]);
 
   useEffect(() => {
     reconnectRef.current = reconnect;
   }, [reconnect]);
 
   const play = useCallback(async () => {
+    // C-A2: bump generation FIRST and mark intent before touching the
+    // player so any in-flight status callback queued under the previous
+    // generation is correctly dropped when it lands.
+    intentGenerationRef.current += 1;
+    userIntentRef.current = 'play';
     // Clear pause gate so status callbacks resume normally
     pauseIntentRef.current = false;
     await ensurePlayer();
 
-    setIsReconnecting(true);
-    setIsBuffering(true);
-    setPlaybackState(PlayerState.connecting);
+    updateState({
+      isReconnecting: true,
+      isBuffering: true,
+      playbackState: PlayerState.connecting,
+    });
 
     try {
       const player = playerRef.current;
@@ -288,17 +453,24 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     } catch {
       await reconnect();
     }
-  }, [ensurePlayer, reconnect]);
+  }, [ensurePlayer, reconnect, updateState]);
 
   const pause = useCallback(() => {
+    // C-A2: bump generation + record intent so status callbacks from a
+    // previous play() that haven't drained yet cannot bring the UI back to
+    // playing/buffering after we optimistically rendered ❙❙.
+    intentGenerationRef.current += 1;
+    userIntentRef.current = 'pause';
     // Set intent gate FIRST — blocks any in-flight status callback from overriding
     pauseIntentRef.current = true;
     cancelReconnect();
 
     // Optimistic UI update — shows ▶ immediately
-    setIsPlaying(false);
-    setIsBuffering(false);
-    setPlaybackState(PlayerState.paused);
+    updateState({
+      isPlaying: false,
+      isBuffering: false,
+      playbackState: PlayerState.paused,
+    });
 
     const player = playerRef.current;
     if (!player) {
@@ -311,25 +483,26 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     } else {
       pauseIntentRef.current = false;
     }
-  }, [cancelReconnect]);
+  }, [cancelReconnect, updateState]);
 
   const toggle = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-    // Consider "active" as: playing OR trying to play — so tapping again always pauses
-    if (isPlaying || isBuffering || isReconnecting) {
+    // Read latest state from the ref so this callback's identity stays stable
+    // across status ticks — prevents Context value churn every 500ms.
+    const cur = stateRef.current;
+    if (cur.isPlaying || cur.isBuffering || cur.isReconnecting) {
       pause();
     } else {
       void play();
     }
-  }, [isPlaying, isBuffering, isReconnecting, play, pause]);
+  }, [play, pause]);
 
   useEffect(() => {
     mountedRef.current = true;
     ensurePlayer().catch(() => {
-      setPlaybackState(PlayerState.error);
-      setMetadata({
-        title: 'Gabim në stream',
-        artist: 'Provo përsëri',
+      updateState({
+        playbackState: PlayerState.error,
+        metadata: { title: 'Gabim në stream', artist: 'Provo përsëri' },
       });
     });
 
@@ -338,17 +511,28 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       cancelReconnect();
       releaseCurrentPlayer();
     };
-  }, [cancelReconnect, ensurePlayer, releaseCurrentPlayer]);
+  }, [cancelReconnect, ensurePlayer, releaseCurrentPlayer, updateState]);
 
+  // Debounced listening-history writes:
+  // expo-audio fires status callbacks ~2/sec while playing, but we only want to
+  // record a history row once per actual song change. Track the last written
+  // title and ignore re-emits for the same song.
+  const lastHistoryTitleRef = useRef<string | null>(null);
   useEffect(() => {
     if (
       !isPlaying ||
       isBuffering ||
+      !metadata.title ||
       metadata.title === 'Po lidhet...' ||
       metadata.title === 'Gabim në stream'
     ) {
       return;
     }
+
+    if (lastHistoryTitleRef.current === metadata.title) {
+      return;
+    }
+    lastHistoryTitleRef.current = metadata.title;
 
     addListeningHistory({
       id: metadata.title,
@@ -356,9 +540,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       artist: metadata.artist,
       listenedAt: new Date().toISOString(),
     });
-  }, [isPlaying, metadata.artist, metadata.title]);
+  }, [isPlaying, isBuffering, metadata.artist, metadata.title]);
 
-  const value = useMemo<AudioContextValue>(
+  // State context value: changes on every meaningful status update.
+  const stateValue = useMemo<AudioStateValue>(
     () => ({
       isReady,
       isPlaying,
@@ -366,34 +551,44 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       isReconnecting,
       metadata,
       playbackState,
-      play,
-      pause,
-      toggle,
-      reconnect,
     }),
-    [
-      isReady,
-      isPlaying,
-      isBuffering,
-      isReconnecting,
-      metadata,
-      playbackState,
-      play,
-      pause,
-      toggle,
-      reconnect,
-    ],
+    [isReady, isPlaying, isBuffering, isReconnecting, metadata, playbackState],
   );
 
-  return React.createElement(AudioContext.Provider, { value }, children);
+  // Actions context value: callback identities are stable across status ticks
+  // (toggle reads from a ref). This memo never changes after first mount, so
+  // callback-only consumers never re-render.
+  const actionsValue = useMemo<AudioActionsValue>(
+    () => ({ play, pause, toggle, reconnect }),
+    [play, pause, toggle, reconnect],
+  );
+
+  return React.createElement(
+    AudioActionsContext.Provider,
+    { value: actionsValue },
+    React.createElement(AudioStateContext.Provider, { value: stateValue }, children),
+  );
 }
 
-export function useAudio() {
-  const ctx = useContext(AudioContext);
-
+export function useAudioState(): AudioStateValue {
+  const ctx = useContext(AudioStateContext);
   if (!ctx) {
-    throw new Error('useAudio must be used inside AudioProvider');
+    throw new Error('useAudioState must be used inside AudioProvider');
   }
-
   return ctx;
+}
+
+export function useAudioActions(): AudioActionsValue {
+  const ctx = useContext(AudioActionsContext);
+  if (!ctx) {
+    throw new Error('useAudioActions must be used inside AudioProvider');
+  }
+  return ctx;
+}
+
+// Backward-compat: combined hook. Prefer useAudioState / useAudioActions.
+export function useAudio(): AudioContextValue {
+  const state = useAudioState();
+  const actions = useAudioActions();
+  return useMemo(() => ({ ...state, ...actions }), [state, actions]);
 }

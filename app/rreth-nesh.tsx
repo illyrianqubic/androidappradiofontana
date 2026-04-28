@@ -1,6 +1,7 @@
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+// A-3: deep import skips loading all other icon sets' glyph maps.
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, radius, spacing } from '../design-tokens';
 

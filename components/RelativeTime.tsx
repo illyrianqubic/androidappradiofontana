@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { Text, type TextStyle } from 'react-native';
 import { colors, fonts } from '../design-tokens';
 
@@ -30,6 +30,13 @@ function tickSubscribe(fn: () => void): () => void {
   };
 }
 
+// Module-level cached formatter \u2014 Intl.DateTimeFormat construction is expensive
+// (parses locale data); reuse a single instance across all calls.
+const dateFormatter = new Intl.DateTimeFormat('sq-AL', {
+  day: '2-digit',
+  month: 'short',
+});
+
 function formatRelative(timestamp: string, nowMs: number) {
   const publishedMs = new Date(timestamp).getTime();
 
@@ -60,18 +67,31 @@ function formatRelative(timestamp: string, nowMs: number) {
     return 'Dje';
   }
 
-  return new Intl.DateTimeFormat('sq-AL', {
-    day: '2-digit',
-    month: 'short',
-  }).format(new Date(publishedMs));
+  return dateFormatter.format(new Date(publishedMs));
 }
 
 export const RelativeTime = memo(function RelativeTime({ timestamp, style }: RelativeTimeProps) {
-  const [clockMs, setClockMs] = useState(() => _clockMs);
+  // H17: store the formatted label string directly. The minute-tick updates
+  // every subscribed instance, but most timestamps stay in the same bucket
+  // ("3 orë më parë") for many ticks. Comparing the new label against the
+  // previous and only setState'ing on real change short-circuits the whole
+  // React reconciliation for ~90% of ticks across a screen full of cards.
+  const [label, setLabel] = useState(() => formatRelative(timestamp, _clockMs));
 
-  useEffect(() => tickSubscribe(() => setClockMs(_clockMs)), []);
-
-  const label = useMemo(() => formatRelative(timestamp, clockMs), [timestamp, clockMs]);
+  useEffect(() => {
+    // Re-evaluate label whenever the prop timestamp changes (e.g. card
+    // recycle in FlashList swaps in a different post).
+    setLabel((prev) => {
+      const next = formatRelative(timestamp, _clockMs);
+      return prev === next ? prev : next;
+    });
+    return tickSubscribe(() => {
+      setLabel((prev) => {
+        const next = formatRelative(timestamp, _clockMs);
+        return prev === next ? prev : next;
+      });
+    });
+  }, [timestamp]);
 
   return <Text style={[baseStyle, style]}>{label}</Text>;
 });

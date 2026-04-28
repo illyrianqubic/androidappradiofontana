@@ -4,6 +4,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-na
 import { Image } from 'expo-image';
 import { buildSanityImageUrl, defaultThumbhash, type Post } from '../services/api';
 import { colors, fonts } from '../design-tokens';
+import { s } from '../lib/responsive';
 import { RelativeTime } from './RelativeTime';
 
 type NewsCardProps = {
@@ -119,7 +120,7 @@ const S = StyleSheet.create({
   },
   imageZone: {
     width: '100%',
-    height: 192,
+    height: s(192),
     position: 'relative',
   },
   image: {
@@ -221,7 +222,7 @@ const S = StyleSheet.create({
   },
   compactThumbWrap: {
     width: '100%',
-    height: 124,
+    aspectRatio: 16 / 9,
     position: 'relative',
   },
   compactThumb: {

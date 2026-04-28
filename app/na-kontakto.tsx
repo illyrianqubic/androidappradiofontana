@@ -1,8 +1,9 @@
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useCallback } from 'react';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+// A-3: deep imports skip loading the full glyph maps for every icon set.
+import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import Svg, { Path } from 'react-native-svg';
@@ -17,9 +18,7 @@ function TikTokIcon({ size = 20, color = '#010101' }: { size?: number; color?: s
 }
 
 const openURL = (url: string) =>
-  Linking.canOpenURL(url)
-    .then((ok) => { if (ok) Linking.openURL(url); })
-    .catch(() => undefined);
+  Linking.openURL(url).catch(() => undefined);
 
 export default function ContactScreen() {
   const insets = useSafeAreaInsets();

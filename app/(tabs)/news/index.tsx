@@ -13,18 +13,19 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Ionicons } from '@expo/vector-icons';
+// A-3: deep import skips loading all other icon sets' glyph maps.
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList, type FlashListRef, type ListRenderItemInfo } from '@shopify/flash-list';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { NewsCard } from '../../../components/NewsCard';
 import { SkeletonCard } from '../../../components/SkeletonCard';
 import { HamburgerButton } from '../../../components/HamburgerButton';
-import { colors, fonts, radius, spacing } from '../../../design-tokens';
+import { appIdentity, colors, fonts, radius, spacing } from '../../../design-tokens';
+import { queueImagePrefetch } from '../../../lib/prefetchQueue';
 import {
   buildSanityImageUrl,
   defaultThumbhash,
-  fetchAuthors,
   fetchLatestPosts,
   type Post,
 } from '../../../services/api';
@@ -46,7 +47,7 @@ const NEWS_CATEGORY_TABS: NewsCategoryTab[] = [
 const FeaturedCard = memo(function FeaturedCard({ post, onPress }: { post: Post; onPress: (p: Post) => void }) {
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  const imageUri = buildSanityImageUrl(post.mainImageUrl, 1200);
+  const imageUri = buildSanityImageUrl(post.mainImageUrl, 900);
   const cat = post.categories?.[0] ?? 'Lajme';
 
   return (
@@ -126,6 +127,42 @@ const CategoryPill = memo(function CategoryPill({
   );
 });
 
+// ── Search input (isolated) ──────────────────────────────────────────────────
+// Extracted so the sticky-header useMemo does NOT depend on `search`. The
+// header tree is large; rebuilding it on every keystroke caused visible input
+// latency. Now only this small component re-renders as the user types.
+const SearchInput = memo(function SearchInput({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const onClear = useCallback(() => onChange(''), [onChange]);
+  return (
+    <View style={S.searchRow}>
+      <Ionicons name="search-outline" size={16} color={colors.textMuted} style={S.searchIcon} />
+      <TextInput
+        value={value}
+        onChangeText={onChange}
+        placeholder="Kërko lajme..."
+        placeholderTextColor={colors.textTertiary}
+        style={S.searchInput}
+        returnKeyType="search"
+        clearButtonMode="while-editing"
+      />
+      {value.length > 0 ? (
+        <Pressable onPress={onClear} hitSlop={8} style={S.clearBtn}>
+          <Ionicons name="close-circle" size={16} color={colors.textMuted} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+});
+
+// ── Constants ────────────────────────────────────────────────────────────────
+const LOADING_ROWS = [1, 2, 3];
+
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function NewsIndexScreen() {
   const router = useRouter();
@@ -133,27 +170,43 @@ export default function NewsIndexScreen() {
   const listRef = useRef<FlashListRef<Post>>(null);
   const [activeCategory, setActiveCategory] = useState<NewsCategoryTab>(NEWS_CATEGORY_TABS[0]);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const loadingRows = useMemo(() => [1, 2, 3], []);
 
-  // Header height: statusBar + titleRow(54) + search(54) + categories(50) + divider(1)
-  const HEADER_H = insets.top + 159;
+  // 300ms debounce so we don't fire a Sanity request per keystroke.
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(id);
+  }, [search]);
+
+  // Header height: statusBar + titleRow(66) + search(54) + categories(50) + divider(1)
+  const HEADER_H = insets.top + 171;
   const bottomInsetOffset = insets.bottom + 190;
 
-  const authorsQuery = useQuery({
-    queryKey: ['cms-authors'],
-    queryFn: fetchAuthors,
+  const postsQuery = useQuery({
+    queryKey: ['news-feed', activeCategory.slug, debouncedSearch],
+    queryFn: () => fetchLatestPosts(activeCategory.slug, debouncedSearch, 40),
+    placeholderData: (previousData) => previousData,
+    // H-B11: 5min gcTime so flipping through all 7 category tabs once does
+    // NOT leave 7 \u00d7 60KB feeds resident for half an hour. Re-entering a
+    // category within 5 min still hits cache; longer than that just refetches.
+    gcTime: 5 * 60 * 1000,
   });
 
-  const postsQuery = useQuery({
-    queryKey: ['news-feed', activeCategory.slug, search],
-    queryFn: () => fetchLatestPosts(activeCategory.slug, search, 40),
-    placeholderData: (previousData) => previousData,
-  });
+  const queryClient = useQueryClient();
 
   const openPost = useCallback(
     (post: Post) => {
-      router.push({ pathname: '/article/[slug]' as never, params: { slug: post.slug } as never });
+      // C-A7: pre-fetch the 480px hero (matches sizes used on the slug screen)
+      // so the article hero renders from memory cache on arrival.
+      // M-C3: capped at 3 concurrent so card-mashing never floods the socket pool.
+      queueImagePrefetch(buildSanityImageUrl(post.mainImageUrl, 480));
+      // NOTE: do NOT prefetchQuery(['post-detail', slug], () => Promise.resolve(post))
+      // here — the listing post has no `body[]`, and seeding it as fresh data
+      // (staleTime 10min) prevented fetchPostBySlug from ever running, leaving
+      // the article screen with an empty body. The slug screen owns its own
+      // detail fetch.
+      router.push({ pathname: '/news/[slug]' as never, params: { slug: post.slug } as never });
     },
     [router],
   );
@@ -163,100 +216,109 @@ export default function NewsIndexScreen() {
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, []);
 
-  useEffect(() => {
-    listRef.current?.scrollToOffset({ offset: 0, animated: false });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCategory.slug]);
-
   const refresh = useCallback(async () => {
     setRefreshing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
-    await Promise.all([postsQuery.refetch(), authorsQuery.refetch()]);
+    await postsQuery.refetch();
     setRefreshing(false);
-  }, [authorsQuery, postsQuery]);
+  }, [postsQuery]);
 
   const initialLoading = postsQuery.isLoading && !postsQuery.data;
   const posts = postsQuery.data ?? [];
+  const showFeatured = !debouncedSearch && posts.length > 2;
 
   const renderLoadingItem = useCallback(() => <SkeletonCard height={180} />, []);
 
   const renderPostItem = useCallback(
     ({ item, index }: ListRenderItemInfo<Post>) => {
-      if (index === 0 && !search && posts.length > 2) {
+      if (index === 0 && showFeatured) {
         return <FeaturedCard post={item} onPress={openPost} />;
       }
       return <NewsCard post={item} onPress={openPost} />;
     },
-    [openPost, search, posts.length],
+    [openPost, showFeatured],
+  );
+
+  // FlashList item-type discriminator — featured card has a very different
+  // layout than NewsCard, so tell the recycler not to reuse views across them.
+  const getPostItemType = useCallback(
+    (_item: Post, index: number) => (index === 0 && showFeatured ? 'featured' : 'card'),
+    [showFeatured],
   );
 
   // ── Empty state ────────────────────────────────────────────────────────────
-  const emptyState = (
-    <View style={S.emptyState}>
-      <Ionicons name="newspaper-outline" size={52} color={colors.border} />
-      <Text style={S.emptyTitle}>Nuk ka lajme</Text>
-      <Text style={S.emptySubtitle}>
-        {search ? 'Provo me fjalë kyçe tjetër' : 'Zgjidh një kategori tjetër ose kthehu pas pak.'}
-      </Text>
-    </View>
+  const emptyState = useMemo(
+    () => (
+      <View style={S.emptyState}>
+        <Ionicons name="newspaper-outline" size={52} color={colors.border} />
+        <Text style={S.emptyTitle}>Nuk ka lajme</Text>
+        <Text style={S.emptySubtitle}>
+          {search ? 'Provo me fjalë kyçe tjetër' : 'Zgjidh një kategori tjetër ose kthehu pas pak.'}
+        </Text>
+      </View>
+    ),
+    [search],
+  );
+
+  // H15: stable contentContainerStyle + RefreshControl element so FlashList
+  // doesn't see a new prop reference on every parent render.
+  const listContentContainerStyle = useMemo(
+    () => ({
+      paddingTop: HEADER_H + 12,
+      paddingBottom: bottomInsetOffset,
+      paddingHorizontal: 16,
+    }),
+    [HEADER_H, bottomInsetOffset],
+  );
+  const refreshControlEl = useMemo(
+    () => (
+      <RefreshControl
+        tintColor={colors.primary}
+        refreshing={refreshing}
+        onRefresh={refresh}
+      />
+    ),
+    [refreshing, refresh],
   );
 
   // ── Sticky header (absolutely positioned above the list) ───────────────────
-  const stickyHeader = (
-    <View style={[S.header, { paddingTop: insets.top }]}>
-      {/* Title row */}
-      <View style={S.headerTitleRow}>
-        <View style={S.headerAccent} />
-        <View style={S.headerTitleBlock}>
-          <Text style={S.headerTitle}>Lajme</Text>
-          {authorsQuery.data ? (
-            <Text style={S.headerSubtitle}>nga {authorsQuery.data.length} autorë · RTV Fontana</Text>
-          ) : (
-            <Text style={S.headerSubtitle}>RTV Fontana</Text>
-          )}
+  const stickyHeader = useMemo(
+    () => (
+      <View style={[S.header, { paddingTop: insets.top }]}>
+        {/* Title row */}
+        <View style={S.headerTitleRow}>
+          <Image source={appIdentity.logo} contentFit="cover" style={S.headerLogo} />
+          <View style={S.headerSpacer} />
+          <HamburgerButton />
         </View>
-        <View style={{ flex: 1 }} />
-        <HamburgerButton />
+
+        {/* Search — isolated component so this memo does not bust per keystroke */}
+        <SearchInput value={search} onChange={setSearch} />
+
+        {/* Category pills */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={S.catScroll}
+        >
+          {NEWS_CATEGORY_TABS.map((tab) => (
+            <CategoryPill
+              key={tab.slug || 'all'}
+              item={tab}
+              active={tab.slug === activeCategory.slug}
+              onPress={() => onSelectCategory(tab)}
+            />
+          ))}
+        </ScrollView>
+
+        {/* Bottom divider */}
+        <View style={S.headerDivider} />
       </View>
-
-      {/* Search */}
-      <View style={S.searchRow}>
-        <Ionicons name="search-outline" size={16} color={colors.textMuted} style={S.searchIcon} />
-        <TextInput
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Kërko lajme..."
-          placeholderTextColor={colors.textTertiary}
-          style={S.searchInput}
-          returnKeyType="search"
-          clearButtonMode="while-editing"
-        />
-        {search.length > 0 ? (
-          <Pressable onPress={() => setSearch('')} hitSlop={8} style={S.clearBtn}>
-            <Ionicons name="close-circle" size={16} color={colors.textMuted} />
-          </Pressable>
-        ) : null}
-      </View>
-
-      {/* Category pills */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={S.catScroll}
-      >
-        {NEWS_CATEGORY_TABS.map((tab) => (
-          <CategoryPill
-            key={tab.slug || 'all'}
-            item={tab}
-            active={tab.slug === activeCategory.slug}
-            onPress={() => onSelectCategory(tab)}
-          />
-        ))}
-      </ScrollView>
-
-      {/* Bottom divider */}
-      <View style={S.headerDivider} />
-    </View>
+    ),
+    // search intentionally excluded — SearchInput owns its visible state and
+    // bubbles changes via setSearch (which is a stable React setter).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [insets.top, activeCategory.slug, onSelectCategory],
   );
 
   // ── Loading state ──────────────────────────────────────────────────────────
@@ -265,13 +327,9 @@ export default function NewsIndexScreen() {
       <View style={S.screen}>
         {stickyHeader}
         <FlashList
-          data={loadingRows}
+          data={LOADING_ROWS}
           keyExtractor={(item) => String(item)}
-          contentContainerStyle={{
-            paddingTop: HEADER_H + 12,
-            paddingBottom: bottomInsetOffset,
-            paddingHorizontal: 16,
-          }}
+          contentContainerStyle={listContentContainerStyle}
           renderItem={renderLoadingItem}
         />
       </View>
@@ -287,20 +345,11 @@ export default function NewsIndexScreen() {
         data={posts}
         keyExtractor={(item) => item._id}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            tintColor={colors.primary}
-            refreshing={refreshing}
-            onRefresh={refresh}
-          />
-        }
+        refreshControl={refreshControlEl}
         decelerationRate="fast"
-        contentContainerStyle={{
-          paddingTop: HEADER_H + 12,
-          paddingBottom: bottomInsetOffset,
-          paddingHorizontal: 16,
-        }}
+        contentContainerStyle={listContentContainerStyle}
         renderItem={renderPostItem}
+        getItemType={getPostItemType}
         ListEmptyComponent={emptyState}
       />
     </View>
@@ -441,7 +490,7 @@ const S = StyleSheet.create({
     right: 0,
     zIndex: 20,
     backgroundColor: colors.surface,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     shadowColor: colors.navy,
     shadowOpacity: 0.07,
     shadowRadius: 8,
@@ -451,29 +500,18 @@ const S = StyleSheet.create({
   headerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 54,
+    height: 66,
+    paddingTop: 8,
     gap: 10,
   },
-  headerAccent: {
-    width: 2.5,
-    height: 22,
-    borderRadius: 2,
-    backgroundColor: colors.primary,
+  headerLogo: {
+    width: 46,
+    height: 46,
+    borderRadius: 11,
+    backgroundColor: colors.surfaceSubtle,
   },
-  headerTitleBlock: {
-    gap: 1,
-  },
-  headerTitle: {
-    fontFamily: fonts.uiBold,
-    fontSize: 21,
-    color: colors.text,
-    letterSpacing: -0.5,
-    lineHeight: 25,
-  },
-  headerSubtitle: {
-    fontFamily: fonts.uiRegular,
-    fontSize: 11,
-    color: colors.textMuted,
+  headerSpacer: {
+    flex: 1,
   },
   searchRow: {
     flexDirection: 'row',
@@ -506,7 +544,7 @@ const S = StyleSheet.create({
   headerDivider: {
     height: 1,
     backgroundColor: colors.border,
-    marginHorizontal: -16,
+    marginHorizontal: -14,
   },
   // Empty state
   emptyState: {

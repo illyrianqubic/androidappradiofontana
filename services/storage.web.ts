@@ -154,3 +154,12 @@ export const queryStorage = {
     removeStorageItem(`${keys.queryCache}.${key}`);
   },
 };
+
+export function subscribeToStorageKey(
+  _watchedKey: string,
+  _listener: () => void,
+): () => void {
+  return () => undefined;
+}
+
+export const storageKeys = keys;

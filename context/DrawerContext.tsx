@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 
 type DrawerContextValue = {
   isOpen: boolean;
@@ -20,11 +20,15 @@ export function DrawerProvider({ children }: { children: ReactNode }) {
   const close = useCallback(() => setIsOpen(false), []);
   const toggle = useCallback(() => setIsOpen((v) => !v), []);
 
-  return (
-    <DrawerContext.Provider value={{ isOpen, open, close, toggle }}>
-      {children}
-    </DrawerContext.Provider>
+  // H-B4: stable context value. Without useMemo every DrawerProvider render
+  // produced a fresh object, busting React.memo on every consumer (MiniPlayer,
+  // HamburgerDrawer, headers) on every parent re-render.
+  const value = useMemo<DrawerContextValue>(
+    () => ({ isOpen, open, close, toggle }),
+    [isOpen, open, close, toggle],
   );
+
+  return <DrawerContext.Provider value={value}>{children}</DrawerContext.Provider>;
 }
 
 export function useDrawer() {

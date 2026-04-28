@@ -1,10 +1,11 @@
 import { memo, useEffect } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 import Animated, {
+  cancelAnimation,
   Easing,
   interpolate,
+  makeMutable,
   useAnimatedStyle,
-  useSharedValue,
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
@@ -15,22 +16,36 @@ type SkeletonCardProps = {
   style?: ViewStyle;
 };
 
-export const SkeletonCard = memo(function SkeletonCard({ height = 120, style }: SkeletonCardProps) {
-  const shimmer = useSharedValue(0);
+// Single shared shimmer driver — one looping worklet for ALL skeleton instances.
+// Reference-counted so it only runs while at least one SkeletonCard is mounted.
+const sharedShimmer = makeMutable(0);
+let mountCount = 0;
 
+function startShimmer() {
+  sharedShimmer.value = withRepeat(
+    withTiming(1, { duration: 1200, easing: Easing.linear }),
+    -1,
+    false,
+  );
+}
+
+function stopShimmer() {
+  cancelAnimation(sharedShimmer);
+  sharedShimmer.value = 0;
+}
+
+export const SkeletonCard = memo(function SkeletonCard({ height = 120, style }: SkeletonCardProps) {
   useEffect(() => {
-    shimmer.value = withRepeat(
-      withTiming(1, {
-        duration: 1200,
-        easing: Easing.linear,
-      }),
-      -1,
-      false,
-    );
-  }, [shimmer]);
+    mountCount += 1;
+    if (mountCount === 1) startShimmer();
+    return () => {
+      mountCount -= 1;
+      if (mountCount === 0) stopShimmer();
+    };
+  }, []);
 
   const shimmerStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(shimmer.value, [0, 0.5, 1], [0.15, 0.45, 0.15]),
+    opacity: interpolate(sharedShimmer.value, [0, 0.5, 1], [0.15, 0.45, 0.15]),
   }));
 
   return (

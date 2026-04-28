@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList } from '@shopify/flash-list';
@@ -11,9 +11,13 @@ import {
   clearListeningHistory,
   getListeningHistory,
   getSavedArticles,
+  storageKeys,
+  subscribeToStorageKey,
   type ListeningHistoryItem,
   type SavedArticle,
 } from '../../services/storage';
+
+const LOADING_ROWS = [1, 2, 3];
 
 export default function LibraryScreen() {
   const router = useRouter();
@@ -21,7 +25,6 @@ export default function LibraryScreen() {
   const [savedArticles, setSavedArticles] = useState<SavedArticle[]>([]);
   const [history, setHistory] = useState<ListeningHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const loadingRows = useMemo(() => [1, 2, 3], []);
   const topInsetOffset = insets.top + spacing.sm;
   const bottomInsetOffset = insets.bottom + 196;
 
@@ -31,11 +34,22 @@ export default function LibraryScreen() {
     setIsLoading(false);
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      refreshLocalData();
-    }, [refreshLocalData]),
-  );
+  // H16: subscribe to MMKV change events instead of re-reading on every focus.
+  // Initial read on mount; thereafter only react to writes from elsewhere
+  // (article save/unsave, history append, history clear).
+  useEffect(() => {
+    refreshLocalData();
+    const unsubBookmarks = subscribeToStorageKey(storageKeys.bookmarks, () => {
+      setSavedArticles(getSavedArticles());
+    });
+    const unsubHistory = subscribeToStorageKey(storageKeys.listeningHistory, () => {
+      setHistory(getListeningHistory());
+    });
+    return () => {
+      unsubBookmarks();
+      unsubHistory();
+    };
+  }, [refreshLocalData]);
 
   const onClearHistory = useCallback(async () => {
     clearListeningHistory();
@@ -45,7 +59,7 @@ export default function LibraryScreen() {
 
   const onOpenSavedArticle = useCallback(
     (item: SavedArticle) => {
-      router.push({ pathname: '/(tabs)/news/[slug]' as never, params: { slug: item.slug } as never });
+      router.push({ pathname: '/news/[slug]' as never, params: { slug: item.slug } as never });
     },
     [router],
   );
@@ -87,15 +101,19 @@ export default function LibraryScreen() {
         <Text style={styles.pageTitle}>Biblioteka</Text>
 
         <Text style={styles.sectionTitle}>Historia e dëgjimit</Text>
-        <FlashList
-          horizontal
-          data={history}
-          keyExtractor={(item) => item.id + item.listenedAt}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.historyRail}
-          renderItem={renderHistoryItem}
-          ListEmptyComponent={<Text style={styles.emptyText}>Nuk ka histori dëgjimi ende.</Text>}
-        />
+        {history.length > 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.historyRail}
+          >
+            {history.map((item, index) =>
+              renderHistoryItem({ item, index, target: 'Cell' as never } as never),
+            )}
+          </ScrollView>
+        ) : (
+          <Text style={styles.emptyText}>Nuk ka histori dëgjimi ende.</Text>
+        )}
 
         <View style={styles.settingsCard}>
           <Text style={styles.settingsTitle}>Cilësimet</Text>
@@ -122,7 +140,7 @@ export default function LibraryScreen() {
     return (
       <View style={styles.screen}>
         <FlashList
-          data={loadingRows}
+          data={LOADING_ROWS}
           keyExtractor={(item) => String(item)}
           contentContainerStyle={[
             styles.listContent,

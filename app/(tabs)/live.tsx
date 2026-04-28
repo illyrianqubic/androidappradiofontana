@@ -1,142 +1,189 @@
-import { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+// A-3: deep import skips loading all other icon sets' glyph maps.
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
-import { WebView } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
-import { EqualizerBars } from '../../components/EqualizerBars';
+import Animated, {
+  Easing,
+  cancelAnimation,
+  useAnimatedStyle,
+  useDerivedValue,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+  type SharedValue,
+} from 'react-native-reanimated';
 import { HamburgerButton } from '../../components/HamburgerButton';
-import { LiveBadge } from '../../components/LiveBadge';
-import { appIdentity, colors, fonts, radius, spacing } from '../../design-tokens';
-import { useAudio } from '../../services/audio';
-import { fetchLiveStream } from '../../services/api';
+import { appIdentity, colors, fonts } from '../../design-tokens';
+import { ms, s } from '../../lib/responsive';
+import { useAudioActions, useAudioState } from '../../services/audio';
+
+const BG = '#0d1117';
+const SURFACE = '#161b22';
+const RED = '#dc2626';
+const RED_BOX = 'rgba(220,38,38,0.22)';
+
+// ── Animated equalizer bar ─────────────────────────────────────────────────────
+const BAR_HEIGHTS = [18, 32, 44, 28, 48, 36, 22, 42, 30, 20, 38, 26, 46].map((h) => s(h));
+// Phase offset per bar (0..1) — staggers the wave across the row.
+const BAR_OFFSETS = [0, 0.18, 0.09, 0.31, 0.06, 0.24, 0.12, 0.37, 0.15, 0.27, 0.04, 0.21, 0.10];
+
+// H10/H11: single shared phase drives all 13 bars via cheap derived values.
+// Previously each bar held its own withRepeat loop = 13 UI-thread animators.
+function EqBar({
+  maxH,
+  offset,
+  phase,
+}: {
+  maxH: number;
+  offset: number;
+  phase: SharedValue<number>;
+}) {
+  const h = useDerivedValue(() => {
+    'worklet';
+    const s = (Math.sin((phase.value + offset) * Math.PI * 2) + 1) * 0.5;
+    return 6 + (maxH - 6) * s;
+  }, [maxH, offset]);
+  const style = useAnimatedStyle(() => ({ height: h.value }));
+  return <Animated.View style={[styles.eqBar, style]} />;
+}
+
+function Equalizer({ playing }: { playing: boolean }) {
+  const phase = useSharedValue(0);
+
+  useEffect(() => {
+    if (playing) {
+      phase.value = 0;
+      phase.value = withRepeat(
+        withTiming(1, { duration: 1100, easing: Easing.linear }),
+        -1,
+        false,
+      );
+    } else {
+      cancelAnimation(phase);
+      phase.value = withTiming(0, { duration: 220 });
+    }
+    return () => {
+      cancelAnimation(phase);
+    };
+  }, [playing, phase]);
+
+  return (
+    <View style={styles.eqRow}>
+      {BAR_HEIGHTS.map((h, i) => (
+        <EqBar key={i} maxH={h} offset={BAR_OFFSETS[i]} phase={phase} />
+      ))}
+    </View>
+  );
+}
 
 export default function LiveScreen() {
   const insets = useSafeAreaInsets();
-  const { isPlaying, isReconnecting, isBuffering, toggle } = useAudio();
-  const liveQuery = useQuery({ queryKey: ['live-stream'], queryFn: fetchLiveStream });
-  const liveData = liveQuery.data;
+  const { isPlaying, isReconnecting, isBuffering } = useAudioState();
+  const { toggle } = useAudioActions();
 
-  const showFbEmbed = useMemo(
-    () => liveData?.isLive && liveData.facebookUrl,
-    [liveData?.isLive, liveData?.facebookUrl],
-  );
+  const isBufferingOrReconnecting = isBuffering || isReconnecting;
 
-  const topBarHeight = insets.top + 54;
+  const badgeLabel = isPlaying
+    ? 'DUKE TRANSMETUAR LIVE'
+    : isBufferingOrReconnecting
+    ? 'PO LIDHET...'
+    : 'NDAL';
 
-  const isActive = isPlaying || isBuffering || isReconnecting;
+  const playIconName: 'pause' | 'play' | 'ellipsis-horizontal' = isPlaying
+    ? 'pause'
+    : isBufferingOrReconnecting
+    ? 'ellipsis-horizontal'
+    : 'play';
+
+  const headerHeight = insets.top + 66;
 
   return (
     <View style={styles.screen}>
-      {/* ── Top bar ─────────────────────────────────────────── */}
-      <View style={[styles.topBar, { paddingTop: insets.top, height: topBarHeight }]}>
-        <Text style={styles.topBarTitle}>Drejtpërdrejt</Text>
-        <HamburgerButton />
+      {/* ── Top bar (same as home) ──────────────────────────── */}
+      <View style={[styles.headerShell, { paddingTop: insets.top }]}>
+        <View style={styles.headerRow}>
+          <Image source={appIdentity.logo} contentFit="cover" style={styles.headerLogo} />
+          <View style={styles.headerSpacer} />
+          <HamburgerButton />
+        </View>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: topBarHeight + 8, paddingBottom: insets.bottom + 120 }}
-      >
-        {/* ── Hero player card ─────────────────────────────── */}
-        <View style={styles.heroCardOuter}>
-          <LinearGradient
-            colors={['#dc2626', '#b91c1c', '#7f1d1d']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.heroCard}
-          >
-            {/* Decorative circles */}
-            <View style={styles.decCircle1} />
-            <View style={styles.decCircle2} />
+      {/* ── Top zone: icon → play button ─────────────────── */}
+      <View style={[styles.topZone, { paddingTop: headerHeight + 24 }]}>
+        {/* Flexible spacer pushes content below center */}
+        <View style={[styles.topSpacer, !isPlaying && { flex: 1.6 }]} />
 
-            {/* Logo */}
-            <View style={styles.logoWrap}>
-              <Image source={appIdentity.logo} contentFit="cover" style={styles.logo} />
-            </View>
-
-            {/* Station info */}
-            <Text style={styles.stationTitle}>Radio Fontana</Text>
-            <Text style={styles.stationFreq}>98.8 FM · Istog, Kosovë</Text>
-
-            {/* Equalizer */}
-            <View style={styles.eqWrap}>
-              <EqualizerBars bars={7} playing={isPlaying} variant="full" color="rgba(255,255,255,0.85)" />
-            </View>
-
-            {/* Status pill */}
-            {isPlaying ? (
-              <LiveBadge withDot variant="solid" />
-            ) : isReconnecting || isBuffering ? (
-              <View style={styles.connectingPill}>
-                <Text style={styles.connectingText}>Po lidhet...</Text>
-              </View>
-            ) : (
-              <View style={styles.offlinePill}>
-                <Text style={styles.offlineText}>Offline</Text>
-              </View>
-            )}
-          </LinearGradient>
+        {/* Radio icon box */}
+        <View style={[styles.iconBox, isPlaying && styles.iconBoxPlaying]}>
+          <Ionicons
+            name="radio-outline"
+            size={s(28)}
+            color={isPlaying ? RED : 'rgba(255,255,255,0.82)'}
+          />
         </View>
 
-        {/* ── Play / Pause button ──────────────────────────── */}
-        <View style={styles.playSection}>
-          <Pressable
-            onPress={toggle}
-            style={({ pressed }) => [styles.playButton, pressed && styles.playButtonPressed]}
-          >
-            <LinearGradient
-              colors={isActive ? ['#111827', '#1f2937'] : [colors.primary, '#b91c1c']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.playButtonGradient}
-            >
-              <Text style={styles.playButtonIcon}>
-                {isPlaying ? '❙❙' : (isBuffering || isReconnecting) ? '···' : '▶'}
-              </Text>
-            </LinearGradient>
-          </Pressable>
-          <Text style={styles.playLabel}>
-            {isPlaying ? 'Duke dëgjuar live' : isReconnecting || isBuffering ? 'Po lidhet me stream...' : 'Shtyp për të dëgjuar'}
-          </Text>
+        {/* Status badge */}
+        <View style={[styles.badge, isPlaying && styles.badgePlaying]}>
+          <View style={[styles.badgeDot, isPlaying && styles.badgeDotPlaying]} />
+          <Text style={[styles.badgeText, isPlaying && styles.badgeTextPlaying]}>{badgeLabel}</Text>
         </View>
 
-        {/* ── Info cards ───────────────────────────────────── */}
-        <View style={styles.infoRow}>
-          <View style={styles.infoCard}>
-            <Text style={styles.infoIcon}>📻</Text>
-            <Text style={styles.infoLabel}>Frekuenca</Text>
-            <Text style={styles.infoValue}>98.8 FM</Text>
-          </View>
-          <View style={styles.infoCard}>
-            <Text style={styles.infoIcon}>📍</Text>
-            <Text style={styles.infoLabel}>Vendndodhja</Text>
-            <Text style={styles.infoValue}>Istog, Kosovë</Text>
-          </View>
-          <View style={styles.infoCard}>
-            <Text style={styles.infoIcon}>🕐</Text>
-            <Text style={styles.infoLabel}>Transmetim</Text>
-            <Text style={styles.infoValue}>24/7</Text>
-          </View>
+        {/* Station info */}
+        <View style={styles.infoGroup}>
+          <Text style={styles.name}>Radio Fontana 98.8 FM</Text>
+          <Text style={styles.freq}>98.8 FM · Istog, Kosovë</Text>
+          <Text style={styles.desc}>Transmetim 24/7 me cilësi të lartë</Text>
         </View>
 
-        {/* ── Facebook live embed ──────────────────────────── */}
-        {showFbEmbed ? (
-          <View style={styles.embedSection}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionAccent} />
-              <Text style={styles.sectionTitle}>Facebook Live</Text>
-            </View>
-            <View style={styles.embedCard}>
-              <WebView
-                source={{ uri: liveData!.facebookUrl! }}
-                style={styles.webView}
-              />
-            </View>
+        {/* Play / Pause button */}
+        <Pressable
+          onPress={toggle}
+          hitSlop={16}
+          style={({ pressed }) => [
+            styles.playBtn,
+            isPlaying && styles.playBtnPlaying,
+            pressed && styles.playBtnPressed,
+          ]}
+        >
+          <Ionicons
+            name={playIconName}
+            size={s(36)}
+            color={isPlaying ? '#FFFFFF' : BG}
+            style={playIconName === 'play' ? styles.playIconNudge : undefined}
+          />
+        </Pressable>
+
+        {/* M-C7: keep Equalizer mounted always; just toggle `playing` so its
+            withRepeat tween cancels/resumes without tearing down 5 worklets +
+            5 useDerivedValue subscriptions per play/pause toggle.
+            R-7: removed redundant outer eqRow wrapper \u2014 Equalizer already
+            renders its own <View style={styles.eqRow}>. The double wrap
+            added a useless intermediate View to layout / shadow tree. */}
+        <Equalizer playing={isPlaying} />
+      </View>
+
+      {/* ── Bottom zone: stat cards ───────────────────────── */}
+      <View style={[styles.bottomZone, { paddingBottom: insets.bottom + s(14) }]}>
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Ionicons name="time-outline" size={s(22)} color="rgba(255,255,255,0.42)" />
+            <Text style={styles.statVal}>24/7</Text>
+            <Text style={styles.statLbl}>LIVE</Text>
           </View>
-        ) : null}
-      </ScrollView>
+          <View style={styles.statCard}>
+            <Ionicons name="volume-medium-outline" size={s(22)} color="rgba(255,255,255,0.42)" />
+            <Text style={styles.statVal}>HQ</Text>
+            <Text style={styles.statLbl}>320KBPS</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Ionicons name="wifi-outline" size={s(22)} color="rgba(255,255,255,0.42)" />
+            <Text style={styles.statVal}>FM</Text>
+            <Text style={styles.statLbl}>98.8</Text>
+          </View>
+        </View>
+      </View>
     </View>
   );
 }
@@ -144,243 +191,195 @@ export default function LiveScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: BG,
   },
-  topBar: {
+  topZone: {
+    flex: 1.35,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingBottom: 20,
+  },
+  topSpacer: {
+    flex: 1,
+  },
+  bottomZone: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 20,
+    width: '100%',
+  },
+
+  // ── Top bar ─────────────────────────────────────────────────
+  headerShell: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 50,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingBottom: 10,
+    zIndex: 40,
     backgroundColor: colors.surface,
     shadowColor: colors.navy,
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
     elevation: 4,
   },
-  topBarTitle: {
-    fontFamily: fonts.uiBold,
-    fontSize: 18,
-    color: colors.text,
-    letterSpacing: -0.4,
-  },
-
-  // ── Hero card ──────────────────────────────────────────────
-  heroCardOuter: {
-    marginHorizontal: spacing.md,
-    marginTop: spacing.sm,
-    borderRadius: 26,
-    overflow: 'hidden',
-    shadowColor: colors.navy,
-    shadowOpacity: 0.32,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 12,
-  },
-  heroCard: {
+  headerRow: {
+    height: 66,
+    paddingHorizontal: 14,
+    paddingTop: 8,
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 36,
-    paddingHorizontal: spacing.xl,
     gap: 10,
-    overflow: 'hidden',
   },
-  decCircle1: {
-    position: 'absolute',
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    top: -80,
-    right: -80,
+  headerLogo: {
+    width: s(46),
+    height: s(46),
+    borderRadius: s(11),
+    backgroundColor: colors.surfaceSubtle,
   },
-  decCircle2: {
-    position: 'absolute',
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    bottom: -50,
-    left: -50,
-  },
-  logoWrap: {
-    width: 116,
-    height: 116,
-    borderRadius: 24,
-    overflow: 'hidden',
-    borderWidth: 2.5,
-    borderColor: 'rgba(255,255,255,0.22)',
-    shadowColor: '#000',
-    shadowOpacity: 0.35,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 10,
-    marginBottom: 6,
-  },
-  logo: {
-    width: '100%',
-    height: '100%',
-  },
-  stationTitle: {
-    fontFamily: fonts.uiBold,
-    fontSize: 28,
-    color: '#FFFFFF',
-    textAlign: 'center',
-    letterSpacing: -0.6,
-  },
-  stationFreq: {
-    fontFamily: fonts.uiRegular,
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.72)',
-    textAlign: 'center',
-    marginTop: -4,
-  },
-  eqWrap: {
-    marginVertical: 4,
-  },
-  connectingPill: {
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 5,
-    marginTop: 2,
-  },
-  connectingText: {
-    color: '#FFFFFF',
-    fontFamily: fonts.uiMedium,
-    fontSize: 12,
-  },
-  offlinePill: {
-    backgroundColor: 'rgba(0,0,0,0.20)',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 5,
-    marginTop: 2,
-  },
-  offlineText: {
-    color: 'rgba(255,255,255,0.70)',
-    fontFamily: fonts.uiMedium,
-    fontSize: 12,
+  headerSpacer: {
+    flex: 1,
   },
 
-  // ── Play button ────────────────────────────────────────────
-  playSection: {
-    alignItems: 'center',
-    marginTop: spacing.xl,
-    gap: 12,
-  },
-  playButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    overflow: 'hidden',
-    shadowColor: colors.primary,
-    shadowOpacity: 0.45,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 7 },
-    elevation: 9,
-  },
-  playButtonPressed: {
-    opacity: 0.8,
-    transform: [{ scale: 0.94 }],
-  },
-  playButtonGradient: {
-    width: '100%',
-    height: '100%',
+  // ── Radio icon box ──────────────────────────────────────────
+  iconBox: {
+    width: s(68),
+    height: s(68),
+    borderRadius: s(17),
+    backgroundColor: SURFACE,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: s(12),
   },
-  playButtonIcon: {
+  iconBoxPlaying: {
+    backgroundColor: RED_BOX,
+  },
+
+  // ── Status badge ────────────────────────────────────────────
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s(8),
+    backgroundColor: SURFACE,
+    paddingHorizontal: s(16),
+    paddingVertical: s(7),
+    borderRadius: 999,
+    marginBottom: s(20),
+  },
+  badgePlaying: {
+    backgroundColor: RED,
+  },
+  badgeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: 'rgba(255,255,255,0.55)',
+  },
+  badgeDotPlaying: {
+    backgroundColor: '#FFFFFF',
+  },
+  badgeText: {
+    color: 'rgba(255,255,255,0.85)',
+    fontFamily: fonts.uiBold,
+    fontSize: ms(12),
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  badgeTextPlaying: {
+    color: '#FFFFFF',
+  },
+
+  // ── Station info ────────────────────────────────────────────
+  infoGroup: {
+    alignItems: 'center',
+    gap: s(4),
+    paddingHorizontal: s(24),
+    marginBottom: s(24),
+  },
+  name: {
     color: '#FFFFFF',
     fontFamily: fonts.uiBold,
-    fontSize: 26,
-    lineHeight: 26,
-    marginLeft: 3,
-  },
-  playLabel: {
-    fontFamily: fonts.uiMedium,
-    fontSize: 13,
-    color: colors.textMuted,
+    fontSize: ms(26),
+    letterSpacing: -0.8,
     textAlign: 'center',
+    lineHeight: ms(34),
   },
-
-  // ── Info cards ─────────────────────────────────────────────
-  infoRow: {
-    flexDirection: 'row',
-    marginHorizontal: spacing.md,
-    marginTop: spacing.lg,
-    gap: spacing.sm,
-  },
-  infoCard: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 10,
-    alignItems: 'center',
-    gap: 4,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: colors.navy,
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-  },
-  infoIcon: {
-    fontSize: 20,
-  },
-  infoLabel: {
+  freq: {
+    color: 'rgba(255,255,255,0.58)',
     fontFamily: fonts.uiRegular,
-    fontSize: 10,
-    color: colors.textMuted,
+    fontSize: ms(14),
     textAlign: 'center',
   },
-  infoValue: {
-    fontFamily: fonts.uiBold,
-    fontSize: 13,
-    color: colors.text,
+  desc: {
+    color: 'rgba(255,255,255,0.34)',
+    fontFamily: fonts.uiRegular,
+    fontSize: ms(12.5),
     textAlign: 'center',
-    letterSpacing: -0.2,
+    marginTop: 2,
   },
 
-  // ── Facebook embed ─────────────────────────────────────────
-  embedSection: {
-    margin: spacing.md,
-    marginTop: spacing.lg,
-    gap: spacing.md,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  sectionAccent: {
-    width: 3,
-    height: 20,
-    borderRadius: 2,
-    backgroundColor: colors.primary,
-  },
-  sectionTitle: {
-    fontFamily: fonts.uiBold,
-    color: colors.text,
-    fontSize: 18,
-    letterSpacing: -0.2,
-  },
-  embedCard: {
-    height: 240,
-    borderRadius: radius.card,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  webView: {
-    flex: 1,
+  // ── Play button ─────────────────────────────────────────────
+  playBtn: {
+    width: s(78),
+    height: s(78),
+    borderRadius: s(39),
     backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: s(16),
+    marginTop: s(10),
+  },
+  playBtnPlaying: {
+    backgroundColor: RED,
+  },
+  playBtnPressed: {
+    opacity: 0.86,
+    transform: [{ scale: 0.94 }],
+  },
+  playIconNudge: {
+    marginLeft: 5,
+  },
+
+  // ── Equalizer ───────────────────────────────────────────────
+  eqRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: s(4),
+    height: s(44),
+    marginTop: 0,
+  },
+  eqBar: {
+    width: s(4),
+    borderRadius: s(2),
+    backgroundColor: RED,
+  },
+
+  // ── Stat cards ──────────────────────────────────────────────
+  statsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: SURFACE,
+    borderRadius: s(18),
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: s(14),
+    gap: s(4),
+  },
+  statVal: {
+    color: '#FFFFFF',
+    fontFamily: fonts.uiBold,
+    fontSize: ms(20),
+    letterSpacing: -0.3,
+  },
+  statLbl: {
+    color: 'rgba(255,255,255,0.40)',
+    fontFamily: fonts.uiBold,
+    fontSize: ms(9),
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
   },
 });

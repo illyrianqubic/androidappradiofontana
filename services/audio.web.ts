@@ -33,20 +33,26 @@ type NowPlayingMetadata = {
   artist: string;
 };
 
-type AudioContextValue = {
+type AudioStateValue = {
   isReady: boolean;
   isPlaying: boolean;
   isBuffering: boolean;
   isReconnecting: boolean;
   metadata: NowPlayingMetadata;
   playbackState: number;
+};
+
+type AudioActionsValue = {
   play: () => Promise<void>;
   pause: () => Promise<void>;
   toggle: () => Promise<void>;
   reconnect: () => Promise<void>;
 };
 
-const AudioContext = createContext<AudioContextValue | null>(null);
+type AudioContextValue = AudioStateValue & AudioActionsValue;
+
+const AudioStateContext = createContext<AudioStateValue | null>(null);
+const AudioActionsContext = createContext<AudioActionsValue | null>(null);
 
 export async function playbackService() {
   return;
@@ -303,7 +309,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     };
   }, [cancelReconnect, ensurePlayer, releaseCurrentPlayer]);
 
-  const value = useMemo<AudioContextValue>(
+  const stateValue = useMemo<AudioStateValue>(
     () => ({
       isReady,
       isPlaying,
@@ -311,34 +317,40 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       isReconnecting,
       metadata,
       playbackState,
-      play,
-      pause,
-      toggle,
-      reconnect,
     }),
-    [
-      isReady,
-      isPlaying,
-      isBuffering,
-      isReconnecting,
-      metadata,
-      playbackState,
-      play,
-      pause,
-      toggle,
-      reconnect,
-    ],
+    [isReady, isPlaying, isBuffering, isReconnecting, metadata, playbackState],
   );
 
-  return React.createElement(AudioContext.Provider, { value }, children);
+  const actionsValue = useMemo<AudioActionsValue>(
+    () => ({ play, pause, toggle, reconnect }),
+    [play, pause, toggle, reconnect],
+  );
+
+  return React.createElement(
+    AudioActionsContext.Provider,
+    { value: actionsValue },
+    React.createElement(AudioStateContext.Provider, { value: stateValue }, children),
+  );
 }
 
-export function useAudio() {
-  const ctx = useContext(AudioContext);
-
+export function useAudioState(): AudioStateValue {
+  const ctx = useContext(AudioStateContext);
   if (!ctx) {
-    throw new Error('useAudio must be used inside AudioProvider');
+    throw new Error('useAudioState must be used inside AudioProvider');
   }
-
   return ctx;
+}
+
+export function useAudioActions(): AudioActionsValue {
+  const ctx = useContext(AudioActionsContext);
+  if (!ctx) {
+    throw new Error('useAudioActions must be used inside AudioProvider');
+  }
+  return ctx;
+}
+
+export function useAudio(): AudioContextValue {
+  const state = useAudioState();
+  const actions = useAudioActions();
+  return useMemo(() => ({ ...state, ...actions }), [state, actions]);
 }

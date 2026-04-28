@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   BackHandler,
-  LayoutAnimation,
   Linking,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
   Platform,
   Pressable,
   ScrollView,
@@ -17,15 +14,19 @@ import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
+  FadeIn,
+  FadeOut,
   interpolate,
+  LinearTransition,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
-import { Ionicons } from '@expo/vector-icons';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+// A-3: deep imports skip loading the full glyph maps for every icon set.
+import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useDrawer } from '../context/DrawerContext';
 
 import { colors, fonts } from '../design-tokens';
@@ -76,6 +77,9 @@ const OPEN_EASING  = Easing.out(Easing.cubic);
 const CLOSE_EASING = Easing.in(Easing.cubic);
 const OPEN_DURATION  = 260;
 const CLOSE_DURATION = 200;
+// Buffer after CLOSE_DURATION before we unmount the inner subtree, so the
+// closing animation always finishes cleanly even on slow devices.
+const UNMOUNT_GRACE_MS = 80;
 
 // Per-category tag color palette
 const CAT_COLORS = [
@@ -88,7 +92,30 @@ const CAT_COLORS = [
   { bg: '#FDF2F8', text: '#86198F' },
 ] as const;
 
+// Public component — gates the heavy inner subtree (ScrollView + 7 NavItems +
+// Reanimated worklets) behind isOpen so the drawer pays zero render/memory cost
+// while closed. Stays mounted briefly during the close animation.
 export function HamburgerDrawer() {
+  const { isOpen } = useDrawer();
+  const [shouldRender, setShouldRender] = useState(isOpen);
+
+  useEffect(() => {
+    if (isOpen) {
+      setShouldRender(true);
+      return;
+    }
+    const id = setTimeout(
+      () => setShouldRender(false),
+      CLOSE_DURATION + UNMOUNT_GRACE_MS,
+    );
+    return () => clearTimeout(id);
+  }, [isOpen]);
+
+  if (!shouldRender) return null;
+  return <HamburgerDrawerInner />;
+}
+
+function HamburgerDrawerInner() {
   const { isOpen, close } = useDrawer();
   const { width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -117,6 +144,11 @@ export function HamburgerDrawer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
+  // H-B6: stable BackHandler effect. R-14: removed the closeRef indirection
+  // \u2014 `close` from useDrawer() is now stable (memoized in the provider), so
+  // we can depend on it directly without re-subscribing the JNI listener on
+  // every parent render. The effect still only re-runs when isOpen flips
+  // OR if `close` ever changes identity (it shouldn't).
   useEffect(() => {
     if (!isOpen || Platform.OS !== 'android') return undefined;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => { close(); return true; });
@@ -133,8 +165,11 @@ export function HamburgerDrawer() {
     }
   }, [isOpen, scrollHintOpacity]);
 
-  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (e.nativeEvent.contentOffset.y > 20 && showScrollHint) {
+  // H-B7: scrollEventThrottle:100 still fired ~10 onScroll callbacks every
+  // second of scrolling for a one-shot hint dismiss. onScrollBeginDrag fires
+  // exactly once per gesture and is all this needs.
+  const onScrollBeginDrag = () => {
+    if (showScrollHint) {
       setShowScrollHint(false);
       scrollHintOpacity.value = withTiming(0, { duration: 220 });
     }
@@ -156,21 +191,7 @@ export function HamburgerDrawer() {
   const navigate = (path: string) => { close(); router.push(path as never); };
 
   const toggleLajme = () => {
-    const next = !lajmeExpanded;
-    // LayoutAnimation runs on JS thread → parent navCard layout updates properly
-    LayoutAnimation.configureNext({
-      duration: 240,
-      create: {
-        type: LayoutAnimation.Types.easeInEaseOut,
-        property: LayoutAnimation.Properties.opacity,
-      },
-      update: { type: LayoutAnimation.Types.easeInEaseOut },
-      delete: {
-        type: LayoutAnimation.Types.easeInEaseOut,
-        property: LayoutAnimation.Properties.opacity,
-      },
-    });
-    setLajmeExpanded(next);
+    setLajmeExpanded((v) => !v);
   };
 
   const isHomeActive = pathname === '/' || pathname === '/(tabs)' || pathname === '/(tabs)/';
@@ -215,11 +236,15 @@ export function HamburgerDrawer() {
             bounces={false}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={S.scrollContent}
-            onScroll={onScroll}
-            scrollEventThrottle={16}
+            onScrollBeginDrag={onScrollBeginDrag}
+            // R-8: removed `removeClippedSubviews`. It breaks Reanimated's
+            // LinearTransition layout animations on Android \u2014 nodes that
+            // get clipped during the animation lose their shared-element
+            // identity and the animation snaps. The drawer content is small
+            // enough (one screenful) that clipping savings are negligible.
           >
             {/* ── MENUJA ─────────────────────────────────────────── */}
-            <View style={S.navCard}>
+            <Animated.View style={S.navCard} layout={LinearTransition.duration(220)}>
               <Text style={S.sectionLabel}>MENUJA</Text>
 
               <NavItem
@@ -266,9 +291,14 @@ export function HamburgerDrawer() {
                 />
               </Pressable>
 
-              {/* Category accordion — conditional render, LayoutAnimation drives expansion */}
+              {/* Category accordion — Reanimated entering/exiting drives expansion (UI thread) */}
               {lajmeExpanded && (
-                <View style={S.accordion}>
+                <Animated.View
+                  style={S.accordion}
+                  entering={FadeIn.duration(200)}
+                  exiting={FadeOut.duration(160)}
+                  layout={LinearTransition.duration(220)}
+                >
                   {LAJME_CATEGORIES.map((cat, i) => (
                     <View key={cat.slug}>
                       <Pressable
@@ -281,9 +311,9 @@ export function HamburgerDrawer() {
                       {i < LAJME_CATEGORIES.length - 1 && <View style={S.catSep} />}
                     </View>
                   ))}
-                </View>
+                </Animated.View>
               )}
-            </View>
+            </Animated.View>
 
             {/* ── TJETËR ─────────────────────────────────────────── */}
             <View style={[S.navCard, S.navCardSpaced]}>

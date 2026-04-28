@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,18 +11,22 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePathname } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { appIdentity, colors, fonts } from '../design-tokens';
-import { useAudio } from '../services/audio';
+import { s } from '../lib/responsive';
+import { useAudioActions, useAudioState } from '../services/audio';
 import { useDrawer } from '../context/DrawerContext';
-import { useUI } from '../context/UIContext';
 import { EqualizerBars } from './EqualizerBars';
 
-const HIDDEN_ROUTES = ['/rreth-nesh', '/(tabs)/live', '/live'];
+// MiniPlayer hides on these routes automatically — no context state update needed.
+// '/news/' (with trailing slash) matches any /news/<slug> article path via startsWith,
+// while keeping the /news index visible.
+const HIDDEN_ROUTES = ['/rreth-nesh', '/(tabs)/live', '/live', '/news/'];
 
 type MiniPlayerProps = {
   onOpenPlayer: () => void;
+  forceHidden: boolean;
 };
 
 // Pulsing glow ring — shown behind play button when actively playing
@@ -47,22 +51,56 @@ function GlowRing() {
   return <Animated.View style={[StyleSheet.absoluteFillObject, styles.glowRing, ringStyle]} />;
 }
 
-export function MiniPlayer({ onOpenPlayer: _onOpenPlayer }: MiniPlayerProps) {
-  const insets = useSafeAreaInsets();
-  const { isPlaying, isBuffering, isReconnecting, toggle } = useAudio();
-  const { isOpen: drawerOpen } = useDrawer();
+// C-A5: route-derived visibility computed in a tiny outer gate so usePathname
+// changes don't re-render the audio-driven body. The gate component is the
+// only one re-rendered on navigation; the inner MiniPlayer is React.memo'd
+// and only re-renders when audio state changes. Crucially the inner
+// MiniPlayer stays MOUNTED across navigation — hidden via opacity/transform
+// only — so its worklets, gradient shaders and image cache binding survive
+// every article open/close round trip. Previously a `return null` here tore
+// down 5 worklets, 3 LinearGradient shader compiles and an image binding on
+// every navigation — ~25 ms reconcile cost per article round-trip.
+export function MiniPlayerVisibilityGate({ onOpenPlayer }: { onOpenPlayer: () => void }) {
   const pathname = usePathname();
-  const miniPlayerBottom = insets.bottom + 76;
+  const forceHidden =
+    pathname === '/player' ||
+    HIDDEN_ROUTES.some((r) => pathname === r || pathname.startsWith(r));
+  return <MiniPlayer onOpenPlayer={onOpenPlayer} forceHidden={forceHidden} />;
+}
 
-  const isHiddenRoute = HIDDEN_ROUTES.some((r) => pathname === r || pathname.startsWith(r));
-  const { miniPlayerHidden } = useUI();
-  const shouldHide = drawerOpen || isHiddenRoute || miniPlayerHidden;
+function MiniPlayerInner({ onOpenPlayer, forceHidden }: MiniPlayerProps) {
+  const insets = useSafeAreaInsets();
+  const { isPlaying, isBuffering, isReconnecting } = useAudioState();
+  const { toggle } = useAudioActions();
+  const { isOpen: drawerOpen } = useDrawer();
+  const miniPlayerBottom = insets.bottom + s(76);
+
+  // H-B3: UIContext was dead code (hideMiniPlayer/showMiniPlayer never
+  // called anywhere) and forced spurious re-renders here on every root
+  // re-render. Removed entirely — visibility is now driven only by route
+  // (forceHidden) and drawer state.
+  const shouldHide = drawerOpen || forceHidden;
 
   const hideOffset = useSharedValue(0);
 
   useEffect(() => {
     hideOffset.value = withTiming(shouldHide ? 1 : 0, { duration: 220 });
   }, [shouldHide, hideOffset]);
+
+  // R-5 / R-6: after the slide-out animation completes, also apply
+  // display: 'none' so the View is removed from layout AND stops GPU
+  // compositing entirely. Crucially the worklets, gradient shaders and
+  // Image binding stay MOUNTED \u2014 only the layout/draw pass is skipped.
+  // When shouldHide flips back to false we drop display:'none' immediately
+  // so the slide-in animation has something to animate against.
+  const [layoutHidden, setLayoutHidden] = useState(false);
+  useEffect(() => {
+    if (shouldHide) {
+      const t = setTimeout(() => setLayoutHidden(true), 240);
+      return () => clearTimeout(t);
+    }
+    setLayoutHidden(false);
+  }, [shouldHide]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: hideOffset.value * 120 }],
@@ -71,10 +109,18 @@ export function MiniPlayer({ onOpenPlayer: _onOpenPlayer }: MiniPlayerProps) {
 
   const isActive = isPlaying || isBuffering || isReconnecting;
 
+  // H15: stable bottom-position style so prop array identity stays steady.
+  const positionStyle = useMemo(
+    () => ({ bottom: miniPlayerBottom }),
+    [miniPlayerBottom],
+  );
+
+  const layoutHiddenStyle = layoutHidden ? styles.layoutHidden : null;
+
   return (
     <Animated.View
       pointerEvents={shouldHide ? 'none' : 'auto'}
-      style={[styles.outerShadow, animatedStyle, { bottom: miniPlayerBottom }]}
+      style={[styles.outerShadow, animatedStyle, positionStyle, layoutHiddenStyle]}
     >
       <LinearGradient
         colors={['#1e1b4b', '#0f172a', '#18181b']}
@@ -89,7 +135,12 @@ export function MiniPlayer({ onOpenPlayer: _onOpenPlayer }: MiniPlayerProps) {
         <View style={styles.shimmerDiag} />
 
         <View style={styles.inner}>
-          {/* ── Logo ──────────────────────────────────────── */}
+          {/* ── Logo + Text (tap to expand) ──────────────── */}
+          <Pressable
+            onPress={onOpenPlayer}
+            style={styles.infoArea}
+            hitSlop={4}
+          >
           <View style={styles.logoContainer}>
             <View style={styles.logoWrap}>
               <Image source={appIdentity.logo} style={styles.logo} contentFit="cover" />
@@ -117,6 +168,7 @@ export function MiniPlayer({ onOpenPlayer: _onOpenPlayer }: MiniPlayerProps) {
                 : 'Shtyp për të dëgjuar live'}
             </Text>
           </View>
+          </Pressable>
 
           {/* ── Play / Pause ──────────────────────────────── */}
           <View style={styles.btnWrap}>
@@ -147,23 +199,32 @@ export function MiniPlayer({ onOpenPlayer: _onOpenPlayer }: MiniPlayerProps) {
   );
 }
 
+// memo: only re-render when onOpenPlayer reference or forceHidden flips,
+// which is rare. Audio state subscriptions inside still drive ticks normally.
+export const MiniPlayer = memo(MiniPlayerInner);
+
 const styles = StyleSheet.create({
+  // R-5/R-6: applied AFTER the slide-out animation completes; removes the
+  // view from layout and stops GPU compositing without unmounting children.
+  layoutHidden: { display: 'none' },
   outerShadow: {
     position: 'absolute',
-    left: 10,
-    right: 10,
-    height: 72,
-    borderRadius: 20,
+    left: s(10),
+    right: s(10),
+    height: s(72),
+    borderRadius: s(20),
     zIndex: 40,
+    // H14: lighter shadow — elevation 18 + 28px shadowRadius forces Mali-G52
+    // to redraw a large blur every frame the MiniPlayer is on screen.
     shadowColor: '#000',
-    shadowOpacity: 0.55,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 18,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
   },
   outer: {
     flex: 1,
-    borderRadius: 20,
+    borderRadius: s(20),
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.09)',
@@ -192,9 +253,15 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingLeft: 14,
-    paddingRight: 12,
-    gap: 12,
+    paddingLeft: s(14),
+    paddingRight: s(12),
+    gap: s(12),
+  },
+  infoArea: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s(12),
   },
 
   // ── Logo ──────────────────────────────────────────────────
@@ -202,9 +269,9 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   logoWrap: {
-    width: 46,
-    height: 46,
-    borderRadius: 12,
+    width: s(46),
+    height: s(46),
+    borderRadius: s(12),
     overflow: 'hidden',
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.13)',
@@ -222,11 +289,11 @@ const styles = StyleSheet.create({
   },
   liveDot: {
     position: 'absolute',
-    top: -3,
-    right: -3,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    top: -s(3),
+    right: -s(3),
+    width: s(10),
+    height: s(10),
+    borderRadius: s(5),
     backgroundColor: '#22c55e',
     borderWidth: 1.5,
     borderColor: '#0f172a',
@@ -257,19 +324,19 @@ const styles = StyleSheet.create({
 
   // ── Play button ───────────────────────────────────────────
   btnWrap: {
-    width: 48,
-    height: 48,
+    width: s(48),
+    height: s(48),
     alignItems: 'center',
     justifyContent: 'center',
   },
   glowRing: {
-    borderRadius: 24,
+    borderRadius: s(24),
     backgroundColor: colors.primary,
   },
   playButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: s(46),
+    height: s(46),
+    borderRadius: s(23),
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.15)',

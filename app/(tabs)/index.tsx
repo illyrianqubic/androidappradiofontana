@@ -1,5 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AppState,
+  InteractionManager,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -10,7 +12,8 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+// A-3: deep import skips loading all other icon sets' glyph maps.
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -30,6 +33,8 @@ import { HamburgerButton } from '../../components/HamburgerButton';
 import { RelativeTime } from '../../components/RelativeTime';
 import { SkeletonCard } from '../../components/SkeletonCard';
 import { appIdentity, colors, elevation, fonts, radius } from '../../design-tokens';
+import { ms, s } from '../../lib/responsive';
+import { queueImagePrefetch } from '../../lib/prefetchQueue';
 import {
   buildSanityImageUrl,
   defaultThumbhash,
@@ -42,6 +47,7 @@ import {
 } from '../../services/api';
 
 const BREAKING_H = 44;
+const CURRENT_YEAR = new Date().getFullYear();
 
 type LatestGridItem = Post | { _skeleton: string };
 function isSkeletonItem(item: LatestGridItem): item is { _skeleton: string } {
@@ -53,15 +59,15 @@ type WeatherResponse = {
   current: { temperature_2m: number; weathercode: number; windspeed_10m: number };
 };
 
-function wInfo(code: number): { label: string; icon: string; g0: string; g1: string } {
-  if (code === 0)  return { label: 'E kthjellët',      icon: '☀️',  g0: '#1558B0', g1: '#4A9FDF' };
-  if (code <= 3)   return { label: 'Me re të lehta',   icon: '⛅',  g0: '#1E6BAA', g1: '#7BBDE8' };
-  if (code <= 48)  return { label: 'Mjegull',           icon: '🌫️', g0: '#4A5568', g1: '#718096' };
-  if (code <= 57)  return { label: 'Vesë e lehtë',      icon: '🌦️', g0: '#1A40A0', g1: '#5070D0' };
-  if (code <= 67)  return { label: 'Shi',               icon: '🌧️', g0: '#1A2E4A', g1: '#2D5080' };
-  if (code <= 77)  return { label: 'Borë',              icon: '❄️',  g0: '#7BA4C0', g1: '#C8E4F4' };
-  if (code <= 82)  return { label: 'Rrebeshe shi',      icon: '⛈️', g0: '#192030', g1: '#2D4060' };
-  return                  { label: 'Stuhi',             icon: '⛈️', g0: '#0D1218', g1: '#1A2030' };
+function wInfo(code: number): { label: string; icon: keyof typeof Ionicons.glyphMap } {
+  if (code === 0)  return { label: 'E kthjellët',      icon: 'sunny-outline'        };
+  if (code <= 3)   return { label: 'Me re të lehta',   icon: 'partly-sunny-outline' };
+  if (code <= 48)  return { label: 'Mjegull',           icon: 'cloud-outline'        };
+  if (code <= 57)  return { label: 'Vesë e lehtë',      icon: 'rainy-outline'        };
+  if (code <= 67)  return { label: 'Shi',               icon: 'rainy-outline'        };
+  if (code <= 77)  return { label: 'Borë',              icon: 'snow-outline'         };
+  if (code <= 82)  return { label: 'Rrebeshe shi',      icon: 'thunderstorm-outline' };
+  return                  { label: 'Stuhi',             icon: 'thunderstorm-outline' };
 }
 
 async function fetchWeatherIstog(): Promise<WeatherResponse> {
@@ -74,10 +80,28 @@ async function fetchWeatherIstog(): Promise<WeatherResponse> {
 
 // ── WeatherWidget ──────────────────────────────────────────────────────────────
 const WeatherWidget = memo(function WeatherWidget() {
+  // M30: pause weather polling when the app is backgrounded so the 15-min
+  // timer doesn't wake the JS thread (and trigger a persisted-cache write)
+  // while the user is in another app.
+  const [isAppForeground, setIsAppForeground] = useState(
+    AppState.currentState === 'active',
+  );
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      setIsAppForeground(next === 'active');
+    });
+    return () => sub.remove();
+  }, []);
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ['weather-istog'],
     queryFn: fetchWeatherIstog,
+    enabled: isAppForeground,
     staleTime: 30 * 60 * 1000,
+    // Auto-refresh every 15 minutes so users coming back to a stale home tab
+    // see fresh conditions without needing a pull-to-refresh.
+    refetchInterval: 15 * 60 * 1000,
+    refetchIntervalInBackground: false,
     retry: 1,
   });
 
@@ -97,36 +121,38 @@ const WeatherWidget = memo(function WeatherWidget() {
 
   return (
     <View style={styles.weatherCard}>
-      <LinearGradient
-        colors={info ? [info.g0, info.g1] : ['#1558B0', '#4A9FDF']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.weatherGrad}
-      >
-        {/* Decorative circle highlight */}
+      <View style={styles.weatherInner}>
+        {/* Decorative depth circles */}
         <View style={styles.weatherCircle} />
+        <View style={styles.weatherCircle2} />
 
+        {/* Header: location + live pill */}
         <View style={styles.weatherTopRow}>
           <View>
             <Text style={styles.weatherCity}>Istog, Kosovë</Text>
-            <Text style={styles.weatherSub}>Moti tani</Text>
+            <View style={styles.weatherLivePill}>
+              <View style={styles.weatherLiveDot} />
+              <Text style={styles.weatherSub}>Mësoni moti tani</Text>
+            </View>
           </View>
           {isLoading || !data ? (
             <View style={styles.weatherIconPlaceholder} />
           ) : (
-            <Text style={styles.weatherEmoji}>{info?.icon}</Text>
+            <Ionicons name={info!.icon} size={36} color="#1a1a1a" />
           )}
         </View>
 
+        {/* Data row */}
         {isLoading || !data ? (
           <View style={styles.weatherDataSkeleton} />
         ) : (
           <Animated.View style={[styles.weatherDataRow, revealStyle]}>
             <Text style={styles.weatherTemp}>{Math.round(data.current.temperature_2m)}°</Text>
+            <View style={styles.weatherDivider} />
             <View style={styles.weatherRight}>
               <Text style={styles.weatherCondition}>{info?.label}</Text>
               <View style={styles.weatherWindRow}>
-                <Ionicons name="flag-outline" size={13} color="rgba(255,255,255,0.7)" />
+                <Ionicons name="flag-outline" size={12} color="#9ca3af" />
                 <Text style={styles.weatherWind}>
                   {Math.round(data.current.windspeed_10m)} km/h erë
                 </Text>
@@ -134,20 +160,23 @@ const WeatherWidget = memo(function WeatherWidget() {
             </View>
           </Animated.View>
         )}
-      </LinearGradient>
+      </View>
     </View>
   );
 });
 
 // ── BreakingTicker ─────────────────────────────────────────────────────────────
 const BreakingTicker = memo(function BreakingTicker({ headlines }: { headlines: string[] }) {
-  const marqueeText = useMemo(
-    () =>
-      headlines.length > 0
-        ? headlines.join('   •   ')
-        : 'Lajmet e fundit nga RTV Fontana',
-    [headlines],
-  );
+  // Early-return when there are no headlines: skip mounting the inner ticker
+  // entirely so the infinite marquee + dot worklets never run on cold home.
+  if (headlines.length === 0) {
+    return null;
+  }
+  return <BreakingTickerInner headlines={headlines} />;
+});
+
+function BreakingTickerInner({ headlines }: { headlines: string[] }) {
+  const marqueeText = useMemo(() => headlines.join('   •   '), [headlines]);
 
   const [segmentWidth, setSegmentWidth] = useState(0);
   const translateX = useSharedValue(0);
@@ -202,7 +231,7 @@ const BreakingTicker = memo(function BreakingTicker({ headlines }: { headlines: 
       </View>
     </View>
   );
-});
+}
 
 // ── HeroCard ───────────────────────────────────────────────────────────────────
 const HeroCard = memo(function HeroCard({
@@ -280,7 +309,11 @@ const HeroCard = memo(function HeroCard({
 const LocalCard = memo(function LocalCard({ post, onPress }: { post: Post; onPress: (p: Post) => void }) {
   const scale = useSharedValue(1);
   const scaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  const imageUri = buildSanityImageUrl(post.mainImageUrl, 640);
+  // M27: thumbnails standardized at 480px wide.
+  const imageUri = useMemo(
+    () => buildSanityImageUrl(post.mainImageUrl, 480),
+    [post.mainImageUrl],
+  );
 
   return (
     <Animated.View style={[styles.localOuter, scaleStyle]}>
@@ -339,6 +372,158 @@ const SectionHeader = memo(function SectionHeader({
   );
 });
 
+// ── GridItem (memoized) ──────────────────────────────────────────────────────
+const GridItem = memo(function GridItem({
+  item,
+  isLeft,
+  onPress,
+}: {
+  item: Post;
+  isLeft: boolean;
+  onPress: (p: Post) => void;
+}) {
+  const imageUri = useMemo(() => buildSanityImageUrl(item.mainImageUrl, 480), [item.mainImageUrl]);
+  // M26: shared-value driven press scale on the UI thread \u2014 no per-press
+  // style array allocation in JS.
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return (
+    <View style={[styles.gridColumn, isLeft ? styles.gridColLeft : styles.gridColRight]}>
+      <Animated.View style={animStyle}>
+        <Pressable
+          onPress={() => onPress(item)}
+          onPressIn={() => { scale.value = withSpring(0.97, { damping: 22, stiffness: 440 }); }}
+          onPressOut={() => { scale.value = withSpring(1, { damping: 20, stiffness: 300 }); }}
+          style={styles.gridCard}
+        >
+          <View style={styles.gridImgWrap}>
+            <Image
+              source={imageUri ? { uri: imageUri } : undefined}
+              placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
+              contentFit="cover"
+              transition={0}
+              style={styles.gridImg}
+            />
+            <View style={styles.gridCatBadge}>
+              <Text numberOfLines={1} style={styles.gridCatText}>
+                {item.categories?.[0] ?? 'Lajme'}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.gridBody}>
+            <Text numberOfLines={2} style={styles.gridTitle}>{item.title}</Text>
+          <View style={styles.gridMetaRow}>
+            <Text numberOfLines={1} style={styles.gridAuthor}>
+              {item.author ?? 'Redaksia'}
+            </Text>
+            <RelativeTime timestamp={item.publishedAt} />
+          </View>
+        </View>
+        </Pressable>
+      </Animated.View>
+    </View>
+  );
+});
+
+// ── SearchResultCard (memoized) — used by virtualized search overlay ─────────
+const SearchResultCard = memo(function SearchResultCard({
+  item,
+  onPress,
+}: {
+  item: Post;
+  onPress: (p: Post) => void;
+}) {
+  // M27: thumbnails standardized at 480px wide.
+  const imageUri = useMemo(
+    () => (item.mainImageUrl ? buildSanityImageUrl(item.mainImageUrl, 480) : undefined),
+    [item.mainImageUrl],
+  );
+  // M26: shared-value driven press feedback (no per-press style array allocation).
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return (
+    <Animated.View style={animStyle}>
+      <Pressable
+        style={styles.searchResultCard}
+        onPressIn={() => { scale.value = withSpring(0.97, { damping: 22, stiffness: 440 }); }}
+        onPressOut={() => { scale.value = withSpring(1, { damping: 20, stiffness: 300 }); }}
+        onPress={() => onPress(item)}
+      >
+      <Image
+        source={imageUri ? { uri: imageUri } : undefined}
+        placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
+        contentFit="cover"
+        style={styles.searchResultImg}
+      />
+      <View style={styles.searchResultBody}>
+        <Text numberOfLines={1} style={styles.searchResultCat}>
+          {item.categories?.[0] ?? 'Lajme'}
+        </Text>
+        <Text numberOfLines={2} style={styles.searchResultTitle}>{item.title}</Text>
+        {item.excerpt ? (
+          <Text numberOfLines={2} style={styles.searchResultExcerpt}>
+            {item.excerpt}
+          </Text>
+        ) : null}
+      </View>
+      </Pressable>
+    </Animated.View>
+  );
+});
+
+// ── PopularCard (memoized) ───────────────────────────────────────────────────
+const PopularCard = memo(function PopularCard({
+  item,
+  index,
+  onPress,
+}: {
+  item: Post;
+  index: number;
+  onPress: (p: Post) => void;
+}) {
+  const imageUri = useMemo(
+    () => (item.mainImageUrl ? buildSanityImageUrl(item.mainImageUrl, 480) : undefined),
+    [item.mainImageUrl],
+  );
+  // M26: shared-value driven press feedback.
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return (
+    <Animated.View style={animStyle}>
+      <Pressable
+        onPress={() => onPress(item)}
+        onPressIn={() => { scale.value = withSpring(0.97, { damping: 22, stiffness: 440 }); }}
+        onPressOut={() => { scale.value = withSpring(1, { damping: 20, stiffness: 300 }); }}
+        style={styles.popularCard}
+      >
+      <View style={styles.popularImgWrap}>
+        <Image
+          source={imageUri ? { uri: imageUri } : undefined}
+          placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
+          contentFit="cover"
+          style={styles.popularImg}
+        />
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.42)']}
+          locations={[0.45, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.popularRank}>
+          <Text style={styles.popularRankText}>{index + 1}</Text>
+        </View>
+      </View>
+      <View style={styles.popularBody}>
+        <Text numberOfLines={1} style={styles.popularCat}>
+          {item.categories?.[0] ?? 'Lajme'}
+        </Text>
+        <Text numberOfLines={2} style={styles.popularTitle}>{item.title}</Text>
+        <RelativeTime timestamp={item.publishedAt} style={styles.popularTime} />
+      </View>
+      </Pressable>
+    </Animated.View>
+  );
+});
+
 // ── HomeScreen ─────────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const router = useRouter();
@@ -346,6 +531,16 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  // µ-2: 300 ms debounce for the search input. Without it, every keystroke
+  // re-runs filteredData.filter() over the full latest list AND triggers
+  // FlashList to re-measure + recycle. On Cortex-A53 a 12-item filter is
+  // ~4 ms but the FlashList recycle pass adds 8\u201316 ms \u2014 enough that fast
+  // typists drop frames. Mirrors the news-feed search debounce.
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchQuery(searchQuery), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
   const searchInputRef = useRef<TextInput>(null);
 
   const headerHeight = insets.top + 66;
@@ -357,14 +552,69 @@ export default function HomeScreen() {
     [],
   );
 
-  const heroQuery    = useQuery({ queryKey: ['home-hero'],    queryFn: fetchHeroPost });
-  const breakingQuery = useQuery({ queryKey: ['home-breaking'], queryFn: fetchBreakingPosts });
-  const latestQuery  = useQuery({ queryKey: ['home-latest'],  queryFn: () => fetchLatestPosts('', '', 18) });
-  const popularQuery = useQuery({ queryKey: ['home-popular'], queryFn: () => fetchPopularPosts(8) });
-  const localQuery   = useQuery({ queryKey: ['home-local'],   queryFn: () => fetchLocalPosts(12) });
+  // R-3 + R-2 + X-1 + X-4: split the home payload back into 5 separate
+  // queries with staggered enable flags. Single-bundle (M-C8) was net
+  // negative on Cortex-A53 because Hermes JSON.parse on the combined ~94 KB
+  // body blocked the JS thread for 35–50 ms in a single tick — the staggered
+  // version spreads the same parse cost over 600 ms across small frames.
+  // Hero gets its OWN query so it can be persisted to MMKV and hydrated
+  // instantly on cold start (R-2 / X-4); the secondary rails are excluded
+  // from persistence (see SKIP_PERSIST_KEYS in app/_layout.tsx).
+  // X-1: hero refetches on window focus so a freshly-published breaking
+  // story appears the moment the user returns to the app.
+  const heroQuery = useQuery({
+    queryKey: ['home-hero'],
+    queryFn: fetchHeroPost,
+    refetchOnWindowFocus: true,
+  });
 
-  const hero         = heroQuery.data;
-  const heroImageUri = useMemo(() => buildSanityImageUrl(hero?.mainImageUrl, 1600) ?? null, [hero?.mainImageUrl]);
+  // C6: Staggered enable flags. Don't fire all 4 secondary queries in the
+  // same RAF tick — 4 simultaneous JSON.parses on Cortex-A53 cost 30–50 ms
+  // blocking. Stagger: breaking immediately after first interaction, latest
+  // +100 ms, popular +300 ms, local +500 ms.
+  const [enableBreaking, setEnableBreaking] = useState(false);
+  const [enableLatest, setEnableLatest] = useState(false);
+  const [enablePopular, setEnablePopular] = useState(false);
+  const [enableLocal, setEnableLocal] = useState(false);
+
+  useEffect(() => {
+    const handle = InteractionManager.runAfterInteractions(() => {
+      setEnableBreaking(true);
+    });
+    const t1 = setTimeout(() => setEnableLatest(true), 100);
+    const t2 = setTimeout(() => setEnablePopular(true), 300);
+    const t3 = setTimeout(() => setEnableLocal(true), 500);
+    return () => {
+      handle.cancel();
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, []);
+
+  // X-1: breaking ALSO refetches on focus (it's persisted, so this only
+  // hits the network when stale).
+  const breakingQuery = useQuery({
+    queryKey: ['home-breaking'],
+    queryFn: fetchBreakingPosts,
+    enabled: enableBreaking,
+    refetchOnWindowFocus: true,
+  });
+  const latestQuery   = useQuery({ queryKey: ['home-latest'],   queryFn: () => fetchLatestPosts('', '', 18), enabled: enableLatest });
+  const popularQuery  = useQuery({ queryKey: ['home-popular'],  queryFn: () => fetchPopularPosts(8), enabled: enablePopular });
+  const localQuery    = useQuery({ queryKey: ['home-local'],    queryFn: () => fetchLocalPosts(12), enabled: enableLocal });
+
+  const hero         = heroQuery.data ?? null;
+  // X-8: with R-3 splitting the home payload back into 5 staggered queries,
+  // data arrival is already naturally serialised (hero -> breaking +InteractionManager
+  // -> latest +100 ms -> popular +300 ms -> local +500 ms). The previous M-C8
+  // bundle made all 5 useMemos below recompute in the SAME RAF tick; with
+  // R-3 each useMemo fires in its own tick. No additional gate needed \u2014 the
+  // ?? [] fallback ensures empty rails render skeletons until each query lands.
+  // C-A7: hero rendered at 480 px (was 900). Even on full-width devices the
+  // hero card paints at < 380 px wide. 900 px allocated ~6 MB of GPU texture
+  // for an image that never displays at that resolution.
+  const heroImageUri = useMemo(() => buildSanityImageUrl(hero?.mainImageUrl, 480) ?? null, [hero?.mainImageUrl]);
   const latestData   = useMemo(() => latestQuery.data ?? [], [latestQuery.data]);
   const breakingData = useMemo(() => breakingQuery.data ?? [], [breakingQuery.data]);
   const popularData  = useMemo(() => popularQuery.data ?? [], [popularQuery.data]);
@@ -374,16 +624,32 @@ export default function HomeScreen() {
   const gridData: LatestGridItem[] = showLatestSkeleton ? latestSkeleton : latestData;
 
   const filteredData = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = debouncedSearchQuery.trim().toLowerCase();
     if (!q) return latestData;
     return latestData.filter(
       (p) => p.title.toLowerCase().includes(q) || (p.excerpt ?? '').toLowerCase().includes(q),
     );
-  }, [searchQuery, latestData]);
+  }, [debouncedSearchQuery, latestData]);
 
+  // Stable headlines array — recomputed only when breakingData changes, so the
+  // memoized BreakingTicker doesn't bust on every parent re-render.
+  const breakingHeadlines = useMemo(
+    () => breakingData.map((p) => p.title),
+    [breakingData],
+  );
   const onPressPost = useCallback(
     (post: Post) => {
-      router.push({ pathname: '/article/[slug]' as never, params: { slug: post.slug } as never });
+      // C-A7: hero on the article screen now also fetches at 480 px (matched
+      // in the slug screen). Prefetch the matching URL so it lands in the
+      // expo-image memory cache before navigation completes (~0 ms render).
+      // M-C3: routed through queueImagePrefetch so rapid taps cap at 3 in-flight.
+      queueImagePrefetch(buildSanityImageUrl(post.mainImageUrl, 480));
+      // NOTE: do NOT prefetchQuery(['post-detail', slug], () => Promise.resolve(post))
+      // here — the home-bundle post objects don't include `body[]`, and seeding
+      // them as fresh data (staleTime 10min) prevented fetchPostBySlug from
+      // ever running, leaving the article screen with an empty body. The
+      // slug screen owns its own detail fetch.
+      router.push({ pathname: '/news/[slug]' as never, params: { slug: post.slug } as never });
     },
     [router],
   );
@@ -391,6 +657,9 @@ export default function HomeScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+    // S-1: stale-while-revalidate. Existing data stays on screen while these
+    // refetches run in the background; React Query never blanks the cache
+    // mid-refetch, so the UI never shows skeletons during pull-to-refresh.
     await Promise.all([
       heroQuery.refetch(),
       breakingQuery.refetch(),
@@ -423,42 +692,35 @@ export default function HomeScreen() {
           </View>
         );
       }
-      const imageUri = buildSanityImageUrl(item.mainImageUrl, 900);
-      return (
-        <View style={[styles.gridColumn, isLeft ? styles.gridColLeft : styles.gridColRight]}>
-          <Pressable
-            onPress={() => onPressPost(item)}
-            style={({ pressed }) => [styles.gridCard, pressed && styles.gridCardPressed]}
-          >
-            <View style={styles.gridImgWrap}>
-              <Image
-                source={imageUri ? { uri: imageUri } : undefined}
-                placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
-                contentFit="cover"
-                transition={0}
-                style={styles.gridImg}
-              />
-              <View style={styles.gridCatBadge}>
-                <Text numberOfLines={1} style={styles.gridCatText}>
-                  {item.categories?.[0] ?? 'Lajme'}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.gridBody}>
-              <Text numberOfLines={2} style={styles.gridTitle}>{item.title}</Text>
-              <View style={styles.gridMetaRow}>
-                <Text numberOfLines={1} style={styles.gridAuthor}>
-                  {item.author ?? 'Redaksia'}
-                </Text>
-                <RelativeTime timestamp={item.publishedAt} />
-              </View>
-            </View>
-          </Pressable>
-        </View>
-      );
+      return <GridItem item={item} isLeft={isLeft} onPress={onPressPost} />;
     },
     [onPressPost],
   );
+
+  // FlashList item-type discriminator — keeps the recycler from reusing a
+  // skeleton view as a real post (and vice versa) on first paint.
+  const getGridItemType = useCallback(
+    (item: LatestGridItem) => (isSkeletonItem(item) ? 'skeleton' : 'post'),
+    [],
+  );
+
+  // H13: stable renderItem callbacks for the horizontal rails. FlashList only
+  // mounts the visible window + drawDistance ahead, so the eager-mount cost of
+  // 12 LocalCards + 8 PopularCards is reduced to ~3 of each.
+  const renderLocalItem = useCallback(
+    ({ item }: ListRenderItemInfo<Post>) => (
+      <LocalCard post={item} onPress={onPressPost} />
+    ),
+    [onPressPost],
+  );
+  const keyExtractLocal = useCallback((item: Post) => item._id, []);
+  const renderPopularItem = useCallback(
+    ({ item, index }: ListRenderItemInfo<Post>) => (
+      <PopularCard item={item} index={index} onPress={onPressPost} />
+    ),
+    [onPressPost],
+  );
+  const keyExtractPopular = useCallback((item: Post) => item._id, []);
 
   // ── List header: Hero → Weather → section header for grid ──────────────────
   const listHeader = useMemo(
@@ -493,16 +755,18 @@ export default function HomeScreen() {
         <View style={[styles.sectionBlock, { marginTop: 20 }]}>
           <SectionHeader title="Lajmet Lokale" onSeeAll={onHeaderSearch} />
           {localData.length > 0 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.localRail}
-              decelerationRate="fast"
-            >
-              {localData.map((item) => (
-                <LocalCard key={item._id} post={item} onPress={onPressPost} />
-              ))}
-            </ScrollView>
+            <View style={styles.railContainer}>
+              <FlashList
+                horizontal
+                data={localData}
+                renderItem={renderLocalItem}
+                keyExtractor={keyExtractLocal}
+                contentContainerStyle={styles.localRail}
+                showsHorizontalScrollIndicator={false}
+                decelerationRate="fast"
+                drawDistance={200}
+              />
+            </View>
           ) : (
             <View style={styles.localRailSkeleton}>
               <SkeletonCard height={200} style={styles.localSkeletonCard} />
@@ -516,44 +780,18 @@ export default function HomeScreen() {
         <View style={styles.sectionBlock}>
           <SectionHeader title="Më të Lexuara" onSeeAll={onHeaderSearch} />
           {popularData.length > 0 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.popularRail}
-              decelerationRate="fast"
-            >
-              {popularData.map((item, index) => (
-                <Pressable
-                  key={item._id}
-                  onPress={() => onPressPost(item)}
-                  style={({ pressed }) => [styles.popularCard, pressed && styles.popularCardPressed]}
-                >
-                  <View style={styles.popularImgWrap}>
-                    <Image
-                      source={item.mainImageUrl ? { uri: buildSanityImageUrl(item.mainImageUrl, 600) } : undefined}
-                      placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
-                      contentFit="cover"
-                      style={styles.popularImg}
-                    />
-                    <LinearGradient
-                      colors={['transparent', 'rgba(0,0,0,0.42)']}
-                      locations={[0.45, 1]}
-                      style={StyleSheet.absoluteFill}
-                    />
-                    <View style={styles.popularRank}>
-                      <Text style={styles.popularRankText}>{index + 1}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.popularBody}>
-                    <Text numberOfLines={1} style={styles.popularCat}>
-                      {item.categories?.[0] ?? 'Lajme'}
-                    </Text>
-                    <Text numberOfLines={2} style={styles.popularTitle}>{item.title}</Text>
-                    <RelativeTime timestamp={item.publishedAt} style={styles.popularTime} />
-                  </View>
-                </Pressable>
-              ))}
-            </ScrollView>
+            <View style={styles.railContainer}>
+              <FlashList
+                horizontal
+                data={popularData}
+                renderItem={renderPopularItem}
+                keyExtractor={keyExtractPopular}
+                contentContainerStyle={styles.popularRail}
+                showsHorizontalScrollIndicator={false}
+                decelerationRate="fast"
+                drawDistance={200}
+              />
+            </View>
           ) : (
             <View style={styles.popularRailSkeleton}>
               <SkeletonCard height={190} style={styles.popularSkeleton} />
@@ -602,12 +840,52 @@ export default function HomeScreen() {
           </View>
 
           <Text style={styles.footerCopy}>
-            © {new Date().getFullYear()} RTV Fontana · Istog, Kosovë
+            © {CURRENT_YEAR} RTV Fontana · Istog, Kosovë
           </Text>
         </View>
       </View>
     ),
-    [localData, popularData, onPressPost, onHeaderSearch, router],
+    [localData, popularData, onPressPost, onHeaderSearch, router, renderLocalItem, keyExtractLocal, renderPopularItem, keyExtractPopular],
+  );
+
+  // H15: stable refs for FlashList contentContainerStyle + RefreshControl.
+  const gridContentContainerStyle = useMemo(
+    () => ({
+      paddingTop: topInsetOffset,
+      paddingBottom: bottomInsetOffset,
+      paddingHorizontal: 16,
+    }),
+    [topInsetOffset, bottomInsetOffset],
+  );
+  const refreshControlEl = useMemo(
+    () => (
+      <RefreshControl tintColor={colors.primary} refreshing={refreshing} onRefresh={onRefresh} />
+    ),
+    [refreshing, onRefresh],
+  );
+
+  // H19: virtualized search overlay helpers.
+  const onPressSearchResult = useCallback(
+    (p: Post) => {
+      exitSearch();
+      onPressPost(p);
+    },
+    [exitSearch, onPressPost],
+  );
+  const renderSearchResult = useCallback(
+    ({ item }: ListRenderItemInfo<Post>) => (
+      <SearchResultCard item={item} onPress={onPressSearchResult} />
+    ),
+    [onPressSearchResult],
+  );
+  const searchKeyExtractor = useCallback((item: Post) => item._id, []);
+  const searchOverlayContentStyle = useMemo(
+    () => ({
+      paddingHorizontal: 16,
+      paddingTop: 16,
+      paddingBottom: bottomInsetOffset,
+    }),
+    [bottomInsetOffset],
   );
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -649,21 +927,28 @@ export default function HomeScreen() {
       {/* Breaking band */}
       {!isSearchActive && (
         <View style={[styles.breakingBand, { top: headerHeight }]}>
-          <BreakingTicker headlines={breakingData.map((p) => p.title)} />
+          <BreakingTicker headlines={breakingHeadlines} />
         </View>
       )}
 
       {/* Search overlay */}
       {isSearchActive && (
-        <ScrollView
-          style={[styles.searchOverlay, { top: headerHeight }]}
-          contentContainerStyle={[styles.searchOverlayContent, { paddingBottom: bottomInsetOffset }]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {searchQuery.trim() === '' ? (
+        searchQuery.trim() === '' ? (
+          <ScrollView
+            style={[styles.searchOverlay, { top: headerHeight }]}
+            contentContainerStyle={searchOverlayContentStyle}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             <Text style={styles.searchHint}>Shkruaj emrin e artikullit për të kërkuar...</Text>
-          ) : filteredData.length === 0 ? (
+          </ScrollView>
+        ) : filteredData.length === 0 ? (
+          <ScrollView
+            style={[styles.searchOverlay, { top: headerHeight }]}
+            contentContainerStyle={searchOverlayContentStyle}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.searchEmpty}>
               <Ionicons name="search-outline" size={44} color="#D1D5DB" />
               <Text style={styles.searchEmptyTitle}>Asnjë rezultat</Text>
@@ -671,42 +956,27 @@ export default function HomeScreen() {
                 Nuk u gjet asnjë artikull për "{searchQuery}"
               </Text>
             </View>
-          ) : (
-            <>
-              <Text style={styles.searchCount}>
-                {filteredData.length} rezultat{filteredData.length !== 1 ? 'e' : ''}
-              </Text>
-              {filteredData.map((item) => (
-                <Pressable
-                  key={item._id}
-                  style={({ pressed }) => [
-                    styles.searchResultCard,
-                    pressed && styles.searchResultPressed,
-                  ]}
-                  onPress={() => { exitSearch(); onPressPost(item); }}
-                >
-                  <Image
-                    source={item.mainImageUrl ? { uri: buildSanityImageUrl(item.mainImageUrl, 400) } : undefined}
-                    placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
-                    contentFit="cover"
-                    style={styles.searchResultImg}
-                  />
-                  <View style={styles.searchResultBody}>
-                    <Text numberOfLines={1} style={styles.searchResultCat}>
-                      {item.categories?.[0] ?? 'Lajme'}
-                    </Text>
-                    <Text numberOfLines={2} style={styles.searchResultTitle}>{item.title}</Text>
-                    {item.excerpt ? (
-                      <Text numberOfLines={2} style={styles.searchResultExcerpt}>
-                        {item.excerpt}
-                      </Text>
-                    ) : null}
-                  </View>
-                </Pressable>
-              ))}
-            </>
-          )}
-        </ScrollView>
+          </ScrollView>
+        ) : (
+          // H19: virtualize the result list. Previously every keystroke that
+          // matched ~10+ items re-rendered all matches as Pressable+Image,
+          // costing 8\u201315ms JS per keystroke on Cortex-A53.
+          <View style={[styles.searchOverlay, { top: headerHeight }]}>
+            <FlashList
+              data={filteredData}
+              keyExtractor={searchKeyExtractor}
+              renderItem={renderSearchResult}
+              ListHeaderComponent={
+                <Text style={styles.searchCount}>
+                  {filteredData.length} rezultat{filteredData.length !== 1 ? 'e' : ''}
+                </Text>
+              }
+              contentContainerStyle={searchOverlayContentStyle}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
+        )
       )}
 
       {/* Main content */}
@@ -715,18 +985,13 @@ export default function HomeScreen() {
         numColumns={2}
         keyExtractor={(item) => (isSkeletonItem(item) ? item._skeleton : item._id)}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl tintColor={colors.primary} refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={refreshControlEl}
         decelerationRate="fast"
-        contentContainerStyle={{
-          paddingTop: topInsetOffset,
-          paddingBottom: bottomInsetOffset,
-          paddingHorizontal: 16,
-        }}
+        contentContainerStyle={gridContentContainerStyle}
         ListHeaderComponent={listHeader}
         ListFooterComponent={listFooter}
         renderItem={renderGridItem}
+        getItemType={getGridItemType}
       />
     </View>
   );
@@ -812,7 +1077,7 @@ const styles = StyleSheet.create({
   },
   breakingStrip: {
     flex: 1,
-    backgroundColor: '#5C1213',
+    backgroundColor: '#B91C1C',
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -822,15 +1087,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#7B1516',
+    backgroundColor: '#DC2626',
     borderRightWidth: 1,
-    borderRightColor: 'rgba(255,255,255,0.12)',
+    borderRightColor: 'rgba(255,255,255,0.18)',
   },
   breakingDot: {
     width: 7,
     height: 7,
     borderRadius: 3.5,
-    backgroundColor: '#FCA5A5',
+    backgroundColor: '#FFFFFF',
   },
   breakingLabelText: {
     color: 'rgba(255,255,255,0.92)',
@@ -1010,80 +1275,104 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 4,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
   },
-  weatherGrad: {
+  weatherInner: {
+    backgroundColor: '#ffffff',
     padding: 20,
-    minHeight: 120,
+    minHeight: 126,
     position: 'relative',
     overflow: 'hidden',
   },
   weatherCircle: {
     position: 'absolute',
-    right: -48,
-    top: -48,
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    right: -s(56),
+    top: -s(56),
+    width: s(190),
+    height: s(190),
+    borderRadius: s(95),
+    backgroundColor: 'rgba(0,0,0,0.025)',
+  },
+  weatherCircle2: {
+    position: 'absolute',
+    left: -s(36),
+    bottom: -s(56),
+    width: s(140),
+    height: s(140),
+    borderRadius: s(70),
+    backgroundColor: 'rgba(0,0,0,0.018)',
   },
   weatherTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 14,
+  },
+  weatherLivePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 4,
+  },
+  weatherLiveDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#d1d5db',
   },
   weatherCity: {
-    color: '#FFFFFF',
+    color: '#111111',
     fontFamily: fonts.uiBold,
-    fontSize: 17,
-    letterSpacing: -0.25,
-    lineHeight: 22,
+    fontSize: 16,
+    letterSpacing: -0.2,
   },
   weatherSub: {
-    color: 'rgba(255,255,255,0.62)',
+    color: '#9ca3af',
     fontFamily: fonts.uiRegular,
-    fontSize: 12,
-    marginTop: 2,
+    fontSize: 11,
+    letterSpacing: 0.1,
   },
   weatherIconPlaceholder: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-  },
-  weatherEmoji: {
-    fontSize: 44,
-    lineHeight: 50,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#f3f4f6',
   },
   weatherDataSkeleton: {
-    height: 52,
+    height: 50,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: '#f3f4f6',
   },
   weatherDataRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
   },
+  weatherDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: '#e5e7eb',
+  },
   weatherTemp: {
-    color: '#FFFFFF',
+    color: '#111111',
     fontFamily: fonts.uiBold,
-    fontSize: 52,
+    fontSize: ms(50, 0.5),
     letterSpacing: -2,
-    lineHeight: 58,
+    lineHeight: ms(56, 0.5),
   },
   weatherRight: {
-    gap: 4,
+    gap: 5,
   },
   weatherCondition: {
-    color: '#FFFFFF',
-    fontFamily: fonts.uiBold,
-    fontSize: 15,
-    letterSpacing: -0.2,
+    color: '#374151',
+    fontFamily: fonts.uiMedium,
+    fontSize: 14,
+    letterSpacing: -0.1,
   },
   weatherWindRow: {
     flexDirection: 'row',
@@ -1091,12 +1380,18 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   weatherWind: {
-    color: 'rgba(255,255,255,0.70)',
-    fontFamily: fonts.uiMedium,
-    fontSize: 13,
+    color: '#9ca3af',
+    fontFamily: fonts.uiRegular,
+    fontSize: 12,
   },
 
   // ── Local cards (horizontal compact overlay) ────────────────────────────────
+  // H13: FlashList horizontal needs an explicit height on its container (it
+  // can't auto-measure horizontal layouts). Height covers the tallest card +
+  // shadow extent.
+  railContainer: {
+    height: s(218),
+  },
   localRail: {
     paddingLeft: 16,
     paddingRight: 16,
@@ -1107,13 +1402,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   localSkeletonCard: {
-    width: 170,
+    width: s(170),
     borderRadius: 18,
     marginRight: 12,
   },
   localOuter: {
-    width: 170,
-    height: 210,
+    width: s(170),
+    height: s(210),
     borderRadius: 18,
     marginRight: 12,
     shadowColor: colors.navy,
@@ -1123,8 +1418,8 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   localInner: {
-    width: 170,
-    height: 210,
+    width: s(170),
+    height: s(210),
     borderRadius: 18,
     overflow: 'hidden',
     backgroundColor: '#D1D5DB',
@@ -1178,12 +1473,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   popularSkeleton: {
-    width: 190,
+    width: s(190),
     borderRadius: 16,
     marginRight: 12,
   },
   popularCard: {
-    width: 190,
+    width: s(190),
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: colors.surface,
@@ -1199,7 +1494,7 @@ const styles = StyleSheet.create({
   },
   popularImgWrap: {
     width: '100%',
-    height: 114,
+    height: s(114),
     position: 'relative',
   },
   popularImg: {
@@ -1499,8 +1794,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.redTint,
   },
   searchResultImg: {
-    width: 90,
-    height: 90,
+    width: s(90),
+    height: s(90),
     backgroundColor: colors.surfaceSubtle,
   },
   searchResultBody: {

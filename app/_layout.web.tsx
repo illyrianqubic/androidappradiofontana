@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { Stack, usePathname, useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -10,17 +10,13 @@ import {
   Inter_500Medium,
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
-import {
-  Merriweather_400Regular,
-  Merriweather_700Bold,
-} from '@expo-google-fonts/merriweather';
 import { QueryClient } from '@tanstack/react-query';
 import {
   PersistQueryClientProvider,
 } from '@tanstack/react-query-persist-client';
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 import { LaunchSplash } from '../components/LaunchSplash';
-import { MiniPlayer } from '../components/MiniPlayer';
+import { MiniPlayerVisibilityGate } from '../components/MiniPlayer';
 import { HamburgerDrawer } from '../components/HamburgerDrawer';
 import { AudioProvider } from '../services/audio';
 import { DrawerProvider } from '../context/DrawerContext';
@@ -45,9 +41,27 @@ const persister = createSyncStoragePersister({
   storage: queryStorage,
 });
 
+const PERSIST_OPTIONS = {
+  persister,
+  maxAge: 1000 * 60 * 60 * 24,
+} as const;
+
+const ROOT_STACK_SCREEN_OPTIONS = { headerShown: false, animation: 'fade' } as const;
+
+const PLAYER_SCREEN_OPTIONS = {
+  presentation: 'modal',
+  animation: 'slide_from_bottom',
+  gestureEnabled: true,
+} as const;
+
+function MiniPlayerHost() {
+  const router = useRouter();
+  const onOpen = useCallback(() => router.push('/player' as never), [router]);
+  return <MiniPlayerVisibilityGate onOpenPlayer={onOpen} />;
+}
+
 export default function RootLayout() {
   const router = useRouter();
-  const pathname = usePathname();
   const [showLaunchSplash, setShowLaunchSplash] = useState(true);
   const [nativeSplashHidden, setNativeSplashHidden] = useState(false);
 
@@ -55,12 +69,6 @@ export default function RootLayout() {
     InterVariable: Inter_400Regular,
     InterVariableMedium: Inter_500Medium,
     InterVariableBold: Inter_700Bold,
-  });
-
-  // Merriweather loads in background — only needed in article bodies, never on first screen
-  useFonts({
-    MerriweatherVariable: Merriweather_400Regular,
-    MerriweatherVariableBold: Merriweather_700Bold,
   });
 
   useEffect(() => {
@@ -82,34 +90,19 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <PersistQueryClientProvider
-          client={queryClient}
-          persistOptions={{
-            persister,
-            maxAge: 1000 * 60 * 60 * 24,
-          }}
-        >
+        <PersistQueryClientProvider client={queryClient} persistOptions={PERSIST_OPTIONS}>
           <AudioProvider>
             <DrawerProvider>
               <StatusBar style="dark" />
 
-              <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
+              <Stack screenOptions={ROOT_STACK_SCREEN_OPTIONS}>
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="rreth-nesh" />
                 <Stack.Screen name="na-kontakto" />
-                <Stack.Screen
-                  name="player"
-                  options={{
-                    presentation: 'modal',
-                    animation: 'slide_from_bottom',
-                    gestureEnabled: true,
-                  }}
-                />
+                <Stack.Screen name="player" options={PLAYER_SCREEN_OPTIONS} />
               </Stack>
 
-              {pathname !== '/player' ? (
-                <MiniPlayer onOpenPlayer={() => router.push('/player' as never)} />
-              ) : null}
+              <MiniPlayerHost />
 
               {showLaunchSplash ? (
                 <LaunchSplash

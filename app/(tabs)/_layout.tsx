@@ -1,7 +1,10 @@
 import { StyleSheet, View } from 'react-native';
 import { Tabs } from 'expo-router';
+import { CommonActions } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
-import { Ionicons } from '@expo/vector-icons';
+// A-3: deep import skips loading all other icon sets' glyph maps.
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useMemo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../../design-tokens';
 
@@ -19,6 +22,19 @@ const ICONS_INACTIVE: Record<string, keyof typeof Ionicons.glyphMap> = {
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
 
+  // Stable tab bar style — recomputed only when bottom inset changes (e.g.
+  // device rotation), so screenOptions doesn't allocate a fresh array per route.
+  const dynamicTabBarStyle = useMemo(
+    () => [
+      styles.tabBar,
+      {
+        height: 72 + insets.bottom,
+        paddingBottom: Math.max(insets.bottom, 8),
+      },
+    ],
+    [insets.bottom],
+  );
+
   return (
     <Tabs
       screenListeners={{
@@ -28,25 +44,24 @@ export default function TabsLayout() {
       }}
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: 'rgba(255,255,255,0.42)',
+        lazy: true,
+        animation: 'none',
+        sceneStyle: { backgroundColor: colors.surface },
+        tabBarActiveTintColor: colors.navy,
+        tabBarInactiveTintColor: 'rgba(15,23,42,0.40)',
         tabBarActiveBackgroundColor: 'transparent',
-        tabBarStyle: [
-          styles.tabBar,
-          {
-            height: 72 + insets.bottom,
-            paddingBottom: Math.max(insets.bottom, 8),
-          },
-        ],
+        tabBarActiveLabelStyle: { color: colors.navy, fontFamily: fonts.uiBold },
+        tabBarInactiveLabelStyle: { color: 'rgba(15,23,42,0.40)' },
+        tabBarStyle: dynamicTabBarStyle,
         tabBarItemStyle: styles.tabItem,
         tabBarLabelStyle: styles.tabLabel,
         tabBarHideOnKeyboard: true,
-        tabBarIcon: ({ color, focused }) => (
+        tabBarIcon: ({ focused }) => (
           <View style={styles.iconWrap}>
             {focused && <View style={styles.activeIndicator} />}
             <Ionicons
               size={22}
-              color={color}
+              color={focused ? colors.navy : 'rgba(15,23,42,0.40)'}
               name={
                 focused
                   ? (ICONS_ACTIVE[route.name] ?? 'ellipse')
@@ -55,12 +70,41 @@ export default function TabsLayout() {
             />
           </View>
         ),
-        animation: 'shift',
       })}
     >
       <Tabs.Screen name="index" options={{ title: 'Kryefaqja' }} />
       <Tabs.Screen name="live" options={{ title: 'Live' }} />
-      <Tabs.Screen name="news" options={{ title: 'Lajme' }} />
+      <Tabs.Screen
+        name="news"
+        options={{ title: 'Lajme' }}
+        listeners={({ navigation }) => ({
+          // Tapping the Lajme tab always resets the nested news Stack to its
+          // listing screen, even if the user previously navigated into an
+          // article. `navigation.navigate('news', { screen: 'index' })` alone
+          // only switches tabs without popping the nested stack — we have to
+          // dispatch a reset on the news navigator itself so the [slug] route
+          // is removed from history (otherwise back from the listing would
+          // exit the app instead of returning to wherever the user came from,
+          // and the listing itself wouldn't even render because the [slug]
+          // would still be the focused route).
+          tabPress: (e) => {
+            const parentState = navigation.getState();
+            const newsRoute = parentState?.routes.find((r: { name: string }) => r.name === 'news');
+            const nested = newsRoute?.state;
+            if (nested && typeof nested.index === 'number' && nested.index > 0) {
+              e.preventDefault();
+              navigation.navigate('news' as never, undefined as never);
+              navigation.dispatch({
+                ...CommonActions.reset({
+                  index: 0,
+                  routes: [{ name: 'index' }],
+                }),
+                target: nested.key,
+              });
+            }
+          },
+        })}
+      />
       <Tabs.Screen name="library" options={{ href: null }} />
     </Tabs>
   );
@@ -68,10 +112,10 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: colors.navy,
-    borderTopWidth: 0,
+    backgroundColor: colors.surface,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(15,23,42,0.10)',
     paddingTop: 4,
-    // Android elevation
     elevation: 0,
   },
   tabItem: {
@@ -91,18 +135,15 @@ const styles = StyleSheet.create({
     right: 0,
     height: 3,
     borderRadius: 3,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.navy,
     position: 'absolute',
     top: 0,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.6,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 0 },
   },
   tabLabel: {
     fontFamily: fonts.uiMedium,
     fontSize: 10.5,
     marginTop: 2,
     letterSpacing: 0.2,
+    color: colors.navy,
   },
 });

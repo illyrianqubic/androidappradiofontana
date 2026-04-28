@@ -1,15 +1,21 @@
 import { Stack } from 'expo-router';
 import { colors } from '../../../design-tokens';
 
+// Expo Router restores the last route inside a nested Stack on cold start
+// (and when the parent tab navigator first mounts the screen). Without an
+// explicit initial route, re-entering the Lajme tab could surface the most
+// recently viewed [slug] instead of the listing. Declaring `initialRouteName`
+// pins the stack root to `index`.
+export const unstable_settings = {
+  initialRouteName: 'index',
+};
+
 export default function NewsStackLayout() {
   return (
     <Stack
       screenOptions={{
         headerShown: false,
-        // Fade avoids the side-gap that slide_from_right exposes on Android.
-        // animationDuration keeps it snappy.
-        animation: 'fade',
-        animationDuration: 180,
+        animation: 'none',
         contentStyle: { backgroundColor: colors.surface },
       }}
     >
