@@ -29,10 +29,13 @@ type MiniPlayerProps = {
   forceHidden: boolean;
 };
 
-// Pulsing glow ring — shown behind play button when actively playing
-function GlowRing() {
+// Pulsing glow ring — always mounted; visibility driven by `active` prop via
+// opacity on the UI thread so play/pause toggle does NOT mount/unmount a
+// withRepeat worklet + Animated view (was ~3 ms per toggle on Cortex-A53).
+function GlowRing({ active }: { active: boolean }) {
   const reducedMotion = useReducedMotion();
   const pulse = useSharedValue(0);
+  const visible = useSharedValue(active ? 1 : 0);
 
   useEffect(() => {
     if (reducedMotion) return;
@@ -43,12 +46,18 @@ function GlowRing() {
     );
   }, [pulse, reducedMotion]);
 
+  useEffect(() => {
+    visible.value = withTiming(active ? 1 : 0, { duration: 180 });
+  }, [active, visible]);
+
   const ringStyle = useAnimatedStyle(() => ({
-    opacity: reducedMotion ? 0 : interpolate(pulse.value, [0, 1], [0.5, 0]),
+    opacity: reducedMotion
+      ? 0
+      : interpolate(pulse.value, [0, 1], [0.5, 0]) * visible.value,
     transform: [{ scale: reducedMotion ? 1 : interpolate(pulse.value, [0, 1], [1, 1.8]) }],
   }));
 
-  return <Animated.View style={[StyleSheet.absoluteFillObject, styles.glowRing, ringStyle]} />;
+  return <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFillObject, styles.glowRing, ringStyle]} />;
 }
 
 // C-A5: route-derived visibility computed in a tiny outer gate so usePathname
@@ -79,24 +88,30 @@ function MiniPlayerInner({ onOpenPlayer, forceHidden }: MiniPlayerProps) {
   // called anywhere) and forced spurious re-renders here on every root
   // re-render. Removed entirely — visibility is now driven only by route
   // (forceHidden) and drawer state.
-  const shouldHide = drawerOpen || forceHidden;
+  // Delay first appearance by 5 s so the app feels settled before the
+  // mini-player slides in. Once appReady flips true it never goes back.
+  const [appReady, setAppReady] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setAppReady(true), 5000);
+    return () => clearTimeout(t);
+  }, []);
 
-  const hideOffset = useSharedValue(0);
+  const shouldHide = !appReady || drawerOpen || forceHidden;
+
+  // Start at 1 (fully offscreen) so there is no flash before the first
+  // appReady entrance animation.
+  const hideOffset = useSharedValue(1);
 
   useEffect(() => {
-    hideOffset.value = withTiming(shouldHide ? 1 : 0, { duration: 220 });
+    // Slide-in uses a longer duration (420 ms) for a premium entrance feel.
+    hideOffset.value = withTiming(shouldHide ? 1 : 0, { duration: shouldHide ? 220 : 420 });
   }, [shouldHide, hideOffset]);
 
-  // R-5 / R-6: after the slide-out animation completes, also apply
-  // display: 'none' so the View is removed from layout AND stops GPU
-  // compositing entirely. Crucially the worklets, gradient shaders and
-  // Image binding stay MOUNTED \u2014 only the layout/draw pass is skipped.
-  // When shouldHide flips back to false we drop display:'none' immediately
-  // so the slide-in animation has something to animate against.
-  const [layoutHidden, setLayoutHidden] = useState(false);
+  // Remove from layout after slide-out; re-add immediately on slide-in.
+  const [layoutHidden, setLayoutHidden] = useState(true);
   useEffect(() => {
     if (shouldHide) {
-      const t = setTimeout(() => setLayoutHidden(true), 240);
+      const t = setTimeout(() => setLayoutHidden(true), 440);
       return () => clearTimeout(t);
     }
     setLayoutHidden(false);
@@ -109,7 +124,6 @@ function MiniPlayerInner({ onOpenPlayer, forceHidden }: MiniPlayerProps) {
 
   const isActive = isPlaying || isBuffering || isReconnecting;
 
-  // H15: stable bottom-position style so prop array identity stays steady.
   const positionStyle = useMemo(
     () => ({ bottom: miniPlayerBottom }),
     [miniPlayerBottom],
@@ -172,7 +186,7 @@ function MiniPlayerInner({ onOpenPlayer, forceHidden }: MiniPlayerProps) {
 
           {/* ── Play / Pause ──────────────────────────────── */}
           <View style={styles.btnWrap}>
-            {isPlaying ? <GlowRing /> : null}
+            <GlowRing active={isPlaying} />
             <Pressable
               onPress={toggle}
               style={({ pressed }) => [

@@ -11,6 +11,12 @@ import {
   Inter_500Medium,
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
+import {
+  Merriweather_400Regular,
+  Merriweather_400Regular_Italic,
+  Merriweather_700Bold,
+  Merriweather_900Black,
+} from '@expo-google-fonts/merriweather';
 import { QueryClient } from '@tanstack/react-query';
 import {
   PersistQueryClientProvider,
@@ -191,13 +197,16 @@ export default function RootLayout() {
     return () => sub.remove();
   }, []);
 
-  // Fonts are pre-embedded in the APK via the expo-font plugin (app.json), so
-  // loading completes synchronously. Merriweather is also embedded via the
-  // plugin so no second useFonts() call is needed.
+  // Editorial article body uses Merriweather (loaded here so the article
+  // detail screen can render its serif headlines + body without FOUT).
   const [interLoaded, interFontError] = useFonts({
     InterVariable: Inter_400Regular,
     InterVariableMedium: Inter_500Medium,
     InterVariableBold: Inter_700Bold,
+    MerriweatherVariable: Merriweather_400Regular,
+    MerriweatherVariableItalic: Merriweather_400Regular_Italic,
+    MerriweatherVariableBold: Merriweather_700Bold,
+    MerriweatherVariableBlack: Merriweather_900Black,
   });
 
   useEffect(() => {

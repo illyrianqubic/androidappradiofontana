@@ -9,7 +9,6 @@ import {
   View,
 } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -21,7 +20,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { NewsCard } from '../../../components/NewsCard';
 import { SkeletonCard } from '../../../components/SkeletonCard';
 import { HamburgerButton } from '../../../components/HamburgerButton';
-import { appIdentity, colors, fonts, radius, spacing } from '../../../design-tokens';
+import { appIdentity, colors, fonts } from '../../../design-tokens';
 import { queueImagePrefetch } from '../../../lib/prefetchQueue';
 import {
   buildSanityImageUrl,
@@ -34,59 +33,86 @@ import {
 type NewsCategoryTab = { label: string; slug: string };
 
 const NEWS_CATEGORY_TABS: NewsCategoryTab[] = [
-  { label: 'Të Gjitha', slug: '' },
-  { label: 'Lajme',     slug: 'lajme' },
-  { label: 'Sport',     slug: 'sport' },
+  { label: 'Të Gjitha',  slug: '' },
+  { label: 'Politikë',   slug: 'politike' },
+  { label: 'Sport',      slug: 'sport' },
   { label: 'Teknologji', slug: 'teknologji' },
-  { label: 'Showbiz',   slug: 'showbiz' },
+  { label: 'Showbiz',    slug: 'showbiz' },
   { label: 'Shëndetësi', slug: 'shendetesi' },
-  { label: 'Nga Bota',  slug: 'nga-bota' },
+  { label: 'Biznes',     slug: 'biznes' },
+  { label: 'Nga Bota',   slug: 'nga-bota' },
 ];
 
 // ── Featured card (first item, large editorial) ───────────────────────────────
 const FeaturedCard = memo(function FeaturedCard({ post, onPress }: { post: Post; onPress: (p: Post) => void }) {
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  const imageUri = buildSanityImageUrl(post.mainImageUrl, 900);
+  const imageUri = buildSanityImageUrl(post.mainImageUrl, 1080);
   const cat = post.categories?.[0] ?? 'Lajme';
+  const initial = ((post.author ?? 'Redaksia Fontana').trim().charAt(0) || 'R').toUpperCase();
+  // Reading time estimate — 4× (excerpt + title) at 220 wpm.
+  const readingMin = (() => {
+    const text = `${post.title ?? ''} ${post.excerpt ?? ''}`.trim();
+    if (!text) return 3;
+    return Math.max(2, Math.ceil((text.split(/\s+/).length * 4) / 220));
+  })();
 
   return (
     <Animated.View style={[SF.outer, animStyle]}>
       <Pressable
         onPress={() => onPress(post)}
-        onPressIn={() => { scale.value = withTiming(0.975, { duration: 100 }); }}
+        onPressIn={() => { scale.value = withTiming(0.985, { duration: 100 }); }}
         onPressOut={() => { scale.value = withTiming(1, { duration: 180 }); }}
         style={SF.inner}
       >
-        <Image
-          source={imageUri ? { uri: imageUri } : undefined}
-          placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
-          contentFit="cover"
-          transition={0}
-          style={SF.image}
-        />
-        <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.76)']}
-          locations={[0.3, 0.6, 1]}
-          style={StyleSheet.absoluteFill}
-        />
-        {/* Category badge */}
-        <View style={SF.catBadge}>
-          <Text style={SF.catText}>{cat.toUpperCase()}</Text>
+        {/* Image — cinematic 16:10, no overlays */}
+        <View style={SF.imageZone}>
+          <Image
+            source={imageUri ? { uri: imageUri } : undefined}
+            placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
+            contentFit="cover"
+            transition={0}
+            style={SF.image}
+          />
+          <View style={SF.imageDivider} />
         </View>
-        {post.breaking ? (
-          <View style={SF.liveChip}>
-            <View style={SF.liveDot} />
-            <Text style={SF.liveText}>LIVE</Text>
+
+        {/* White editorial panel */}
+        <View style={SF.content}>
+          {post.breaking ? (
+            <View style={SF.breakingRow}>
+              <View style={SF.breakingPulse} />
+              <Text style={SF.breakingText}>LAJM I FUNDIT</Text>
+            </View>
+          ) : null}
+
+          <View style={SF.kickerRow}>
+            <View style={SF.kickerDot} />
+            <Text style={SF.kicker} numberOfLines={1}>{cat.toUpperCase()}</Text>
           </View>
-        ) : null}
-        {/* Text overlay */}
-        <View style={SF.overlay}>
-          <Text numberOfLines={3} style={SF.overlayTitle}>{post.title}</Text>
-          <View style={SF.overlayMeta}>
-            <Text style={SF.overlayAuthor}>{post.author ?? 'Redaksia Fontana'}</Text>
-            <View style={SF.overlaySep} />
-            <Text style={SF.overlayTime}>{relativeLabel(post.publishedAt)}</Text>
+
+          <Text numberOfLines={3} style={SF.headline}>{post.title}</Text>
+
+          {post.excerpt ? (
+            <Text numberOfLines={3} style={SF.deck}>{post.excerpt}</Text>
+          ) : null}
+
+          <View style={SF.bylineRule} />
+
+          <View style={SF.byline}>
+            <View style={SF.avatar}>
+              <Text style={SF.avatarText}>{initial}</Text>
+            </View>
+            <View style={SF.bylineCol}>
+              <Text numberOfLines={1} style={SF.author}>
+                {post.author ?? 'Redaksia Fontana'}
+              </Text>
+              <View style={SF.metaRow}>
+                <Text style={SF.metaText}>{readingMin} min lexim</Text>
+                <View style={SF.metaSep} />
+                <Text style={SF.metaText}>{relativeLabel(post.publishedAt)}</Text>
+              </View>
+            </View>
           </View>
         </View>
       </Pressable>
@@ -360,92 +386,149 @@ export default function NewsIndexScreen() {
 const SF = StyleSheet.create({
   outer: {
     borderRadius: 20,
-    marginBottom: 14,
-    overflow: 'hidden',
-    shadowColor: colors.navy,
-    shadowOpacity: 0.16,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
+    marginBottom: 18,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#0A0F1C',
+    shadowOpacity: 0.10,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 10 },
     elevation: 6,
   },
   inner: {
-    height: 260,
-    justifyContent: 'flex-end',
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  imageZone: {
+    width: '100%',
+    aspectRatio: 16 / 10,
+    backgroundColor: '#E6E8EE',
   },
   image: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.surfaceElevated,
+    width: '100%',
+    height: '100%',
   },
-  catBadge: {
+  imageDivider: {
     position: 'absolute',
-    top: 12,
-    left: 12,
-    backgroundColor: 'rgba(15,23,42,0.54)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(10,15,28,0.06)',
   },
-  catText: {
-    color: 'rgba(255,255,255,0.95)',
-    fontFamily: fonts.uiBold,
-    fontSize: 9,
-    letterSpacing: 1.1,
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 18,
   },
-  liveChip: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
+  breakingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: colors.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
+    alignSelf: 'flex-start',
+    gap: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: '#DC2626',
+    borderRadius: 4,
+    marginBottom: 12,
   },
-  liveDot: {
+  breakingPulse: {
     width: 6,
     height: 6,
     borderRadius: 3,
     backgroundColor: '#FFFFFF',
   },
-  liveText: {
+  breakingText: {
     color: '#FFFFFF',
     fontFamily: fonts.uiBold,
-    fontSize: 9,
-    letterSpacing: 1.2,
+    fontSize: 10,
+    letterSpacing: 1.8,
   },
-  overlay: {
-    padding: 14,
-    gap: 6,
-  },
-  overlayTitle: {
-    color: '#FFFFFF',
-    fontFamily: fonts.uiBold,
-    fontSize: 20,
-    lineHeight: 27,
-    letterSpacing: -0.5,
-  },
-  overlayMeta: {
+  kickerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
+    marginBottom: 12,
   },
-  overlayAuthor: {
-    color: 'rgba(255,255,255,0.78)',
-    fontFamily: fonts.uiMedium,
-    fontSize: 12,
+  kickerDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 1,
+    backgroundColor: '#DC2626',
   },
-  overlaySep: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: 'rgba(255,255,255,0.5)',
+  kicker: {
+    color: '#DC2626',
+    fontFamily: fonts.uiBold,
+    fontSize: 11,
+    letterSpacing: 2.2,
   },
-  overlayTime: {
-    color: 'rgba(255,255,255,0.65)',
+  headline: {
+    color: '#0A0F1C',
+    fontFamily: fonts.articleBold,
+    fontSize: 24,
+    lineHeight: 31,
+    letterSpacing: -0.5,
+  },
+  deck: {
+    color: '#3C4358',
+    fontFamily: fonts.uiRegular,
+    fontSize: 14.5,
+    lineHeight: 22,
+    marginTop: 10,
+  },
+  bylineRule: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#EEF0F4',
+    marginTop: 16,
+    marginBottom: 14,
+  },
+  byline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+  },
+  avatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  avatarText: {
+    color: '#DC2626',
+    fontFamily: fonts.uiBold,
+    fontSize: 14,
+    letterSpacing: -0.2,
+  },
+  bylineCol: {
+    flex: 1,
+    flexShrink: 1,
+    gap: 2,
+  },
+  author: {
+    color: '#0A0F1C',
+    fontFamily: fonts.uiBold,
+    fontSize: 13,
+    letterSpacing: -0.1,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  metaText: {
+    color: '#7A8294',
     fontFamily: fonts.uiRegular,
     fontSize: 12,
+  },
+  metaSep: {
+    width: 2,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: '#B5BAC8',
   },
 });
 

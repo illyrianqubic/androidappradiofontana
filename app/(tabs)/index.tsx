@@ -32,7 +32,7 @@ import Animated, {
 import { HamburgerButton } from '../../components/HamburgerButton';
 import { RelativeTime } from '../../components/RelativeTime';
 import { SkeletonCard } from '../../components/SkeletonCard';
-import { appIdentity, colors, elevation, fonts, radius } from '../../design-tokens';
+import { appIdentity, colors, fonts } from '../../design-tokens';
 import { ms, s } from '../../lib/responsive';
 import { queueImagePrefetch } from '../../lib/prefetchQueue';
 import {
@@ -42,7 +42,6 @@ import {
   fetchHeroPost,
   fetchLatestPosts,
   fetchLocalPosts,
-  fetchPopularPosts,
   type Post,
 } from '../../services/api';
 
@@ -246,58 +245,69 @@ const HeroCard = memo(function HeroCard({
   const scale = useSharedValue(1);
   const scaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const cat = hero.categories?.[0] ?? 'Lajme';
+  const initial = ((hero.author ?? 'Redaksia Fontana').trim().charAt(0) || 'R').toUpperCase();
+  const readingMin = (() => {
+    const text = `${hero.title ?? ''} ${hero.excerpt ?? ''}`.trim();
+    if (!text) return 3;
+    return Math.max(2, Math.ceil((text.split(/\s+/).length * 4) / 220));
+  })();
 
   return (
     <Animated.View style={[styles.heroOuter, scaleStyle]}>
       <Pressable
         onPress={() => onPress(hero)}
-        onPressIn={() => {
-          scale.value = withSpring(0.974, { damping: 22, stiffness: 400 });
-        }}
-        onPressOut={() => {
-          scale.value = withSpring(1, { damping: 18, stiffness: 280 });
-        }}
-        style={styles.heroInner}
+        onPressIn={() => { scale.value = withSpring(0.985, { damping: 24, stiffness: 460 }); }}
+        onPressOut={() => { scale.value = withSpring(1, { damping: 20, stiffness: 300 }); }}
+        style={styles.heroCard}
       >
-        <Image
-          source={heroImageUri ? { uri: heroImageUri } : undefined}
-          placeholder={{ thumbhash: hero.thumbhash || defaultThumbhash }}
-          contentFit="cover"
-          transition={0}
-          style={styles.heroImage}
-        />
-        <LinearGradient
-          colors={[
-            'transparent',
-            'rgba(0,0,0,0.06)',
-            'rgba(0,0,0,0.68)',
-            'rgba(0,0,0,0.96)',
-          ]}
-          locations={[0, 0.28, 0.62, 1]}
-          style={StyleSheet.absoluteFill}
-        />
-        {/* Top badges */}
-        <View style={styles.heroTopRow}>
-          <View style={styles.heroCatBadge}>
-            <Text style={styles.heroCatText}>{cat.toUpperCase()}</Text>
-          </View>
+        {/* Image — cinematic 16:10, no overlays */}
+        <View style={styles.heroImageWrap}>
+          <Image
+            source={heroImageUri ? { uri: heroImageUri } : undefined}
+            placeholder={{ thumbhash: hero.thumbhash || defaultThumbhash }}
+            contentFit="cover"
+            transition={0}
+            style={styles.heroImage}
+          />
+          <View style={styles.heroImageDivider} />
+        </View>
+
+        {/* White editorial content */}
+        <View style={styles.heroContent}>
           {hero.breaking ? (
-            <View style={styles.heroBreakingBadge}>
-              <View style={styles.heroBreakingDot} />
-              <Text style={styles.heroBreakingText}>LIVE</Text>
+            <View style={styles.heroBreakingRow}>
+              <View style={styles.heroBreakingPulse} />
+              <Text style={styles.heroBreakingText}>LAJM I FUNDIT</Text>
             </View>
           ) : null}
-        </View>
-        {/* Bottom overlay */}
-        <View style={styles.heroBottom}>
-          <Text numberOfLines={3} style={styles.heroTitle}>{hero.title}</Text>
-          <View style={styles.heroMeta}>
-            <View style={styles.heroAuthorDot} />
-            <Text numberOfLines={1} style={styles.heroAuthorText}>
-              {hero.author ?? 'Redaksia Fontana'}
-            </Text>
-            <View style={styles.heroMetaSep} />
-            <RelativeTime timestamp={hero.publishedAt} style={styles.heroTimeText} />
+
+          <View style={styles.heroKickerRow}>
+            <View style={styles.heroKickerDot} />
+            <Text style={styles.heroKicker} numberOfLines={1}>{cat.toUpperCase()}</Text>
+          </View>
+
+          <Text numberOfLines={3} style={styles.heroHeadline}>{hero.title}</Text>
+
+          {hero.excerpt ? (
+            <Text numberOfLines={2} style={styles.heroDeck}>{hero.excerpt}</Text>
+          ) : null}
+
+          <View style={styles.heroBylineRule} />
+
+          <View style={styles.heroByline}>
+            <View style={styles.heroAvatar}>
+              <Text style={styles.heroAvatarText}>{initial}</Text>
+            </View>
+            <View style={styles.heroBylineCol}>
+              <Text numberOfLines={1} style={styles.heroAuthor}>
+                {hero.author ?? 'Redaksia Fontana'}
+              </Text>
+              <View style={styles.heroMetaRow}>
+                <Text style={styles.heroMetaText}>{readingMin} min lexim</Text>
+                <View style={styles.heroMetaDot} />
+                <RelativeTime timestamp={hero.publishedAt} style={styles.heroMetaText} />
+              </View>
+            </View>
           </View>
         </View>
       </Pressable>
@@ -309,7 +319,6 @@ const HeroCard = memo(function HeroCard({
 const LocalCard = memo(function LocalCard({ post, onPress }: { post: Post; onPress: (p: Post) => void }) {
   const scale = useSharedValue(1);
   const scaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  // M27: thumbnails standardized at 480px wide.
   const imageUri = useMemo(
     () => buildSanityImageUrl(post.mainImageUrl, 480),
     [post.mainImageUrl],
@@ -319,29 +328,29 @@ const LocalCard = memo(function LocalCard({ post, onPress }: { post: Post; onPre
     <Animated.View style={[styles.localOuter, scaleStyle]}>
       <Pressable
         onPress={() => onPress(post)}
-        onPressIn={() => { scale.value = withSpring(0.958, { damping: 20, stiffness: 400 }); }}
-        onPressOut={() => { scale.value = withSpring(1, { damping: 18, stiffness: 280 }); }}
-        style={styles.localInner}
+        onPressIn={() => { scale.value = withSpring(0.97, { damping: 22, stiffness: 460 }); }}
+        onPressOut={() => { scale.value = withSpring(1, { damping: 20, stiffness: 300 }); }}
+        style={styles.localCard}
       >
-        <Image
-          source={imageUri ? { uri: imageUri } : undefined}
-          placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
-          contentFit="cover"
-          transition={0}
-          style={StyleSheet.absoluteFill}
-        />
-        <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.84)']}
-          locations={[0.3, 1]}
-          style={StyleSheet.absoluteFill}
-        />
-        <View style={styles.localCatBadge}>
-          <Text style={styles.localCatText}>
-            {(post.categories?.[0] ?? 'Lajme').toUpperCase()}
-          </Text>
+        <View style={styles.localImageWrap}>
+          <Image
+            source={imageUri ? { uri: imageUri } : undefined}
+            placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
+            contentFit="cover"
+            transition={0}
+            style={styles.localImage}
+          />
+          <View style={styles.localImageDivider} />
         </View>
-        <View style={styles.localBottom}>
-          <Text numberOfLines={2} style={styles.localTitle}>{post.title}</Text>
+        <View style={styles.localBody}>
+          <View style={styles.localKickerRow}>
+            <View style={styles.localKickerDot} />
+            <Text style={styles.localCatText} numberOfLines={1}>
+              {(post.categories?.[0] ?? 'Lajme').toUpperCase()}
+            </Text>
+          </View>
+          <Text numberOfLines={3} style={styles.localTitle}>{post.title}</Text>
+          <View style={styles.localRule} />
           <RelativeTime timestamp={post.publishedAt} style={styles.localTime} />
         </View>
       </Pressable>
@@ -372,6 +381,79 @@ const SectionHeader = memo(function SectionHeader({
   );
 });
 
+// ── LatestNewsHeader — bespoke editorial masthead for the main feed ──────────
+// Why a separate component (not the generic SectionHeader): the "Lajmet e
+// Fundit" grid IS the home feed. It deserves a true editorial banner: a
+// kicker, a serif title, a live "lapsi nën dorë" pulse, an article counter
+// and today's date — the kind of treatment a print masthead earns above the
+// fold. The pulse uses the existing reanimated import; opacity-only worklets
+// stay on the UI thread and cost ~0.05 ms/frame on Cortex-A53.
+const LatestNewsHeader = memo(function LatestNewsHeader({
+  count,
+  onSeeAll,
+}: {
+  count: number;
+  onSeeAll?: () => void;
+}) {
+  const pulse = useSharedValue(0.4);
+  useEffect(() => {
+    pulse.value = withRepeat(
+      withTiming(1, { duration: 1100 }),
+      -1,
+      true,
+    );
+  }, [pulse]);
+  const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
+
+  // Albanian short date: "e martë, 28 prill" — built once per render.
+  const dateLabel = useMemo(() => {
+    const days = ['e diel', 'e hënë', 'e martë', 'e mërkurë', 'e enjte', 'e premte', 'e shtunë'];
+    const months = ['janar', 'shkurt', 'mars', 'prill', 'maj', 'qershor', 'korrik', 'gusht', 'shtator', 'tetor', 'nëntor', 'dhjetor'];
+    const d = new Date();
+    return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]}`;
+  }, []);
+
+  return (
+    <View style={styles.latestHeader}>
+      {/* Top: kicker + live pulse + date */}
+      <View style={styles.latestTopRow}>
+        <View style={styles.latestKickerGroup}>
+          <Animated.View style={[styles.latestPulse, pulseStyle]} />
+          <Text style={styles.latestKicker}>NË VAZHDIM</Text>
+        </View>
+        <Text style={styles.latestDate}>{dateLabel}</Text>
+      </View>
+
+      {/* Title + serif underline rule */}
+      <View style={styles.latestTitleRow}>
+        <Text style={styles.latestTitle}>Lajmet e Fundit</Text>
+        {count > 0 ? (
+          <View style={styles.latestCountChip}>
+            <Text style={styles.latestCountText}>{count}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      {/* Subhead with see-all on the same line */}
+      <View style={styles.latestSubRow}>
+        <Text style={styles.latestSubhead}>
+          Përditësimet më të reja editoriale nga RTV Fontana
+        </Text>
+        {onSeeAll ? (
+          <Pressable onPress={onSeeAll} hitSlop={10} style={styles.latestSeeAll}>
+            <Text style={styles.latestSeeAllText}>Të gjitha</Text>
+            <Ionicons name="arrow-forward" size={13} color={colors.primary} />
+          </Pressable>
+        ) : null}
+      </View>
+
+      {/* Editorial divider — heavy line over hairline (newsprint masthead) */}
+      <View style={styles.latestRuleHeavy} />
+      <View style={styles.latestRuleHair} />
+    </View>
+  );
+});
+
 // ── GridItem (memoized) ──────────────────────────────────────────────────────
 const GridItem = memo(function GridItem({
   item,
@@ -382,20 +464,28 @@ const GridItem = memo(function GridItem({
   isLeft: boolean;
   onPress: (p: Post) => void;
 }) {
-  const imageUri = useMemo(() => buildSanityImageUrl(item.mainImageUrl, 480), [item.mainImageUrl]);
-  // M26: shared-value driven press scale on the UI thread \u2014 no per-press
-  // style array allocation in JS.
+  const imageUri = useMemo(() => buildSanityImageUrl(item.mainImageUrl, 540), [item.mainImageUrl]);
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const initial = ((item.author ?? 'Redaksia Fontana').trim().charAt(0) || 'R').toUpperCase();
+  // "Fresh" indicator if published within the last 60 minutes — surfaces the
+  // editorial heartbeat without an extra network call.
+  const isFresh = useMemo(() => {
+    if (!item.publishedAt) return false;
+    const ageMin = (Date.now() - new Date(item.publishedAt).getTime()) / 60000;
+    return ageMin >= 0 && ageMin < 60;
+  }, [item.publishedAt]);
   return (
     <View style={[styles.gridColumn, isLeft ? styles.gridColLeft : styles.gridColRight]}>
       <Animated.View style={animStyle}>
         <Pressable
           onPress={() => onPress(item)}
-          onPressIn={() => { scale.value = withSpring(0.97, { damping: 22, stiffness: 440 }); }}
+          onPressIn={() => { scale.value = withSpring(0.97, { damping: 22, stiffness: 460 }); }}
           onPressOut={() => { scale.value = withSpring(1, { damping: 20, stiffness: 300 }); }}
           style={styles.gridCard}
         >
+          {/* Editorial accent on the top edge */}
+          <View style={styles.gridAccentBar} />
           <View style={styles.gridImgWrap}>
             <Image
               source={imageUri ? { uri: imageUri } : undefined}
@@ -404,21 +494,45 @@ const GridItem = memo(function GridItem({
               transition={0}
               style={styles.gridImg}
             />
-            <View style={styles.gridCatBadge}>
-              <Text numberOfLines={1} style={styles.gridCatText}>
-                {item.categories?.[0] ?? 'Lajme'}
-              </Text>
-            </View>
+            {item.breaking ? (
+              <View style={styles.gridBreakingPin}>
+                <View style={styles.gridBreakingPinPulse} />
+                <Text style={styles.gridBreakingPinText}>LAJM</Text>
+              </View>
+            ) : null}
+            <View style={styles.gridImageDivider} />
           </View>
           <View style={styles.gridBody}>
-            <Text numberOfLines={2} style={styles.gridTitle}>{item.title}</Text>
-          <View style={styles.gridMetaRow}>
-            <Text numberOfLines={1} style={styles.gridAuthor}>
-              {item.author ?? 'Redaksia'}
-            </Text>
-            <RelativeTime timestamp={item.publishedAt} />
+            <View style={styles.gridKickerRow}>
+              <View style={styles.gridKickerDot} />
+              <Text numberOfLines={1} style={styles.gridCatText}>
+                {(item.categories?.[0] ?? 'Lajme').toUpperCase()}
+              </Text>
+              {isFresh ? (
+                <>
+                  <View style={styles.gridKickerSpacer} />
+                  <View style={styles.gridFreshDot} />
+                  <Text style={styles.gridFreshText}>I RI</Text>
+                </>
+              ) : null}
+            </View>
+            <Text numberOfLines={3} style={styles.gridTitle}>{item.title}</Text>
+            {item.excerpt ? (
+              <Text numberOfLines={2} style={styles.gridExcerpt}>{item.excerpt}</Text>
+            ) : null}
+            <View style={styles.gridRule} />
+            <View style={styles.gridByline}>
+              <View style={styles.gridAvatar}>
+                <Text style={styles.gridAvatarText}>{initial}</Text>
+              </View>
+              <View style={styles.gridBylineCol}>
+                <Text numberOfLines={1} style={styles.gridAuthor}>
+                  {item.author ?? 'Redaksia Fontana'}
+                </Text>
+                <RelativeTime timestamp={item.publishedAt} style={styles.gridTime} />
+              </View>
+            </View>
           </View>
-        </View>
         </Pressable>
       </Animated.View>
     </View>
@@ -471,59 +585,6 @@ const SearchResultCard = memo(function SearchResultCard({
   );
 });
 
-// ── PopularCard (memoized) ───────────────────────────────────────────────────
-const PopularCard = memo(function PopularCard({
-  item,
-  index,
-  onPress,
-}: {
-  item: Post;
-  index: number;
-  onPress: (p: Post) => void;
-}) {
-  const imageUri = useMemo(
-    () => (item.mainImageUrl ? buildSanityImageUrl(item.mainImageUrl, 480) : undefined),
-    [item.mainImageUrl],
-  );
-  // M26: shared-value driven press feedback.
-  const scale = useSharedValue(1);
-  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  return (
-    <Animated.View style={animStyle}>
-      <Pressable
-        onPress={() => onPress(item)}
-        onPressIn={() => { scale.value = withSpring(0.97, { damping: 22, stiffness: 440 }); }}
-        onPressOut={() => { scale.value = withSpring(1, { damping: 20, stiffness: 300 }); }}
-        style={styles.popularCard}
-      >
-      <View style={styles.popularImgWrap}>
-        <Image
-          source={imageUri ? { uri: imageUri } : undefined}
-          placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
-          contentFit="cover"
-          style={styles.popularImg}
-        />
-        <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.42)']}
-          locations={[0.45, 1]}
-          style={StyleSheet.absoluteFill}
-        />
-        <View style={styles.popularRank}>
-          <Text style={styles.popularRankText}>{index + 1}</Text>
-        </View>
-      </View>
-      <View style={styles.popularBody}>
-        <Text numberOfLines={1} style={styles.popularCat}>
-          {item.categories?.[0] ?? 'Lajme'}
-        </Text>
-        <Text numberOfLines={2} style={styles.popularTitle}>{item.title}</Text>
-        <RelativeTime timestamp={item.publishedAt} style={styles.popularTime} />
-      </View>
-      </Pressable>
-    </Animated.View>
-  );
-});
-
 // ── HomeScreen ─────────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const router = useRouter();
@@ -568,13 +629,12 @@ export default function HomeScreen() {
     refetchOnWindowFocus: true,
   });
 
-  // C6: Staggered enable flags. Don't fire all 4 secondary queries in the
-  // same RAF tick — 4 simultaneous JSON.parses on Cortex-A53 cost 30–50 ms
+  // C6: Staggered enable flags. Don't fire all secondary queries in the
+  // same RAF tick — simultaneous JSON.parses on Cortex-A53 cost 30–50 ms
   // blocking. Stagger: breaking immediately after first interaction, latest
-  // +100 ms, popular +300 ms, local +500 ms.
+  // +100 ms, local +500 ms.
   const [enableBreaking, setEnableBreaking] = useState(false);
   const [enableLatest, setEnableLatest] = useState(false);
-  const [enablePopular, setEnablePopular] = useState(false);
   const [enableLocal, setEnableLocal] = useState(false);
 
   useEffect(() => {
@@ -582,12 +642,10 @@ export default function HomeScreen() {
       setEnableBreaking(true);
     });
     const t1 = setTimeout(() => setEnableLatest(true), 100);
-    const t2 = setTimeout(() => setEnablePopular(true), 300);
     const t3 = setTimeout(() => setEnableLocal(true), 500);
     return () => {
       handle.cancel();
       clearTimeout(t1);
-      clearTimeout(t2);
       clearTimeout(t3);
     };
   }, []);
@@ -601,7 +659,6 @@ export default function HomeScreen() {
     refetchOnWindowFocus: true,
   });
   const latestQuery   = useQuery({ queryKey: ['home-latest'],   queryFn: () => fetchLatestPosts('', '', 18), enabled: enableLatest });
-  const popularQuery  = useQuery({ queryKey: ['home-popular'],  queryFn: () => fetchPopularPosts(8), enabled: enablePopular });
   const localQuery    = useQuery({ queryKey: ['home-local'],    queryFn: () => fetchLocalPosts(12), enabled: enableLocal });
 
   const hero         = heroQuery.data ?? null;
@@ -617,7 +674,6 @@ export default function HomeScreen() {
   const heroImageUri = useMemo(() => buildSanityImageUrl(hero?.mainImageUrl, 480) ?? null, [hero?.mainImageUrl]);
   const latestData   = useMemo(() => latestQuery.data ?? [], [latestQuery.data]);
   const breakingData = useMemo(() => breakingQuery.data ?? [], [breakingQuery.data]);
-  const popularData  = useMemo(() => popularQuery.data ?? [], [popularQuery.data]);
   const localData    = useMemo(() => localQuery.data ?? [], [localQuery.data]);
 
   const showLatestSkeleton = latestQuery.isLoading && latestData.length === 0;
@@ -664,11 +720,10 @@ export default function HomeScreen() {
       heroQuery.refetch(),
       breakingQuery.refetch(),
       latestQuery.refetch(),
-      popularQuery.refetch(),
       localQuery.refetch(),
     ]);
     setRefreshing(false);
-  }, [heroQuery, breakingQuery, latestQuery, popularQuery, localQuery]);
+  }, [heroQuery, breakingQuery, latestQuery, localQuery]);
 
   const onHeaderSearch = useCallback(() => {
     setIsSearchActive(true);
@@ -704,9 +759,9 @@ export default function HomeScreen() {
     [],
   );
 
-  // H13: stable renderItem callbacks for the horizontal rails. FlashList only
-  // mounts the visible window + drawDistance ahead, so the eager-mount cost of
-  // 12 LocalCards + 8 PopularCards is reduced to ~3 of each.
+  // H13: stable renderItem callback for the horizontal local rail. FlashList
+  // only mounts the visible window + drawDistance ahead, so the eager-mount
+  // cost is reduced to ~3 cards.
   const renderLocalItem = useCallback(
     ({ item }: ListRenderItemInfo<Post>) => (
       <LocalCard post={item} onPress={onPressPost} />
@@ -714,13 +769,6 @@ export default function HomeScreen() {
     [onPressPost],
   );
   const keyExtractLocal = useCallback((item: Post) => item._id, []);
-  const renderPopularItem = useCallback(
-    ({ item, index }: ListRenderItemInfo<Post>) => (
-      <PopularCard item={item} index={index} onPress={onPressPost} />
-    ),
-    [onPressPost],
-  );
-  const keyExtractPopular = useCallback((item: Post) => item._id, []);
 
   // ── List header: Hero → Weather → section header for grid ──────────────────
   const listHeader = useMemo(
@@ -740,22 +788,45 @@ export default function HomeScreen() {
           <WeatherWidget />
         </View>
 
-        {/* ── LAJMET E FUNDIT section header ──────────────── */}
-        <SectionHeader title="Lajmet e Fundit" onSeeAll={onHeaderSearch} />
+        {/* ── LAJMET E FUNDIT — bespoke editorial masthead ────── */}
+        <LatestNewsHeader count={latestData.length} onSeeAll={onHeaderSearch} />
       </View>
     ),
-    [hero, heroImageUri, onPressPost, onHeaderSearch],
+    [hero, heroImageUri, onPressPost, onHeaderSearch, latestData.length],
   );
 
   // ── List footer: Lokale → Popular → Footer cards ──────────────────────────
   const listFooter = useMemo(
     () => (
       <View>
+        {/* ── LAJMET E FUNDIT closer — editorial bookend for the grid ─── */}
+        <View style={styles.latestCloser}>
+          <View style={styles.latestCloserRule} />
+          <Text style={styles.latestCloserLabel}>
+            FUNDI I SEKSIONIT · LAJMET E FUNDIT
+          </Text>
+          <Pressable
+            onPress={onHeaderSearch}
+            style={({ pressed }) => [
+              styles.latestCloserCta,
+              pressed && styles.latestCloserCtaPressed,
+            ]}
+          >
+            <Text style={styles.latestCloserCtaText}>Eksploro të gjitha lajmet</Text>
+            <View style={styles.latestCloserCtaArrow}>
+              <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
+            </View>
+          </Pressable>
+          <Text style={styles.latestCloserSub}>
+            Përditësohet automatikisht nga redaksia e RTV Fontana
+          </Text>
+        </View>
+
         {/* ── LAJMET LOKALE ─────────────────────────────── */}
         <View style={[styles.sectionBlock, { marginTop: 20 }]}>
           <SectionHeader title="Lajmet Lokale" onSeeAll={onHeaderSearch} />
           {localData.length > 0 ? (
-            <View style={styles.railContainer}>
+            <View style={styles.localRailContainer}>
               <FlashList
                 horizontal
                 data={localData}
@@ -772,30 +843,6 @@ export default function HomeScreen() {
               <SkeletonCard height={200} style={styles.localSkeletonCard} />
               <SkeletonCard height={200} style={styles.localSkeletonCard} />
               <SkeletonCard height={200} style={styles.localSkeletonCard} />
-            </View>
-          )}
-        </View>
-
-        {/* ── MË TË LEXUARA ─────────────────────────────── */}
-        <View style={styles.sectionBlock}>
-          <SectionHeader title="Më të Lexuara" onSeeAll={onHeaderSearch} />
-          {popularData.length > 0 ? (
-            <View style={styles.railContainer}>
-              <FlashList
-                horizontal
-                data={popularData}
-                renderItem={renderPopularItem}
-                keyExtractor={keyExtractPopular}
-                contentContainerStyle={styles.popularRail}
-                showsHorizontalScrollIndicator={false}
-                decelerationRate="fast"
-                drawDistance={200}
-              />
-            </View>
-          ) : (
-            <View style={styles.popularRailSkeleton}>
-              <SkeletonCard height={190} style={styles.popularSkeleton} />
-              <SkeletonCard height={190} style={styles.popularSkeleton} />
             </View>
           )}
         </View>
@@ -845,7 +892,7 @@ export default function HomeScreen() {
         </View>
       </View>
     ),
-    [localData, popularData, onPressPost, onHeaderSearch, router, renderLocalItem, keyExtractLocal, renderPopularItem, keyExtractPopular],
+    [localData, onPressPost, onHeaderSearch, router, renderLocalItem, keyExtractLocal],
   );
 
   // H15: stable refs for FlashList contentContainerStyle + RefreshControl.
@@ -1154,61 +1201,221 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 
+  // ── Latest news editorial masthead ─────────────────────────────────────────
+  latestHeader: {
+    marginBottom: 18,
+  },
+  latestTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  latestKickerGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  latestPulse: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#DC2626',
+  },
+  latestKicker: {
+    color: '#DC2626',
+    fontFamily: fonts.uiBold,
+    fontSize: 10.5,
+    letterSpacing: 2.4,
+  },
+  latestDate: {
+    color: '#7A8294',
+    fontFamily: fonts.uiMedium,
+    fontSize: 11,
+    letterSpacing: 0.3,
+    textTransform: 'lowercase',
+  },
+  latestTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 10,
+    marginBottom: 6,
+  },
+  latestTitle: {
+    color: '#0A0F1C',
+    fontFamily: fonts.articleBlack,
+    fontSize: 30,
+    lineHeight: 34,
+    letterSpacing: -1.2,
+    flexShrink: 1,
+  },
+  latestCountChip: {
+    minWidth: 28,
+    height: 22,
+    paddingHorizontal: 8,
+    borderRadius: 11,
+    backgroundColor: '#0A0F1C',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  latestCountText: {
+    color: '#FFFFFF',
+    fontFamily: fonts.uiBold,
+    fontSize: 11,
+    letterSpacing: -0.2,
+  },
+  latestSubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 14,
+  },
+  latestSubhead: {
+    color: '#5C6478',
+    fontFamily: fonts.articleItalic,
+    fontSize: 13,
+    lineHeight: 18,
+    flex: 1,
+    flexShrink: 1,
+  },
+  latestSeeAll: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexShrink: 0,
+  },
+  latestSeeAllText: {
+    color: colors.primary,
+    fontFamily: fonts.uiBold,
+    fontSize: 12.5,
+    letterSpacing: -0.1,
+  },
+  latestRuleHeavy: {
+    height: 2,
+    backgroundColor: '#0A0F1C',
+    marginBottom: 3,
+  },
+  latestRuleHair: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#0A0F1C',
+    opacity: 0.6,
+  },
+
+  // ── Latest news section closer (editorial bookend) ─────────────────────────
+  latestCloser: {
+    marginTop: 24,
+    marginBottom: 8,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  latestCloserRule: {
+    width: 56,
+    height: 2,
+    backgroundColor: '#0A0F1C',
+    marginBottom: 14,
+  },
+  latestCloserLabel: {
+    color: '#7A8294',
+    fontFamily: fonts.uiBold,
+    fontSize: 10,
+    letterSpacing: 2.4,
+    marginBottom: 18,
+  },
+  latestCloserCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingLeft: 22,
+    paddingRight: 6,
+    paddingVertical: 6,
+    backgroundColor: '#0A0F1C',
+    borderRadius: 999,
+    shadowColor: '#0A0F1C',
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
+  latestCloserCtaPressed: {
+    opacity: 0.92,
+    transform: [{ scale: 0.985 }],
+  },
+  latestCloserCtaText: {
+    color: '#FFFFFF',
+    fontFamily: fonts.uiBold,
+    fontSize: 13.5,
+    letterSpacing: -0.2,
+  },
+  latestCloserCtaArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#DC2626',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  latestCloserSub: {
+    color: '#7A8294',
+    fontFamily: fonts.articleItalic,
+    fontSize: 11.5,
+    lineHeight: 16,
+    textAlign: 'center',
+    marginTop: 14,
+  },
+
   // ── Hero card ───────────────────────────────────────────────────────────────
   heroOuter: {
     borderRadius: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.14,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 7 },
-    elevation: 5,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#0A0F1C',
+    shadowOpacity: 0.10,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 6,
   },
-  heroInner: {
+  heroCard: {
     borderRadius: 20,
     overflow: 'hidden',
-    minHeight: 248,
+  },
+  heroImageWrap: {
+    width: '100%',
+    aspectRatio: 16 / 10,
+    backgroundColor: '#E6E8EE',
   },
   heroImage: {
     width: '100%',
-    aspectRatio: 16 / 9,
-    backgroundColor: '#D1D5DB',
+    height: '100%',
+  },
+  heroImageDivider: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(10,15,28,0.06)',
   },
   heroSkeleton: {
     borderRadius: 22,
   },
-  heroTopRow: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    right: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+  heroContent: {
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 16,
   },
-  heroCatBadge: {
-    backgroundColor: 'rgba(0,0,0,0.42)',
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.28)',
-    paddingHorizontal: 11,
-    paddingVertical: 5,
-  },
-  heroCatText: {
-    color: '#FFFFFF',
-    fontFamily: fonts.uiBold,
-    fontSize: 9.5,
-    letterSpacing: 0.7,
-  },
-  heroBreakingBadge: {
+  heroBreakingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: colors.primary,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    alignSelf: 'flex-start',
+    gap: 7,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    backgroundColor: '#DC2626',
+    borderRadius: 4,
+    marginBottom: 11,
   },
-  heroBreakingDot: {
+  heroBreakingPulse: {
     width: 6,
     height: 6,
     borderRadius: 3,
@@ -1218,56 +1425,94 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontFamily: fonts.uiBold,
     fontSize: 9.5,
-    letterSpacing: 1.1,
+    letterSpacing: 1.6,
   },
-  heroBottom: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 15,
-    paddingBottom: 15,
-    paddingTop: 8,
-    gap: 9,
-  },
-  heroTitle: {
-    color: '#FFFFFF',
-    fontFamily: fonts.uiBold,
-    fontSize: 22,
-    lineHeight: 29,
-    letterSpacing: -0.6,
-  },
-  heroMeta: {
+  heroKickerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    overflow: 'hidden',
+    gap: 7,
+    marginBottom: 11,
   },
-  heroAuthorDot: {
+  heroKickerDot: {
     width: 5,
     height: 5,
-    borderRadius: 2.5,
-    backgroundColor: 'rgba(255,255,255,0.65)',
+    borderRadius: 1,
+    backgroundColor: '#DC2626',
+  },
+  heroKicker: {
+    color: '#DC2626',
+    fontFamily: fonts.uiBold,
+    fontSize: 10.5,
+    letterSpacing: 2.2,
+  },
+  heroHeadline: {
+    color: '#0A0F1C',
+    fontFamily: fonts.articleBold,
+    fontSize: 22,
+    lineHeight: 29,
+    letterSpacing: -0.5,
+  },
+  heroDeck: {
+    color: '#3C4358',
+    fontFamily: fonts.uiRegular,
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 9,
+  },
+  heroBylineRule: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#EEF0F4',
+    marginTop: 14,
+    marginBottom: 12,
+  },
+  heroByline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+  },
+  heroAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    alignItems: 'center',
+    justifyContent: 'center',
     flexShrink: 0,
   },
-  heroAuthorText: {
-    color: 'rgba(255,255,255,0.85)',
-    fontFamily: fonts.uiMedium,
-    fontSize: 13,
+  heroAvatarText: {
+    color: '#DC2626',
+    fontFamily: fonts.uiBold,
+    fontSize: 13.5,
+    letterSpacing: -0.2,
+  },
+  heroBylineCol: {
     flex: 1,
     flexShrink: 1,
+    gap: 2,
   },
-  heroMetaSep: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: 'rgba(255,255,255,0.38)',
-    flexShrink: 0,
+  heroAuthor: {
+    color: '#0A0F1C',
+    fontFamily: fonts.uiBold,
+    fontSize: 12.5,
+    letterSpacing: -0.1,
   },
-  heroTimeText: {
-    color: 'rgba(255,255,255,0.70)',
+  heroMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  heroMetaText: {
+    color: '#7A8294',
     fontFamily: fonts.uiRegular,
-    fontSize: 13,
+    fontSize: 11.5,
+  },
+  heroMetaDot: {
+    width: 2,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: '#B5BAC8',
   },
 
   // ── Weather card ────────────────────────────────────────────────────────────
@@ -1389,8 +1634,8 @@ const styles = StyleSheet.create({
   // H13: FlashList horizontal needs an explicit height on its container (it
   // can't auto-measure horizontal layouts). Height covers the tallest card +
   // shadow extent.
-  railContainer: {
-    height: s(218),
+  localRailContainer: {
+    height: s(230),
   },
   localRail: {
     paddingLeft: 16,
@@ -1402,148 +1647,82 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   localSkeletonCard: {
-    width: s(170),
-    borderRadius: 18,
+    width: s(160),
+    borderRadius: 14,
     marginRight: 12,
   },
   localOuter: {
-    width: s(170),
-    height: s(210),
-    borderRadius: 18,
-    marginRight: 12,
-    shadowColor: colors.navy,
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
+    width: s(168),
+    borderRadius: 16,
+    marginRight: 14,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#0A0F1C',
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
     elevation: 4,
   },
-  localInner: {
-    width: s(170),
-    height: s(210),
-    borderRadius: 18,
+  localCard: {
+    borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: '#D1D5DB',
   },
-  localCatBadge: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    backgroundColor: 'rgba(0,0,0,0.42)',
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.22)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+  localImageWrap: {
+    width: '100%',
+    aspectRatio: 4 / 3,
+    backgroundColor: '#E6E8EE',
   },
-  localCatText: {
-    color: '#FFFFFF',
-    fontFamily: fonts.uiBold,
-    fontSize: 8.5,
-    letterSpacing: 0.5,
+  localImage: {
+    width: '100%',
+    height: '100%',
   },
-  localBottom: {
+  localImageDivider: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 11,
-    gap: 5,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(10,15,28,0.06)',
   },
-  localTitle: {
-    color: '#FFFFFF',
-    fontFamily: fonts.uiBold,
-    fontSize: 13,
-    lineHeight: 18,
-    letterSpacing: -0.15,
-  },
-  localTime: {
-    color: 'rgba(255,255,255,0.68)',
-    fontFamily: fonts.uiRegular,
-    fontSize: 11,
-  },
-
-  // ── Popular rail ─────────────────────────────────────────────────────────────
-  popularRail: {
-    paddingLeft: 16,
-    paddingRight: 16,
-    paddingBottom: 4,
-  },
-  popularRailSkeleton: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  popularSkeleton: {
-    width: s(190),
-    borderRadius: 16,
-    marginRight: 12,
-  },
-  popularCard: {
-    width: s(190),
-    borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: colors.surface,
-    marginRight: 12,
-    shadowColor: colors.navy,
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-  },
-  popularCardPressed: {
-    opacity: 0.92,
-  },
-  popularImgWrap: {
-    width: '100%',
-    height: s(114),
-    position: 'relative',
-  },
-  popularImg: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#D1D5DB',
-  },
-  popularRank: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.navy,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
-  },
-  popularRankText: {
-    color: '#FFFFFF',
-    fontFamily: fonts.uiBold,
-    fontSize: 12,
-    letterSpacing: -0.2,
-  },
-  popularBody: {
-    paddingHorizontal: 10,
-    paddingTop: 9,
+  localBody: {
+    paddingHorizontal: 12,
+    paddingTop: 11,
     paddingBottom: 11,
-    gap: 5,
   },
-  popularCat: {
-    color: colors.primary,
+  localKickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  localKickerDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 1,
+    backgroundColor: '#DC2626',
+  },
+  localCatText: {
+    color: '#DC2626',
     fontFamily: fonts.uiBold,
     fontSize: 9,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    letterSpacing: 1.8,
   },
-  popularTitle: {
-    color: colors.text,
-    fontFamily: fonts.uiBold,
-    fontSize: 13,
-    lineHeight: 18,
-    flexShrink: 1,
+  localTitle: {
+    color: '#0A0F1C',
+    fontFamily: fonts.articleBold,
+    fontSize: 14,
+    lineHeight: 19,
+    letterSpacing: -0.2,
   },
-  popularTime: {
-    color: colors.textMuted,
+  localRule: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#EEF0F4',
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  localTime: {
+    color: '#7A8294',
     fontFamily: fonts.uiRegular,
-    fontSize: 11,
+    fontSize: 10.5,
   },
 
   // ── Latest grid ──────────────────────────────────────────────────────────────
@@ -1561,71 +1740,161 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   gridCard: {
-    borderRadius: 14,
-    backgroundColor: colors.surface,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
     overflow: 'hidden',
-    shadowColor: colors.navy,
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    shadowColor: '#0A0F1C',
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
   },
-  gridCardPressed: {
-    opacity: 0.94,
+  gridAccentBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 2,
+    backgroundColor: '#DC2626',
+    zIndex: 2,
   },
   gridImgWrap: {
-    position: 'relative',
+    width: '100%',
+    aspectRatio: 4 / 3,
+    backgroundColor: '#E6E8EE',
   },
   gridImg: {
     width: '100%',
-    aspectRatio: 16 / 9,
-    backgroundColor: '#D1D5DB',
+    height: '100%',
   },
-  gridCatBadge: {
+  gridImageDivider: {
     position: 'absolute',
-    top: 6,
-    left: 6,
-    borderRadius: radius.pill,
-    backgroundColor: 'rgba(15,23,42,0.58)',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(10,15,28,0.06)',
   },
-  gridCatText: {
-    color: 'rgba(255,255,255,0.92)',
+  gridBreakingPin: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    backgroundColor: '#DC2626',
+    borderRadius: 4,
+  },
+  gridBreakingPinPulse: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#FFFFFF',
+  },
+  gridBreakingPinText: {
+    color: '#FFFFFF',
     fontFamily: fonts.uiBold,
     fontSize: 8.5,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    maxWidth: 90,
+    letterSpacing: 1.4,
   },
   gridBody: {
-    paddingHorizontal: 10,
-    paddingTop: 9,
-    paddingBottom: 10,
-    gap: 7,
-    minHeight: 90,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 12,
+    minHeight: 132,
+  },
+  gridKickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  gridKickerDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 1,
+    backgroundColor: '#DC2626',
+  },
+  gridKickerSpacer: {
+    flex: 1,
+  },
+  gridFreshDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#16A34A',
+  },
+  gridFreshText: {
+    color: '#16A34A',
+    fontFamily: fonts.uiBold,
+    fontSize: 8.5,
+    letterSpacing: 1.6,
+  },
+  gridCatText: {
+    color: '#DC2626',
+    fontFamily: fonts.uiBold,
+    fontSize: 9,
+    letterSpacing: 1.8,
   },
   gridTitle: {
-    color: colors.text,
-    fontFamily: fonts.uiBold,
-    fontSize: 13,
-    lineHeight: 18.5,
+    color: '#0A0F1C',
+    fontFamily: fonts.articleBold,
+    fontSize: 14.5,
+    lineHeight: 19.5,
     letterSpacing: -0.2,
     flexShrink: 1,
   },
-  gridMetaRow: {
+  gridExcerpt: {
+    color: '#5C6478',
+    fontFamily: fonts.uiRegular,
+    fontSize: 11.5,
+    lineHeight: 16,
+    marginTop: 6,
+  },
+  gridRule: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#EEF0F4',
+    marginTop: 11,
+    marginBottom: 9,
+  },
+  gridByline: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 4,
-    overflow: 'hidden',
+    gap: 8,
   },
-  gridAuthor: {
-    color: colors.textMuted,
-    fontFamily: fonts.uiMedium,
-    fontSize: 11,
+  gridAvatar: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  gridAvatarText: {
+    color: '#DC2626',
+    fontFamily: fonts.uiBold,
+    fontSize: 10,
+    letterSpacing: -0.2,
+  },
+  gridBylineCol: {
     flex: 1,
     flexShrink: 1,
+  },
+  gridAuthor: {
+    color: '#0A0F1C',
+    fontFamily: fonts.uiBold,
+    fontSize: 10.5,
+    letterSpacing: -0.1,
+  },
+  gridTime: {
+    color: '#7A8294',
+    fontFamily: fonts.uiRegular,
+    fontSize: 10,
   },
 
   // ── Footer ───────────────────────────────────────────────────────────────────

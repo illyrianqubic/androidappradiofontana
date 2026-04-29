@@ -1,5 +1,3 @@
-import { appIdentity } from '../design-tokens';
-
 const projectId = 'ksakxvtt';
 const dataset = 'production';
 const apiVersion = '2024-01-01';
@@ -55,21 +53,6 @@ export type Post = {
   categorySlugs?: string[];
   author?: string;
   body?: PortableTextBlock[];
-};
-
-export type Author = {
-  _id: string;
-  name: string;
-  slug?: string;
-  imageUrl?: string;
-};
-
-type LiveStream = {
-  isLive: boolean;
-  title: string;
-  subtitle: string;
-  facebookUrl?: string;
-  streamUrl: string;
 };
 
 type SanityResponse<T> = {
@@ -179,11 +162,14 @@ const CATEGORY_SLUG_ALIASES: Record<string, string> = {
   'te gjitha': '',
   'të gjitha': '',
   lajme: 'lajme',
+  politike: 'politike',
+  'politikë': 'politike',
   sport: 'sport',
   teknologji: 'teknologji',
   showbiz: 'showbiz',
   shendetesi: 'shendetesi',
   'shëndetësi': 'shendetesi',
+  biznes: 'biznes',
   'nga bota': 'nga-bota',
   'nga-bota': 'nga-bota',
 };
@@ -237,40 +223,11 @@ export async function fetchLocalPosts(limit = 12): Promise<Post[]> {
   return data ?? [];
 }
 
+// fetchPopularPosts is kept (web home page still uses it) but native does not.
 export async function fetchPopularPosts(limit = 12): Promise<Post[]> {
   const query = `*[_type == "post"] | order(coalesce(views, 0) desc, publishedAt desc)[0...$limit] { ${postProjection} }`;
   const data = await sanityFetch<Post[]>(query, { limit });
   return data ?? [];
-}
-
-// M-C8: batched home bundle. Single Sanity GROQ projection returns all five
-// home-tab payloads in one network round-trip. Reduces cold-start fan-out
-// from 5 requests/device → 1, cutting Sanity origin/CDN hits at 70k users by
-// ~80 % and saving 4 TLS handshakes per device.
-export type HomeBundle = {
-  hero: Post | null;
-  breaking: Post[];
-  latest: Post[];
-  popular: Post[];
-  local: Post[];
-};
-
-export async function fetchHomeBundle(): Promise<HomeBundle> {
-  const query = `{
-    "hero": *[_type == "post"] | order(publishedAt desc)[0] { ${postProjection} },
-    "breaking": *[_type == "post" && coalesce(breaking, false) == true] | order(publishedAt desc)[0...8] { ${postProjection} },
-    "latest": *[_type == "post"] | order(publishedAt desc)[0...18] { ${postProjection} },
-    "popular": *[_type == "post"] | order(coalesce(views, 0) desc, publishedAt desc)[0...8] { ${postProjection} },
-    "local": *[_type == "post" && !('nga-bota' in array::compact(coalesce(categories[]->slug.current, []) + coalesce([category->slug.current], [])))] | order(publishedAt desc)[0...12] { ${postProjection} }
-  }`;
-  const data = await sanityFetch<HomeBundle>(query);
-  return {
-    hero: data?.hero ?? null,
-    breaking: data?.breaking ?? [],
-    latest: data?.latest ?? [],
-    popular: data?.popular ?? [],
-    local: data?.local ?? [],
-  };
 }
 
 export async function fetchPostBySlug(slug: string): Promise<Post | null> {
@@ -325,11 +282,6 @@ export async function fetchPostBySlug(slug: string): Promise<Post | null> {
   if (!raw) return null;
   // Prefer `body`; fall back to `content` if body is empty/missing.
   const body = (raw.body && raw.body.length > 0) ? raw.body : (raw.content ?? []);
-  // Debug: confirm we are receiving complete blocks. Logs once per fetch.
-  // eslint-disable-next-line no-console
-  console.log(
-    `[fetchPostBySlug] slug=${slug} body.len=${raw.body?.length ?? 0} content.len=${raw.content?.length ?? 0} chosen.len=${body.length} types=${body.map((b) => b._type).join(',')}`,
-  );
   return { ...raw, body } as Post;
 }
 
@@ -340,46 +292,4 @@ export async function fetchRelatedPosts(slug: string, categories: string[] = [])
   return data ?? [];
 }
 
-export async function fetchAuthors(): Promise<Author[]> {
-  const query = `*[_type == "author"] | order(name asc) {
-    _id,
-    "name": name,
-    "slug": slug.current,
-    "imageUrl": image.asset->url
-  }`;
 
-  try {
-    const authors = await sanityFetch<Author[]>(query);
-    return (authors ?? []).filter((item) => item.name?.trim());
-  } catch {
-    // Author documents unavailable — surface empty list rather than running a
-    // full-table post scan that does not scale at concurrent-user volume.
-    return [];
-  }
-}
-
-export async function fetchLiveStream(): Promise<LiveStream> {
-  const query = `*[_type == "liveStream"][0] {
-    "isLive": coalesce(isLive, true),
-    "title": coalesce(title, "Radio Fontana 98.8 FM"),
-    "subtitle": coalesce(subtitle, "Istog, Kosovë"),
-    "facebookUrl": facebookUrl,
-    "streamUrl": coalesce(streamUrl, "${appIdentity.streamUrl}")
-  }`;
-
-  try {
-    const data = await sanityFetch<LiveStream | null>(query);
-    if (!data) {
-      throw new Error('No liveStream document found');
-    }
-    return data;
-  } catch {
-    return {
-      isLive: true,
-      title: appIdentity.stationName,
-      subtitle: appIdentity.location,
-      facebookUrl: '',
-      streamUrl: appIdentity.streamUrl,
-    };
-  }
-}

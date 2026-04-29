@@ -73,7 +73,9 @@ export const fonts = {
   uiMedium: 'InterVariableMedium',
   uiBold: 'InterVariableBold',
   articleRegular: 'MerriweatherVariable',
+  articleItalic: 'MerriweatherVariableItalic',
   articleBold: 'MerriweatherVariableBold',
+  articleBlack: 'MerriweatherVariableBlack',
 } as const;
 
 export const appIdentity = {

@@ -51,16 +51,6 @@ const LAJME_CATEGORIES = [
   { label: 'Biznes',     slug: 'biznes' },
 ];
 
-// Height of the StickyTopBar content below the status bar.
-// Matches topInsetOffset = insets.top + 72 used in every tab screen, minus 5px
-// so the panel starts slightly higher (just overlaps the bar shadow, not the content).
-const TOP_BAR_H = 58;
-
-// Tab bar height from (tabs)/_layout.tsx: `height: 72 + insets.bottom`.
-// Setting this to 72 places the panel's bottom edge flush at the tab bar's
-// top edge — the panel visually "touches" the bottom bar.
-const TAB_BAR_H = 72;
-
 // Max panel width on large screens.
 const PANEL_MAX_W = 300;
 
@@ -198,9 +188,10 @@ function HamburgerDrawerInner() {
   const isLiveActive = pathname.includes('/live');
   const isNewsActive = pathname.includes('/news');
 
-  const topBarBottom = insets.top + TOP_BAR_H;
-  const panelBottom = TAB_BAR_H + insets.bottom;
-  const panelWidth = Math.round(windowWidth * 0.78);
+  // Panel respects system chrome: starts below the status bar (insets.top)
+  // and ends above the navigation bar (insets.bottom). Content padding inside
+  // the scroll view is zero — the panel bounds already clear system chrome.
+  const panelWidth = Math.min(Math.round(windowWidth * 0.75), PANEL_MAX_W);
 
   return (
     <View
@@ -218,15 +209,17 @@ function HamburgerDrawerInner() {
         />
       )}
 
-      {/* Animated dark overlay — visual only, positioned between top bar and tab bar */}
+      {/* Animated dark overlay — covers the visible area between status bar
+          and navigation bar. Visual only. */}
       <Animated.View
-        style={[S.backdrop, { top: topBarBottom, bottom: panelBottom, left: 0, right: 0 }, backdropStyle]}
+        style={[S.backdrop, { top: insets.top, bottom: insets.bottom, left: 0, right: 0 }, backdropStyle]}
         pointerEvents="none"
       />
 
-      {/* Panel — rendered last = highest z-index, handles its own touches */}
+      {/* Panel — sits below the status bar and above the navigation bar,
+          75% width from the right edge. */}
       <Animated.View
-        style={[S.panelOuter, { top: topBarBottom, bottom: panelBottom, right: 0, width: panelWidth }, panelStyle]}
+        style={[S.panelOuter, { top: insets.top, bottom: insets.bottom, right: 0, width: panelWidth }, panelStyle]}
         pointerEvents={isInteractive ? 'auto' : 'none'}
       >
         <View style={S.panelInner}>
@@ -235,9 +228,8 @@ function HamburgerDrawerInner() {
             showsVerticalScrollIndicator={false}
             bounces={false}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={S.scrollContent}
-            onScrollBeginDrag={onScrollBeginDrag}
-            // R-8: removed `removeClippedSubviews`. It breaks Reanimated's
+            contentContainerStyle={[S.scrollContent, { paddingBottom: 16 }]}
+            onScrollBeginDrag={onScrollBeginDrag}            // R-8: removed `removeClippedSubviews`. It breaks Reanimated's
             // LinearTransition layout animations on Android \u2014 nodes that
             // get clipped during the animation lose their shared-element
             // identity and the animation snaps. The drawer content is small
@@ -414,7 +406,7 @@ function HamburgerDrawerInner() {
           </ScrollView>
         </View>
           {/* Scroll hint — fades away after first scroll */}
-          <Animated.View style={[S.scrollHint, scrollHintStyle]} pointerEvents="box-none">
+          <Animated.View style={[S.scrollHint, { bottom: 12 }, scrollHintStyle]} pointerEvents="box-none">
             <Pressable
               style={({ pressed }) => [S.scrollHintBtn, pressed && S.scrollHintBtnPressed]}
               onPress={() => scrollRef.current?.scrollTo({ y: 300, animated: true })}
@@ -470,7 +462,7 @@ function NavItem({
 const S = StyleSheet.create({
   // ── Shell ───────────────────────────────────────────────────────────────────
   backdrop: {
-    position: 'absolute',
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.48)',
   },
   // Outer: elevation/shadow — NO overflow:hidden (Android blanks children)
@@ -483,8 +475,8 @@ const S = StyleSheet.create({
     shadowOffset: { width: -6, height: 0 },
     elevation: 18,
     overflow: 'hidden',
-    borderTopLeftRadius: 22,
-    borderBottomLeftRadius: 22,
+    // No border radius — the panel fills edge-to-edge vertically so rounded
+    // corners at the top/bottom would leave gaps at screen edges.
   },
   // Inner: flex fill — panelOuter handles clipping
   panelInner: {
@@ -492,7 +484,8 @@ const S = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   scrollContent: {
-    paddingBottom: 32,
+    // paddingTop / paddingBottom are applied dynamically using insets so
+    // content clears the status bar and navigation bar.
   },
 
   // ── Nav cards ───────────────────────────────────────────────────────────────
