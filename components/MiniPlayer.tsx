@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
+  cancelAnimation,
   Easing,
   interpolate,
   useAnimatedStyle,
@@ -37,14 +38,25 @@ function GlowRing({ active }: { active: boolean }) {
   const pulse = useSharedValue(0);
   const visible = useSharedValue(active ? 1 : 0);
 
+  // AUDIT FIX P3.9: cancel the infinite withRepeat worklet when audio is
+  // not playing. Previously this worklet ran for the entire app lifetime
+  // regardless of `active`, just gated to opacity 0 — burning UI-thread
+  // cycles every frame even when invisible.
   useEffect(() => {
     if (reducedMotion) return;
-    pulse.value = withRepeat(
-      withTiming(1, { duration: 1600, easing: Easing.out(Easing.ease) }),
-      -1,
-      false,
-    );
-  }, [pulse, reducedMotion]);
+    if (active) {
+      pulse.value = 0;
+      pulse.value = withRepeat(
+        withTiming(1, { duration: 1600, easing: Easing.out(Easing.ease) }),
+        -1,
+        false,
+      );
+    } else {
+      cancelAnimation(pulse);
+      pulse.value = 0;
+    }
+    return () => cancelAnimation(pulse);
+  }, [active, pulse, reducedMotion]);
 
   useEffect(() => {
     visible.value = withTiming(active ? 1 : 0, { duration: 180 });
@@ -157,7 +169,8 @@ function MiniPlayerInner({ onOpenPlayer, forceHidden }: MiniPlayerProps) {
           >
           <View style={styles.logoContainer}>
             <View style={styles.logoWrap}>
-              <Image source={appIdentity.logo} style={styles.logo} contentFit="cover" />
+              {/* AUDIT FIX P8.34: priority=high so the persistent mini-player logo wins decode time. */}
+              <Image source={appIdentity.logo} style={styles.logo} contentFit="cover" priority="high" />
               {isPlaying ? (
                 <View style={styles.eqOverlay}>
                   <EqualizerBars variant="mini" bars={3} playing={isPlaying} color="#fff" />

@@ -63,13 +63,10 @@ const SOCIAL_LINKS: SocialLink[] = [
 ];
 
 // Open/close easing — silky premium feel
-const OPEN_EASING  = Easing.out(Easing.cubic);
+const OPEN_EASING  = Easing.out(Easing.poly(4));
 const CLOSE_EASING = Easing.in(Easing.cubic);
-const OPEN_DURATION  = 260;
-const CLOSE_DURATION = 200;
-// Buffer after CLOSE_DURATION before we unmount the inner subtree, so the
-// closing animation always finishes cleanly even on slow devices.
-const UNMOUNT_GRACE_MS = 80;
+const OPEN_DURATION  = 200;
+const CLOSE_DURATION = 150;
 
 // Per-category tag color palette
 const CAT_COLORS = [
@@ -82,26 +79,10 @@ const CAT_COLORS = [
   { bg: '#FDF2F8', text: '#86198F' },
 ] as const;
 
-// Public component — gates the heavy inner subtree (ScrollView + 7 NavItems +
-// Reanimated worklets) behind isOpen so the drawer pays zero render/memory cost
-// while closed. Stays mounted briefly during the close animation.
+// Public component — always keeps the inner subtree mounted so there is zero
+// cold-mount lag when the drawer opens. Visibility is controlled by the
+// translateX animation (panel fully off-screen = invisible at no GPU cost).
 export function HamburgerDrawer() {
-  const { isOpen } = useDrawer();
-  const [shouldRender, setShouldRender] = useState(isOpen);
-
-  useEffect(() => {
-    if (isOpen) {
-      setShouldRender(true);
-      return;
-    }
-    const id = setTimeout(
-      () => setShouldRender(false),
-      CLOSE_DURATION + UNMOUNT_GRACE_MS,
-    );
-    return () => clearTimeout(id);
-  }, [isOpen]);
-
-  if (!shouldRender) return null;
   return <HamburgerDrawerInner />;
 }
 
@@ -119,6 +100,9 @@ function HamburgerDrawerInner() {
   const scrollRef = useRef<ScrollView>(null);
 
   const progress = useSharedValue(0);
+  // panelWidth computed early so we can use it in animated styles
+  const { width: windowWidthForPanel } = useWindowDimensions();
+  const panelWidthForAnim = Math.min(Math.round(windowWidthForPanel * 0.75), PANEL_MAX_W);
 
   useEffect(() => {
     if (isOpen) {
@@ -173,9 +157,10 @@ function HamburgerDrawerInner() {
     opacity: progress.value,
   }));
 
+  // translateX: slide in from the right edge. Pure GPU compositing on Android
+  // — no layout pass per frame, so it starts immediately.
   const panelStyle = useAnimatedStyle(() => ({
-    opacity: progress.value,
-    transform: [{ scale: interpolate(progress.value, [0, 1], [0.94, 1]) }],
+    transform: [{ translateX: interpolate(progress.value, [0, 1], [panelWidthForAnim, 0]) }],
   }));
 
   const navigate = (path: string) => { close(); router.push(path as never); };
@@ -188,9 +173,6 @@ function HamburgerDrawerInner() {
   const isLiveActive = pathname.includes('/live');
   const isNewsActive = pathname.includes('/news');
 
-  // Panel respects system chrome: starts below the status bar (insets.top)
-  // and ends above the navigation bar (insets.bottom). Content padding inside
-  // the scroll view is zero — the panel bounds already clear system chrome.
   const panelWidth = Math.min(Math.round(windowWidth * 0.75), PANEL_MAX_W);
 
   return (

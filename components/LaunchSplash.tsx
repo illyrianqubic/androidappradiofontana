@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import Animated, {
@@ -23,13 +23,22 @@ const RING_BASE = LOGO_SIZE + 6;       // ring diameter before scale animation
 const SHIMMER_W = Math.round(LOGO_SIZE * 0.52);
 const PRIMARY = '#dc2626';
 
-// total visible duration ~1.5 s (logo in 600 ms → hold + pulse + shimmer → exit 200 ms)
-const EXIT_DELAY = 1300;
+// AUDIT FIX P1.1: hard-cap max splash time to 600 ms. Exit the moment the
+// caller signals content is ready (home-hero hydrated from MMKV cache OR
+// network resolved), or fall back to the 600 ms ceiling — whichever happens
+// first. Removed the previous 1300 ms hardcoded EXIT_DELAY which alone burned
+// up to 900 ms of perceived cold-start time.
+const MAX_VISIBLE_MS = 600;
+const MIN_VISIBLE_MS = 280; // never flash; let the logo entrance complete
 const EXIT_DURATION = 200;
 
 // ─── types ────────────────────────────────────────────────────────────────────
 type LaunchSplashProps = {
   onComplete: () => void;
+  // True when first home query has data (from cache or network). When this
+  // flips true past MIN_VISIBLE_MS we exit immediately; otherwise we exit at
+  // MAX_VISIBLE_MS regardless.
+  isContentReady?: boolean;
 };
 
 // ─── PulseRing ────────────────────────────────────────────────────────────────
@@ -90,11 +99,13 @@ function LoadingDot({ delay }: { delay: number }) {
 }
 
 // ─── LaunchSplash ─────────────────────────────────────────────────────────────
-export function LaunchSplash({ onComplete }: LaunchSplashProps) {
+export function LaunchSplash({ onComplete, isContentReady = false }: LaunchSplashProps) {
   const logoOpacity = useSharedValue(0);
   const logoScale = useSharedValue(0.8);
   const screenOpacity = useSharedValue(1);
   const shimmerX = useSharedValue(-(LOGO_SIZE + SHIMMER_W));
+  const exitedRef = useRef(false);
+  const mountedAtRef = useRef(Date.now());
 
   useEffect(() => {
     // 1 — logo entrance: fade in + spring scale 0.8 → 1 (slight overshoot)
@@ -122,11 +133,16 @@ export function LaunchSplash({ onComplete }: LaunchSplashProps) {
       ),
     );
 
-    // 3 — exit: fade entire screen to white, then notify parent
+    // 3 — exit: fade entire screen to white, then notify parent. Now
+    // capped at MAX_VISIBLE_MS as a fallback ceiling. The early-exit path
+    // (driven by isContentReady) lives in the second effect below.
     screenOpacity.value = withDelay(
-      EXIT_DELAY,
+      MAX_VISIBLE_MS,
       withTiming(0, { duration: EXIT_DURATION, easing: Easing.in(Easing.quad) }, (finished) => {
-        if (finished) runOnJS(onComplete)();
+        if (finished && !exitedRef.current) {
+          exitedRef.current = true;
+          runOnJS(onComplete)();
+        }
       }),
     );
 
@@ -138,6 +154,30 @@ export function LaunchSplash({ onComplete }: LaunchSplashProps) {
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // AUDIT FIX P1.1: early exit the moment content is ready (after the
+  // minimum visible window so the entrance doesn't pop). Cancels the
+  // scheduled fallback fade and starts the exit immediately.
+  useEffect(() => {
+    if (!isContentReady || exitedRef.current) return;
+    const elapsed = Date.now() - mountedAtRef.current;
+    const wait = Math.max(0, MIN_VISIBLE_MS - elapsed);
+    const t = setTimeout(() => {
+      if (exitedRef.current) return;
+      cancelAnimation(screenOpacity);
+      screenOpacity.value = withTiming(
+        0,
+        { duration: EXIT_DURATION, easing: Easing.in(Easing.quad) },
+        (finished) => {
+          if (finished && !exitedRef.current) {
+            exitedRef.current = true;
+            runOnJS(onComplete)();
+          }
+        },
+      );
+    }, wait);
+    return () => clearTimeout(t);
+  }, [isContentReady, screenOpacity, onComplete]);
 
   const logoStyle = useAnimatedStyle(() => ({
     opacity: logoOpacity.value,

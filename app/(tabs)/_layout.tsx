@@ -6,6 +6,7 @@ import * as Haptics from 'expo-haptics';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMemo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { colors, fonts } from '../../design-tokens';
 
 const ICONS_ACTIVE: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -40,11 +41,22 @@ export default function TabsLayout() {
       screenListeners={{
         tabPress: () => {
           Haptics.selectionAsync().catch(() => undefined);
+          // AUDIT FIX P8.30: warm adjacent tab routes on press so the next
+          // tap is instant. router.prefetch is a no-op if already warm.
+          router.prefetch('/(tabs)' as never);
+          router.prefetch('/(tabs)/live' as never);
+          router.prefetch('/(tabs)/news' as never);
         },
       }}
       screenOptions={({ route }) => ({
         headerShown: false,
         lazy: true,
+        // AUDIT FIX P1.4: freezeOnBlur stops off-screen tabs from
+        // reconciling, animating, and consuming CPU. Critical because tabs
+        // stay mounted once visited — without this, Live's 13 EQ bar
+        // worklets and News's sticky-header reanimations keep ticking even
+        // when the user is on Home.
+        freezeOnBlur: true,
         animation: 'none',
         sceneStyle: { backgroundColor: colors.surface },
         tabBarActiveTintColor: colors.navy,

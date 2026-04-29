@@ -32,7 +32,10 @@ function NewsCardComponent({ post, compact = false, onPress }: NewsCardProps) {
   const cat = post.categories?.[0] ?? 'Lajme';
 
   const imageUri = useMemo(
-    () => buildSanityImageUrl(post.mainImageUrl, compact ? 480 : 900),
+    // AUDIT FIX P4.13: lower the standard-card width from 900 to 540. The
+    // card itself only renders ~360 px on most devices, so 540 covers
+    // 1.5x DPR with ~50 % less bytes per image.
+    () => buildSanityImageUrl(post.mainImageUrl, compact ? 480 : 540),
     [compact, post.mainImageUrl],
   );
 
@@ -62,6 +65,10 @@ function NewsCardComponent({ post, compact = false, onPress }: NewsCardProps) {
             <Image
               source={imageUri ? { uri: imageUri } : undefined}
               placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
+              // AUDIT FIX P4.12: stable recycling key prevents the FlashList
+              // bitmap-recycle path from showing the previous cell's image
+              // while the next URL is decoding.
+              recyclingKey={post._id}
               contentFit="cover"
               transition={0}
               style={S.compactThumb}
@@ -93,6 +100,8 @@ function NewsCardComponent({ post, compact = false, onPress }: NewsCardProps) {
           <Image
             source={imageUri ? { uri: imageUri } : undefined}
             placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
+            // AUDIT FIX P4.12: stable recycling key for FlashList cells.
+            recyclingKey={post._id}
             contentFit="cover"
             transition={0}
             style={S.image}
@@ -118,14 +127,9 @@ function NewsCardComponent({ post, compact = false, onPress }: NewsCardProps) {
           </View>
 
           {/* Headline — editorial serif (Merriweather), tight leading */}
-          <Text numberOfLines={3} style={S.headline}>
+          <Text numberOfLines={2} style={S.headline}>
             {post.title}
           </Text>
-
-          {/* Excerpt — lighter sans, breathable */}
-          {post.excerpt ? (
-            <Text numberOfLines={2} style={S.deck}>{post.excerpt}</Text>
-          ) : null}
 
           {/* Hairline rule above byline for editorial structure */}
           <View style={S.bylineRule} />
@@ -167,7 +171,7 @@ const S = StyleSheet.create({
   // ── Card shell ─────────────────────────────────────────────────────────────
   outer: {
     borderRadius: 18,
-    marginBottom: 18,
+    marginBottom: 14,
     backgroundColor: PAPER,
     // Two-tier shadow: soft ambient + tight contact = depth without mud
     shadowColor: '#0A0F1C',
@@ -184,7 +188,7 @@ const S = StyleSheet.create({
   // ── Image zone ────────────────────────────────────────────────────────────
   imageZone: {
     width: '100%',
-    aspectRatio: 16 / 10, // slightly taller than 16:9 = more cinematic
+    aspectRatio: 16 / 9,
     backgroundColor: '#E6E8EE',
   },
   image: {
@@ -202,9 +206,9 @@ const S = StyleSheet.create({
 
   // ── Content panel ──────────────────────────────────────────────────────────
   content: {
-    paddingHorizontal: 18,
-    paddingTop: 16,
-    paddingBottom: 16,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
   },
 
   // ── Breaking strip ─────────────────────────────────────────────────────────
@@ -237,7 +241,7 @@ const S = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    marginBottom: 10,
+    marginBottom: 7,
   },
   kickerDot: {
     width: 5,
@@ -255,27 +259,18 @@ const S = StyleSheet.create({
   // ── Headline — editorial serif, tight leading ─────────────────────────────
   headline: {
     color: INK,
-    fontFamily: fonts.articleBold, // Merriweather Bold
-    fontSize: 19,
-    lineHeight: 25,
+    fontFamily: fonts.articleBold,
+    fontSize: 17,
+    lineHeight: 23,
     letterSpacing: -0.3,
-  },
-
-  // ── Deck (excerpt) — lighter, breathable ──────────────────────────────────
-  deck: {
-    color: INK_BODY,
-    fontFamily: fonts.uiRegular,
-    fontSize: 13.5,
-    lineHeight: 20,
-    marginTop: 8,
   },
 
   // ── Byline structure ───────────────────────────────────────────────────────
   bylineRule: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: HAIRLINE,
-    marginTop: 14,
-    marginBottom: 12,
+    marginTop: 10,
+    marginBottom: 9,
   },
   byline: {
     flexDirection: 'row',

@@ -1,14 +1,14 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Pressable,
-  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { GestureDetector } from 'react-native-gesture-handler';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -20,12 +20,18 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { NewsCard } from '../../../components/NewsCard';
 import { SkeletonCard } from '../../../components/SkeletonCard';
 import { HamburgerButton } from '../../../components/HamburgerButton';
+import { RefreshOverlay } from '../../../components/RefreshOverlay';
+import { usePullToRefresh } from '../../../lib/usePullToRefresh';
+
+// FlashList wrapped for Reanimated scroll-handler integration.
+const AnimatedFlashList = Animated.createAnimatedComponent(FlashList) as unknown as typeof FlashList;
 import { appIdentity, colors, fonts } from '../../../design-tokens';
 import { queueImagePrefetch } from '../../../lib/prefetchQueue';
 import {
   buildSanityImageUrl,
   defaultThumbhash,
   fetchLatestPosts,
+  fetchPostBySlug,
   type Post,
 } from '../../../services/api';
 
@@ -196,14 +202,11 @@ export default function NewsIndexScreen() {
   const listRef = useRef<FlashListRef<Post>>(null);
   const [activeCategory, setActiveCategory] = useState<NewsCategoryTab>(NEWS_CATEGORY_TABS[0]);
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [refreshing, setRefreshing] = useState(false);
-
-  // 300ms debounce so we don't fire a Sanity request per keystroke.
-  useEffect(() => {
-    const id = setTimeout(() => setDebouncedSearch(search), 300);
-    return () => clearTimeout(id);
-  }, [search]);
+  // AUDIT FIX P7.25 + P7.26: replace 300ms setTimeout debounce with React 19's
+  // useDeferredValue. The deferred value updates in a low-priority transition,
+  // so the TextInput stays at 60 fps while the heavy query/render is throttled
+  // automatically — no fixed delay, no setTimeout, no extra re-render.
+  const debouncedSearch = useDeferredValue(search);
 
   // Header height: statusBar + titleRow(66) + search(54) + categories(50) + divider(1)
   const HEADER_H = insets.top + 171;
@@ -211,7 +214,7 @@ export default function NewsIndexScreen() {
 
   const postsQuery = useQuery({
     queryKey: ['news-feed', activeCategory.slug, debouncedSearch],
-    queryFn: () => fetchLatestPosts(activeCategory.slug, debouncedSearch, 40),
+    queryFn: ({ signal }) => fetchLatestPosts(activeCategory.slug, debouncedSearch, 40, signal),
     placeholderData: (previousData) => previousData,
     // H-B11: 5min gcTime so flipping through all 7 category tabs once does
     // NOT leave 7 \u00d7 60KB feeds resident for half an hour. Re-entering a
@@ -227,14 +230,17 @@ export default function NewsIndexScreen() {
       // so the article hero renders from memory cache on arrival.
       // M-C3: capped at 3 concurrent so card-mashing never floods the socket pool.
       queueImagePrefetch(buildSanityImageUrl(post.mainImageUrl, 480));
-      // NOTE: do NOT prefetchQuery(['post-detail', slug], () => Promise.resolve(post))
-      // here — the listing post has no `body[]`, and seeding it as fresh data
-      // (staleTime 10min) prevented fetchPostBySlug from ever running, leaving
-      // the article screen with an empty body. The slug screen owns its own
-      // detail fetch.
+      // AUDIT FIX P2.5: warm route module + post-detail query so the article
+      // screen renders the moment the slide animation completes.
+      router.prefetch(`/news/${post.slug}` as never);
+      queryClient.prefetchQuery({
+        queryKey: ['post-detail', post.slug],
+        queryFn: () => fetchPostBySlug(post.slug),
+        staleTime: 30 * 60 * 1000,
+      });
       router.push({ pathname: '/news/[slug]' as never, params: { slug: post.slug } as never });
     },
-    [router],
+    [router, queryClient],
   );
 
   const onSelectCategory = useCallback((tab: NewsCategoryTab) => {
@@ -243,14 +249,45 @@ export default function NewsIndexScreen() {
   }, []);
 
   const refresh = useCallback(async () => {
-    setRefreshing(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
-    await postsQuery.refetch();
-    setRefreshing(false);
-  }, [postsQuery]);
+    await queryClient.invalidateQueries({
+      queryKey: ['news-feed', activeCategory.slug, debouncedSearch],
+      refetchType: 'active',
+    });
+  }, [queryClient, activeCategory.slug, debouncedSearch]);
+  // Gesture-driven pull-to-refresh: pan tracked entirely on the UI thread.
+  const { panGesture, scrollHandler, pullProgress, phaseValue, phase, refreshing, refreshNonce } = usePullToRefresh(refresh);
 
+  // Subtle content fade-in when a refresh completes.
+  const contentFade = useSharedValue(1);
+  useEffect(() => {
+    if (refreshNonce === 0) return;
+    contentFade.value = 0.55;
+    contentFade.value = withTiming(1, { duration: 380, easing: Easing.out(Easing.cubic) });
+  }, [refreshNonce, contentFade]);
+  const contentFadeStyle = useAnimatedStyle(() => ({ opacity: contentFade.value }));
+
+  // AUDIT FIX P2.6: idle-prefetch the first 3 visible posts after 2 s of
+  // dwell time so the most likely next taps are near-instant. Declared
+  // after `posts` is materialized below.
   const initialLoading = postsQuery.isLoading && !postsQuery.data;
   const posts = postsQuery.data ?? [];
+
+  useEffect(() => {
+    if (posts.length === 0) return;
+    const slugs = posts.slice(0, 3).map((p) => p.slug).filter(Boolean);
+    if (slugs.length === 0) return;
+    const t = setTimeout(() => {
+      for (const slug of slugs) {
+        router.prefetch(`/news/${slug}` as never);
+        queryClient.prefetchQuery({
+          queryKey: ['post-detail', slug],
+          queryFn: () => fetchPostBySlug(slug),
+          staleTime: 30 * 60 * 1000,
+        });
+      }
+    }, 2000);
+    return () => clearTimeout(t);
+  }, [posts, router, queryClient]);
   const showFeatured = !debouncedSearch && posts.length > 2;
 
   const renderLoadingItem = useCallback(() => <SkeletonCard height={180} />, []);
@@ -286,8 +323,8 @@ export default function NewsIndexScreen() {
     [search],
   );
 
-  // H15: stable contentContainerStyle + RefreshControl element so FlashList
-  // doesn't see a new prop reference on every parent render.
+  // H15: stable contentContainerStyle so FlashList doesn't see a new prop
+  // reference on every parent render.
   const listContentContainerStyle = useMemo(
     () => ({
       paddingTop: HEADER_H + 12,
@@ -295,16 +332,6 @@ export default function NewsIndexScreen() {
       paddingHorizontal: 16,
     }),
     [HEADER_H, bottomInsetOffset],
-  );
-  const refreshControlEl = useMemo(
-    () => (
-      <RefreshControl
-        tintColor={colors.primary}
-        refreshing={refreshing}
-        onRefresh={refresh}
-      />
-    ),
-    [refreshing, refresh],
   );
 
   // ── Sticky header (absolutely positioned above the list) ───────────────────
@@ -366,18 +393,30 @@ export default function NewsIndexScreen() {
   return (
     <View style={S.screen}>
       {stickyHeader}
-      <FlashList
-        ref={listRef}
-        data={posts}
-        keyExtractor={(item) => item._id}
-        showsVerticalScrollIndicator={false}
-        refreshControl={refreshControlEl}
-        decelerationRate="fast"
-        contentContainerStyle={listContentContainerStyle}
-        renderItem={renderPostItem}
-        getItemType={getPostItemType}
-        ListEmptyComponent={emptyState}
-      />
+      <GestureDetector gesture={panGesture}>
+        <Animated.View style={[S.flexFill, contentFadeStyle]}>
+          <AnimatedFlashList
+            ref={listRef}
+            data={posts}
+            keyExtractor={(item) => item._id}
+            showsVerticalScrollIndicator={false}
+            onScroll={scrollHandler}
+            scrollEventThrottle={16}
+            decelerationRate="fast"
+            contentContainerStyle={listContentContainerStyle}
+            ListHeaderComponent={
+              <RefreshOverlay
+                pullProgress={pullProgress}
+                phaseValue={phaseValue}
+                phase={phase}
+              />
+            }
+            renderItem={renderPostItem}
+            getItemType={getPostItemType}
+            ListEmptyComponent={emptyState}
+          />
+        </Animated.View>
+      </GestureDetector>
     </View>
   );
 }
@@ -564,6 +603,9 @@ const S = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.surfaceSubtle,
+  },
+  flexFill: {
+    flex: 1,
   },
   // Sticky header
   header: {

@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BackHandler,
+  InteractionManager,
   Pressable,
   Share,
   StyleSheet,
@@ -21,6 +22,12 @@ import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
+import * as Font from 'expo-font';
+import {
+  Merriweather_400Regular,
+  Merriweather_400Regular_Italic,
+  Merriweather_700Bold,
+} from '@expo-google-fonts/merriweather';
 
 import { HamburgerButton } from '../../../components/HamburgerButton';
 import { SkeletonCard } from '../../../components/SkeletonCard';
@@ -34,6 +41,25 @@ import {
   type Post,
   type PortableTextBlock,
 } from '../../../services/api';
+
+// AUDIT FIX P1.2: Merriweather is loaded lazily on the article screen
+// only — saves the cold-start cost of fetching/parsing 3 serif weights for
+// users who never open an article. Module-scoped guard so the load only
+// happens once per app session even across multiple article opens.
+let _merriweatherLoadPromise: Promise<void> | null = null;
+function loadMerriweather(): Promise<void> {
+  if (_merriweatherLoadPromise) return _merriweatherLoadPromise;
+  _merriweatherLoadPromise = Font.loadAsync({
+    MerriweatherVariable: Merriweather_400Regular,
+    MerriweatherVariableItalic: Merriweather_400Regular_Italic,
+    MerriweatherVariableBold: Merriweather_700Bold,
+  }).catch(() => {
+    // Font load failure: caller falls back to system serif. Reset the
+    // promise so a future open can retry.
+    _merriweatherLoadPromise = null;
+  }) as Promise<void>;
+  return _merriweatherLoadPromise;
+}
 
 // ── Editorial constants ──────────────────────────────────────────────────────
 const HERO_H = vs(360);
@@ -233,16 +259,43 @@ export default function ArticleDetailScreen() {
   const postQuery = useQuery({
     queryKey: ['post-detail', slug],
     enabled: Boolean(slug),
-    queryFn: () => fetchPostBySlug(slug),
-    staleTime: 10 * 60 * 1000,
+    // AUDIT FIX P5.18: pass the abort signal through so RQ can cancel an
+    // in-flight request on unmount / refetch.
+    queryFn: ({ signal }) => fetchPostBySlug(slug, signal),
+    // AUDIT FIX P5.20: staleTime raised from 10 min to 30 min so revisiting
+    // an article (or coming back via prefetch) skips the network round-trip
+    // for half an hour instead of ten minutes — better offline-first UX.
+    staleTime: 30 * 60 * 1000,
   });
 
   const categoriesKey = postQuery.data?.categories?.join('|') ?? '';
   const relatedQuery = useQuery({
     queryKey: ['related-posts', slug, categoriesKey],
     enabled: Boolean(postQuery.data && slug),
-    queryFn: () => fetchRelatedPosts(slug, postQuery.data?.categories),
+    queryFn: ({ signal }) => fetchRelatedPosts(slug, postQuery.data?.categories, signal),
   });
+
+  // AUDIT FIX P1.2: lazy-load Merriweather on mount. Until it resolves we
+  // render the body anyway — the system serif fallback is acceptable.
+  const [serifReady, setSerifReady] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    loadMerriweather().then(() => {
+      if (!cancelled) setSerifReady(true);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  // AUDIT FIX P2.8: defer body rendering until after the navigation
+  // animation completes. Without this, ~50 portable-text blocks parse and
+  // mount during the slide animation, dropping 1–3 frames.
+  const [bodyReady, setBodyReady] = useState(false);
+  useEffect(() => {
+    const handle = InteractionManager.runAfterInteractions(() => {
+      setBodyReady(true);
+    });
+    return () => handle.cancel();
+  }, []);
 
   const navBarHeight = insets.top + ARTICLE_NAV_H;
 
@@ -322,9 +375,16 @@ export default function ArticleDetailScreen() {
   }, []);
 
   // ── Back navigation ─────────────────────────────────────────────────────
-  // Always land on the Lajme listing (not whichever tab pushed the article).
+  // AUDIT FIX P2.7: prefer router.back() so the previous screen's scroll
+  // position is restored and the News listing is not remounted on every
+  // article close. Fall back to the listing only when there's no back stack
+  // (e.g. cold-start deep-link into an article).
   const onBack = useCallback(() => {
-    router.replace('/(tabs)/news' as never);
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)/news' as never);
+    }
   }, [router]);
 
   useEffect(() => {
@@ -472,7 +532,12 @@ export default function ArticleDetailScreen() {
         {/* ── Body (white reading surface) ────────────────────────────── */}
         <View style={styles.bodySection}>
           <View style={styles.bodyColumn}>
-            <ArticleBody blocks={articleBody} excerpt={post.excerpt} />
+            {/* AUDIT FIX P2.8: defer body until after nav animation. */}
+            {bodyReady ? (
+              <ArticleBody blocks={articleBody} excerpt={post.excerpt} />
+            ) : post.excerpt ? (
+              <Text style={styles.firstParagraph}>{renderEditorialLead(post.excerpt)}</Text>
+            ) : null}
 
             {/* End-of-article ornament */}
             <View style={styles.endOrnament}>
@@ -744,7 +809,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   headline: {
-    fontFamily: fonts.articleBlack,
+    fontFamily: fonts.articleBold, // AUDIT FIX P6.22: Black weight no longer loaded
     color: INK,
     fontSize: ms(30),
     lineHeight: ms(38),
@@ -902,7 +967,7 @@ const styles = StyleSheet.create({
     borderLeftColor: ACCENT,
   },
   pullQuoteMark: {
-    fontFamily: fonts.articleBlack,
+    fontFamily: fonts.articleBold, // AUDIT FIX P6.22: Black weight no longer loaded
     color: ACCENT,
     fontSize: 36,
     lineHeight: 36,

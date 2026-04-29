@@ -1,9 +1,8 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AppState,
   InteractionManager,
   Pressable,
-  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,19 +18,27 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList, type ListRenderItemInfo } from '@shopify/flash-list';
-import { useQuery } from '@tanstack/react-query';
+import { GestureDetector } from 'react-native-gesture-handler';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, {
   Easing,
   cancelAnimation,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
   withRepeat,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { useIsFocused } from '@react-navigation/native';
 import { HamburgerButton } from '../../components/HamburgerButton';
 import { RelativeTime } from '../../components/RelativeTime';
 import { SkeletonCard } from '../../components/SkeletonCard';
+import { RefreshOverlay } from '../../components/RefreshOverlay';
+import { usePullToRefresh } from '../../lib/usePullToRefresh';
+
+// FlashList wrapped for Reanimated scroll-handler integration.
+const AnimatedFlashList = Animated.createAnimatedComponent(FlashList) as unknown as typeof FlashList;
 import { appIdentity, colors, fonts } from '../../design-tokens';
 import { ms, s } from '../../lib/responsive';
 import { queueImagePrefetch } from '../../lib/prefetchQueue';
@@ -42,6 +49,7 @@ import {
   fetchHeroPost,
   fetchLatestPosts,
   fetchLocalPosts,
+  fetchPostBySlug,
   type Post,
 } from '../../services/api';
 
@@ -69,9 +77,10 @@ function wInfo(code: number): { label: string; icon: keyof typeof Ionicons.glyph
   return                  { label: 'Stuhi',             icon: 'thunderstorm-outline' };
 }
 
-async function fetchWeatherIstog(): Promise<WeatherResponse> {
+async function fetchWeatherIstog(signal?: AbortSignal): Promise<WeatherResponse> {
   const res = await fetch(
     'https://api.open-meteo.com/v1/forecast?latitude=42.78&longitude=20.48&current=temperature_2m,weathercode,windspeed_10m&timezone=Europe%2FBelgrade',
+    { signal },
   );
   if (!res.ok) throw new Error('weather');
   return res.json() as Promise<WeatherResponse>;
@@ -94,7 +103,7 @@ const WeatherWidget = memo(function WeatherWidget() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['weather-istog'],
-    queryFn: fetchWeatherIstog,
+    queryFn: ({ signal }) => fetchWeatherIstog(signal),
     enabled: isAppForeground,
     staleTime: 30 * 60 * 1000,
     // Auto-refresh every 15 minutes so users coming back to a stale home tab
@@ -165,6 +174,10 @@ const WeatherWidget = memo(function WeatherWidget() {
 });
 
 // ── BreakingTicker ─────────────────────────────────────────────────────────────
+// AUDIT FIX P8.32: module-level constants — not reallocated per render.
+const ALBANIAN_DAYS = ['e diel', 'e hënë', 'e martë', 'e mërkurë', 'e enjte', 'e premte', 'e shtunë'];
+const ALBANIAN_MONTHS = ['janar', 'shkurt', 'mars', 'prill', 'maj', 'qershor', 'korrik', 'gusht', 'shtator', 'tetor', 'nëntor', 'dhjetor'];
+
 const BreakingTicker = memo(function BreakingTicker({ headlines }: { headlines: string[] }) {
   // Early-return when there are no headlines: skip mounting the inner ticker
   // entirely so the infinite marquee + dot worklets never run on cold home.
@@ -180,9 +193,18 @@ function BreakingTickerInner({ headlines }: { headlines: string[] }) {
   const [segmentWidth, setSegmentWidth] = useState(0);
   const translateX = useSharedValue(0);
   const dotOpacity = useSharedValue(1);
+  // AUDIT FIX P3.11 + P8.28: pause when Home tab is not focused, and respect
+  // prefers-reduced-motion. Without these, both worklets ran 60 fps for the
+  // entire app session even on Library/Live/Article screens.
+  const isFocused = useIsFocused();
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
-    if (!segmentWidth) return;
+    if (!segmentWidth || !isFocused || reducedMotion) {
+      cancelAnimation(translateX);
+      translateX.value = 0;
+      return;
+    }
     cancelAnimation(translateX);
     translateX.value = 0;
     const duration = Math.max(18000, segmentWidth * 30);
@@ -192,16 +214,21 @@ function BreakingTickerInner({ headlines }: { headlines: string[] }) {
       false,
     );
     return () => { cancelAnimation(translateX); };
-  }, [segmentWidth, marqueeText, translateX]);
+  }, [segmentWidth, marqueeText, translateX, isFocused, reducedMotion]);
 
   useEffect(() => {
+    if (!isFocused || reducedMotion) {
+      cancelAnimation(dotOpacity);
+      dotOpacity.value = 1;
+      return;
+    }
     dotOpacity.value = withRepeat(
       withTiming(0.18, { duration: 800, easing: Easing.inOut(Easing.ease) }),
       -1,
       true,
     );
     return () => { cancelAnimation(dotOpacity); };
-  }, [dotOpacity]);
+  }, [dotOpacity, isFocused, reducedMotion]);
 
   const tickerStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
@@ -265,6 +292,9 @@ const HeroCard = memo(function HeroCard({
           <Image
             source={heroImageUri ? { uri: heroImageUri } : undefined}
             placeholder={{ thumbhash: hero.thumbhash || defaultThumbhash }}
+            // AUDIT FIX P4.14: hero is the LCP element on home — fetch first.
+            priority="high"
+            recyclingKey={hero._id}
             contentFit="cover"
             transition={0}
             style={styles.heroImage}
@@ -336,6 +366,7 @@ const LocalCard = memo(function LocalCard({ post, onPress }: { post: Post; onPre
           <Image
             source={imageUri ? { uri: imageUri } : undefined}
             placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
+            recyclingKey={post._id}
             contentFit="cover"
             transition={0}
             style={styles.localImage}
@@ -396,21 +427,30 @@ const LatestNewsHeader = memo(function LatestNewsHeader({
   onSeeAll?: () => void;
 }) {
   const pulse = useSharedValue(0.4);
+  // AUDIT FIX P3.10 + P8.28: cancel the pulse worklet on unmount or when
+  // the Home tab loses focus, and respect prefers-reduced-motion.
+  // Previously withRepeat ran for the entire app lifetime.
+  const isFocused = useIsFocused();
+  const reducedMotion = useReducedMotion();
   useEffect(() => {
+    if (!isFocused || reducedMotion) {
+      cancelAnimation(pulse);
+      pulse.value = 1;
+      return;
+    }
     pulse.value = withRepeat(
       withTiming(1, { duration: 1100 }),
       -1,
       true,
     );
-  }, [pulse]);
+    return () => cancelAnimation(pulse);
+  }, [pulse, isFocused, reducedMotion]);
   const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
 
   // Albanian short date: "e martë, 28 prill" — built once per render.
   const dateLabel = useMemo(() => {
-    const days = ['e diel', 'e hënë', 'e martë', 'e mërkurë', 'e enjte', 'e premte', 'e shtunë'];
-    const months = ['janar', 'shkurt', 'mars', 'prill', 'maj', 'qershor', 'korrik', 'gusht', 'shtator', 'tetor', 'nëntor', 'dhjetor'];
     const d = new Date();
-    return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]}`;
+    return `${ALBANIAN_DAYS[d.getDay()]}, ${d.getDate()} ${ALBANIAN_MONTHS[d.getMonth()]}`;
   }, []);
 
   return (
@@ -490,6 +530,7 @@ const GridItem = memo(function GridItem({
             <Image
               source={imageUri ? { uri: imageUri } : undefined}
               placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
+              recyclingKey={item._id}
               contentFit="cover"
               transition={0}
               style={styles.gridImg}
@@ -566,6 +607,7 @@ const SearchResultCard = memo(function SearchResultCard({
       <Image
         source={imageUri ? { uri: imageUri } : undefined}
         placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
+        recyclingKey={item._id}
         contentFit="cover"
         style={styles.searchResultImg}
       />
@@ -589,7 +631,7 @@ const SearchResultCard = memo(function SearchResultCard({
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [refreshing, setRefreshing] = useState(false);
+  const queryClient = useQueryClient();
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   // µ-2: 300 ms debounce for the search input. Without it, every keystroke
@@ -625,7 +667,7 @@ export default function HomeScreen() {
   // story appears the moment the user returns to the app.
   const heroQuery = useQuery({
     queryKey: ['home-hero'],
-    queryFn: fetchHeroPost,
+    queryFn: ({ signal }) => fetchHeroPost(signal),
     refetchOnWindowFocus: true,
   });
 
@@ -654,12 +696,12 @@ export default function HomeScreen() {
   // hits the network when stale).
   const breakingQuery = useQuery({
     queryKey: ['home-breaking'],
-    queryFn: fetchBreakingPosts,
+    queryFn: ({ signal }) => fetchBreakingPosts(signal),
     enabled: enableBreaking,
     refetchOnWindowFocus: true,
   });
-  const latestQuery   = useQuery({ queryKey: ['home-latest'],   queryFn: () => fetchLatestPosts('', '', 18), enabled: enableLatest });
-  const localQuery    = useQuery({ queryKey: ['home-local'],    queryFn: () => fetchLocalPosts(12), enabled: enableLocal });
+  const latestQuery   = useQuery({ queryKey: ['home-latest'],   queryFn: ({ signal }) => fetchLatestPosts('', '', 18, signal), enabled: enableLatest });
+  const localQuery    = useQuery({ queryKey: ['home-local'],    queryFn: ({ signal }) => fetchLocalPosts(12, signal), enabled: enableLocal });
 
   const hero         = heroQuery.data ?? null;
   // X-8: with R-3 splitting the home payload back into 5 staggered queries,
@@ -700,30 +742,66 @@ export default function HomeScreen() {
       // expo-image memory cache before navigation completes (~0 ms render).
       // M-C3: routed through queueImagePrefetch so rapid taps cap at 3 in-flight.
       queueImagePrefetch(buildSanityImageUrl(post.mainImageUrl, 480));
-      // NOTE: do NOT prefetchQuery(['post-detail', slug], () => Promise.resolve(post))
-      // here — the home-bundle post objects don't include `body[]`, and seeding
-      // them as fresh data (staleTime 10min) prevented fetchPostBySlug from
-      // ever running, leaving the article screen with an empty body. The
-      // slug screen owns its own detail fetch.
+      // AUDIT FIX P2.5: warm both the route module bundle AND the
+      // post-detail query so the article can render the moment the slide
+      // animation completes. Saves ~400–700 ms perceived per article open.
+      // We use the real fetchPostBySlug (not Promise.resolve(post)) because
+      // the listing object lacks `body[]` — seeding it would let
+      // useQuery treat the cached value as fresh and skip the body fetch.
+      router.prefetch(`/news/${post.slug}` as never);
+      queryClient.prefetchQuery({
+        queryKey: ['post-detail', post.slug],
+        queryFn: () => fetchPostBySlug(post.slug),
+        staleTime: 30 * 60 * 1000,
+      });
       router.push({ pathname: '/news/[slug]' as never, params: { slug: post.slug } as never });
     },
-    [router],
+    [router, queryClient],
   );
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
-    // S-1: stale-while-revalidate. Existing data stays on screen while these
-    // refetches run in the background; React Query never blanks the cache
-    // mid-refetch, so the UI never shows skeletons during pull-to-refresh.
+  // AUDIT FIX P2.6: after the home screen has been idle for 2 s, warm up
+  // the article route + post-detail query for the first 3 visible posts.
+  // This makes the most likely next taps near-instant. Cancels the timer
+  // on unmount or whenever the visible posts change.
+  useEffect(() => {
+    if (latestData.length === 0) return;
+    const slugs = latestData.slice(0, 3).map((p) => p.slug).filter(Boolean);
+    if (slugs.length === 0) return;
+    const t = setTimeout(() => {
+      for (const slug of slugs) {
+        router.prefetch(`/news/${slug}` as never);
+        queryClient.prefetchQuery({
+          queryKey: ['post-detail', slug],
+          queryFn: () => fetchPostBySlug(slug),
+          staleTime: 30 * 60 * 1000,
+        });
+      }
+    }, 2000);
+    return () => clearTimeout(t);
+  }, [latestData, router, queryClient]);
+
+  // Gesture-driven pull-to-refresh: pan tracked entirely on the UI thread,
+  // refresh fires via runOnJS once threshold is crossed. Min 2.5s visible.
+  const doRefetch = useCallback(async () => {
     await Promise.all([
-      heroQuery.refetch(),
-      breakingQuery.refetch(),
-      latestQuery.refetch(),
-      localQuery.refetch(),
+      queryClient.invalidateQueries({ queryKey: ['home-hero'],     refetchType: 'active' }),
+      queryClient.invalidateQueries({ queryKey: ['home-breaking'], refetchType: 'active' }),
+      queryClient.invalidateQueries({ queryKey: ['home-latest'],   refetchType: 'active' }),
+      queryClient.invalidateQueries({ queryKey: ['home-local'],    refetchType: 'active' }),
+      queryClient.invalidateQueries({ queryKey: ['weather-istog'], refetchType: 'active' }),
     ]);
-    setRefreshing(false);
-  }, [heroQuery, breakingQuery, latestQuery, localQuery]);
+  }, [queryClient]);
+  const { panGesture, scrollHandler, pullProgress, phaseValue, phase, refreshing, refreshNonce } = usePullToRefresh(doRefetch);
+
+  // Subtle content fade-in when a refresh completes — makes new articles
+  // feel "alive". Drives a SharedValue that the list wrapper reads.
+  const contentFade = useSharedValue(1);
+  useEffect(() => {
+    if (refreshNonce === 0) return;
+    contentFade.value = 0.55;
+    contentFade.value = withTiming(1, { duration: 380, easing: Easing.out(Easing.cubic) });
+  }, [refreshNonce, contentFade]);
+  const contentFadeStyle = useAnimatedStyle(() => ({ opacity: contentFade.value }));
 
   const onHeaderSearch = useCallback(() => {
     setIsSearchActive(true);
@@ -774,14 +852,23 @@ export default function HomeScreen() {
   const listHeader = useMemo(
     () => (
       <View>
-        {/* ── HERO ─────────────────────────────────────────── */}
-        <View style={styles.sectionBlock}>
-          {hero ? (
-            <HeroCard hero={hero} heroImageUri={heroImageUri} onPress={onPressPost} />
-          ) : (
-            <SkeletonCard height={248} style={styles.heroSkeleton} />
-          )}
-        </View>
+        {/* Premium 3-phase refresh banner — pushes hero down */}
+        <RefreshOverlay
+          pullProgress={pullProgress}
+          phaseValue={phaseValue}
+          phase={phase}
+        />
+
+        {/* ── HERO — only rendered when a featured or breaking post exists ── */}
+        {(heroQuery.isLoading || hero) && (
+          <View style={styles.sectionBlock}>
+            {hero ? (
+              <HeroCard hero={hero} heroImageUri={heroImageUri} onPress={onPressPost} />
+            ) : (
+              <SkeletonCard height={248} style={styles.heroSkeleton} />
+            )}
+          </View>
+        )}
 
         {/* ── WEATHER ─────────────────────────────────────── */}
         <View style={styles.sectionBlock}>
@@ -792,7 +879,7 @@ export default function HomeScreen() {
         <LatestNewsHeader count={latestData.length} onSeeAll={onHeaderSearch} />
       </View>
     ),
-    [hero, heroImageUri, onPressPost, onHeaderSearch, latestData.length],
+    [refreshing, pullProgress, phaseValue, phase, hero, heroImageUri, heroQuery.isLoading, onPressPost, onHeaderSearch, latestData.length],
   );
 
   // ── List footer: Lokale → Popular → Footer cards ──────────────────────────
@@ -826,17 +913,23 @@ export default function HomeScreen() {
         <View style={[styles.sectionBlock, { marginTop: 20 }]}>
           <SectionHeader title="Lajmet Lokale" onSeeAll={onHeaderSearch} />
           {localData.length > 0 ? (
+            // AUDIT FIX P4.15: nested horizontal FlashList inside the parent
+            // FlashList is the single biggest scroll-jank source on this
+            // screen \u2014 the inner list re-runs measurement on every parent
+            // scroll tick. Local rail is bounded (\u226412 items, all visible
+            // within ~3 swipes) so a plain ScrollView is both faster AND\n            // more correct.
             <View style={styles.localRailContainer}>
-              <FlashList
+              <ScrollView
                 horizontal
-                data={localData}
-                renderItem={renderLocalItem}
-                keyExtractor={keyExtractLocal}
-                contentContainerStyle={styles.localRail}
                 showsHorizontalScrollIndicator={false}
                 decelerationRate="fast"
-                drawDistance={200}
-              />
+                contentContainerStyle={styles.localRail}
+                removeClippedSubviews
+              >
+                {localData.map((post) => (
+                  <LocalCard key={post._id} post={post} onPress={onPressPost} />
+                ))}
+              </ScrollView>
             </View>
           ) : (
             <View style={styles.localRailSkeleton}>
@@ -895,7 +988,7 @@ export default function HomeScreen() {
     [localData, onPressPost, onHeaderSearch, router, renderLocalItem, keyExtractLocal],
   );
 
-  // H15: stable refs for FlashList contentContainerStyle + RefreshControl.
+  // H15: stable contentContainerStyle reference.
   const gridContentContainerStyle = useMemo(
     () => ({
       paddingTop: topInsetOffset,
@@ -903,12 +996,6 @@ export default function HomeScreen() {
       paddingHorizontal: 16,
     }),
     [topInsetOffset, bottomInsetOffset],
-  );
-  const refreshControlEl = useMemo(
-    () => (
-      <RefreshControl tintColor={colors.primary} refreshing={refreshing} onRefresh={onRefresh} />
-    ),
-    [refreshing, onRefresh],
   );
 
   // H19: virtualized search overlay helpers.
@@ -959,7 +1046,7 @@ export default function HomeScreen() {
           </View>
         ) : (
           <View style={styles.headerRow}>
-            <Image source={appIdentity.logo} contentFit="cover" style={styles.headerLogo} />
+            <Image source={appIdentity.logo} contentFit="cover" priority="high" style={styles.headerLogo} />
             <View style={styles.headerSpacer} />
             <View style={styles.headerActions}>
               <Pressable onPress={onHeaderSearch} style={styles.headerIconBtn} hitSlop={8}>
@@ -1027,19 +1114,24 @@ export default function HomeScreen() {
       )}
 
       {/* Main content */}
-      <FlashList
-        data={gridData}
-        numColumns={2}
-        keyExtractor={(item) => (isSkeletonItem(item) ? item._skeleton : item._id)}
-        showsVerticalScrollIndicator={false}
-        refreshControl={refreshControlEl}
-        decelerationRate="fast"
-        contentContainerStyle={gridContentContainerStyle}
-        ListHeaderComponent={listHeader}
-        ListFooterComponent={listFooter}
-        renderItem={renderGridItem}
-        getItemType={getGridItemType}
-      />
+      <GestureDetector gesture={panGesture}>
+        <Animated.View style={[styles.flexFill, contentFadeStyle]}>
+          <AnimatedFlashList
+            data={gridData}
+            numColumns={2}
+            keyExtractor={(item) => (isSkeletonItem(item) ? item._skeleton : item._id)}
+            showsVerticalScrollIndicator={false}
+            onScroll={scrollHandler}
+            scrollEventThrottle={16}
+            decelerationRate="fast"
+            contentContainerStyle={gridContentContainerStyle}
+            ListHeaderComponent={listHeader}
+            ListFooterComponent={listFooter}
+            renderItem={renderGridItem}
+            getItemType={getGridItemType}
+          />
+        </Animated.View>
+      </GestureDetector>
     </View>
   );
 }
@@ -1049,6 +1141,9 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.surfaceSubtle,
+  },
+  flexFill: {
+    flex: 1,
   },
 
   // ── Top bar ─────────────────────────────────────────────────────────────────
@@ -1243,7 +1338,7 @@ const styles = StyleSheet.create({
   },
   latestTitle: {
     color: '#0A0F1C',
-    fontFamily: fonts.articleBlack,
+    fontFamily: fonts.articleBold, // AUDIT FIX P6.22: Black weight no longer loaded
     fontSize: 30,
     lineHeight: 34,
     letterSpacing: -1.2,

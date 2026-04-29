@@ -46,6 +46,7 @@ export type Post = {
   excerpt?: string;
   publishedAt: string;
   breaking: boolean;
+  isFeatured: boolean;
   views?: number;
   mainImageUrl?: string;
   thumbhash?: string;
@@ -128,6 +129,7 @@ const postProjection = `
   excerpt,
   publishedAt,
   "breaking": coalesce(breaking, false),
+  "isFeatured": coalesce(isFeatured, false),
   "views": coalesce(views, 0),
   "mainImageUrl": mainImage.asset->url,
   "thumbhash": mainImage.asset->metadata.thumbhash,
@@ -141,19 +143,21 @@ export function buildSanityImageUrl(url?: string, width = 800) {
     return undefined;
   }
 
-  // Keep aspect ratio 16:9. Use WebP for ~30% smaller payloads on supported clients.
+  // Keep aspect ratio 16:9. AUDIT FIX P4.17 + P8.29: drop the conflicting
+  // `fm=webp` so `auto=format` can serve AVIF on supporting clients (~30 %
+  // smaller than WebP). Sanity respects the Accept header to negotiate.
   const h = Math.round(width * 0.5625);
-  return `${url}?w=${width}&h=${h}&auto=format&fit=crop&q=75&fm=webp`;
+  return `${url}?w=${width}&h=${h}&auto=format&fit=crop&q=75`;
 }
 
-export async function fetchHeroPost(): Promise<Post | null> {
-  const query = `*[_type == "post"] | order(publishedAt desc)[0] { ${postProjection} }`;
-  return sanityFetch<Post | null>(query);
+export async function fetchHeroPost(signal?: AbortSignal): Promise<Post | null> {
+  const query = `*[_type == "post" && (coalesce(isFeatured, false) == true || coalesce(breaking, false) == true)] | order(publishedAt desc)[0] { ${postProjection} }`;
+  return sanityFetch<Post | null>(query, undefined, { signal });
 }
 
-export async function fetchBreakingPosts(): Promise<Post[]> {
+export async function fetchBreakingPosts(signal?: AbortSignal): Promise<Post[]> {
   const query = `*[_type == "post" && coalesce(breaking, false) == true] | order(publishedAt desc)[0...$limit] { ${postProjection} }`;
-  const data = await sanityFetch<Post[]>(query, { limit: 8 });
+  const data = await sanityFetch<Post[]>(query, { limit: 8 }, { signal });
   return data ?? [];
 }
 
@@ -195,6 +199,7 @@ export async function fetchLatestPosts(
   category = '',
   search = '',
   limit = 20,
+  signal?: AbortSignal,
 ): Promise<Post[]> {
   const categorySlug = resolveCategorySlug(category);
   const categorySlugs = categorySlug ? [categorySlug] : [];
@@ -212,25 +217,25 @@ export async function fetchLatestPosts(
     categorySlugs,
     search: `*${search.trim()}*`,
     limit,
-  });
+  }, { signal });
 
   return data ?? [];
 }
 
-export async function fetchLocalPosts(limit = 12): Promise<Post[]> {
+export async function fetchLocalPosts(limit = 12, signal?: AbortSignal): Promise<Post[]> {
   const query = `*[_type == "post" && !('nga-bota' in array::compact(coalesce(categories[]->slug.current, []) + coalesce([category->slug.current], [])))] | order(publishedAt desc)[0...$limit] { ${postProjection} }`;
-  const data = await sanityFetch<Post[]>(query, { limit });
+  const data = await sanityFetch<Post[]>(query, { limit }, { signal });
   return data ?? [];
 }
 
 // fetchPopularPosts is kept (web home page still uses it) but native does not.
-export async function fetchPopularPosts(limit = 12): Promise<Post[]> {
+export async function fetchPopularPosts(limit = 12, signal?: AbortSignal): Promise<Post[]> {
   const query = `*[_type == "post"] | order(coalesce(views, 0) desc, publishedAt desc)[0...$limit] { ${postProjection} }`;
-  const data = await sanityFetch<Post[]>(query, { limit });
+  const data = await sanityFetch<Post[]>(query, { limit }, { signal });
   return data ?? [];
 }
 
-export async function fetchPostBySlug(slug: string): Promise<Post | null> {
+export async function fetchPostBySlug(slug: string, signal?: AbortSignal): Promise<Post | null> {
   // Project both `body` and `content` arrays and coalesce client-side.
   // The previous `select(count(coalesce(body, [])) > 0 => body, content)[]{...}`
   // returned null when projecting through a select() in some Sanity API
@@ -278,17 +283,17 @@ export async function fetchPostBySlug(slug: string): Promise<Post | null> {
     "body": body[] ${itemProjection},
     "content": content[] ${itemProjection}
   }`;
-  const raw = await sanityFetch<(Post & { content?: Post['body'] }) | null>(query, { slug });
+  const raw = await sanityFetch<(Post & { content?: Post['body'] }) | null>(query, { slug }, { signal });
   if (!raw) return null;
   // Prefer `body`; fall back to `content` if body is empty/missing.
   const body = (raw.body && raw.body.length > 0) ? raw.body : (raw.content ?? []);
   return { ...raw, body } as Post;
 }
 
-export async function fetchRelatedPosts(slug: string, categories: string[] = []): Promise<Post[]> {
+export async function fetchRelatedPosts(slug: string, categories: string[] = [], signal?: AbortSignal): Promise<Post[]> {
   const category = categories[0] ?? '';
   const query = `*[_type == "post" && slug.current != $slug && ($category in array::compact(coalesce(categories[]->title, []) + [category->title]) || $category == "")] | order(publishedAt desc)[0...$limit] { ${postProjection} }`;
-  const data = await sanityFetch<Post[]>(query, { slug, category, limit: 6 });
+  const data = await sanityFetch<Post[]>(query, { slug, category, limit: 6 }, { signal });
   return data ?? [];
 }
 

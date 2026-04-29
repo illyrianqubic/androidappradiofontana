@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import Animated, {
@@ -41,6 +41,21 @@ const clockFormatter = new Intl.DateTimeFormat('sq-AL', {
   hour12: false,
 });
 
+// AUDIT FIX P8.31: Extract clock into a memo'd leaf so the per-minute
+// `setClockTick` no longer re-renders the entire FullPlayer subtree (image,
+// equalizer, schedule list, animated metadata wrap, etc.). The clock leaf is
+// the only node that consumes the tick, so it's the only node that should
+// re-render when the minute rolls over.
+const ClockDisplay = memo(function ClockDisplay() {
+  const [tick, setTick] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setTick(Date.now()), 60000);
+    return () => clearInterval(id);
+  }, []);
+  const label = useMemo(() => clockFormatter.format(new Date(tick)), [tick]);
+  return <Text style={styles.clockText}>{label}</Text>;
+});
+
 type FullPlayerProps = {
   isExpanded?: boolean;
 };
@@ -50,7 +65,6 @@ export function FullPlayer({ isExpanded = true }: FullPlayerProps) {
   const { toggle } = useAudioActions();
   const [renderedTitle, setRenderedTitle] = useState(metadata.title);
   const [renderedArtist, setRenderedArtist] = useState(metadata.artist);
-  const [clockTick, setClockTick] = useState(() => Date.now());
   const titleOpacity = useSharedValue(1);
 
   const todaysSchedule = useMemo(() => getTodaySchedule(), []);
@@ -67,18 +81,7 @@ export function FullPlayer({ isExpanded = true }: FullPlayerProps) {
     });
   }, [metadata.artist, metadata.title, titleOpacity]);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setClockTick(Date.now());
-    }, 60000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const currentTime = useMemo(
-    () => clockFormatter.format(new Date(clockTick)),
-    [clockTick],
-  );
+  // AUDIT FIX P8.31: clock state moved to <ClockDisplay /> leaf below.
 
   const metadataStyle = useAnimatedStyle(() => ({
     opacity: titleOpacity.value,
@@ -97,7 +100,7 @@ export function FullPlayer({ isExpanded = true }: FullPlayerProps) {
         <Text style={styles.station}>{appIdentity.stationName}</Text>
         <Text style={styles.location}>{appIdentity.location}</Text>
 
-        {isExpanded ? <Text style={styles.clockText}>{currentTime}</Text> : null}
+        {isExpanded ? <ClockDisplay /> : null}
 
         <Animated.View style={[styles.metadataWrap, metadataStyle]}>
           <Text numberOfLines={1} style={styles.songTitle}>

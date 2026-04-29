@@ -129,15 +129,15 @@ export default function HomeScreen() {
     [],
   );
 
-  const heroQuery = useQuery({ queryKey: ['home-hero-post'], queryFn: fetchHeroPost });
-  const breakingQuery = useQuery({ queryKey: ['home-breaking-posts'], queryFn: fetchBreakingPosts });
+  const heroQuery = useQuery({ queryKey: ['home-hero-post'], queryFn: ({ signal }) => fetchHeroPost(signal) });
+  const breakingQuery = useQuery({ queryKey: ['home-breaking-posts'], queryFn: ({ signal }) => fetchBreakingPosts(signal) });
   const latestQuery = useQuery({
     queryKey: ['home-latest-posts'],
-    queryFn: () => fetchLatestPosts('', '', 18),
+    queryFn: ({ signal }) => fetchLatestPosts('', '', 18, signal),
   });
   const popularQuery = useQuery({
     queryKey: ['home-popular-posts'],
-    queryFn: () => fetchPopularPosts(8),
+    queryFn: ({ signal }) => fetchPopularPosts(8, signal),
   });
 
   const hero = heroQuery.data;
