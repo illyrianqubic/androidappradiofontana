@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -18,6 +18,43 @@ import {
 } from '../../services/storage';
 
 const LOADING_ROWS = [1, 2, 3];
+
+const SavedArticleCard = memo(function SavedArticleCard({
+  item,
+  onOpen,
+}: {
+  item: SavedArticle;
+  onOpen: (item: SavedArticle) => void;
+}) {
+  const onPress = useCallback(() => onOpen(item), [item, onOpen]);
+
+  return (
+    <Pressable onPress={onPress} style={styles.savedCard}>
+      <Text style={styles.savedCategory}>{item.category ?? 'Lajme'}</Text>
+      <Text numberOfLines={2} style={styles.savedTitle}>
+        {item.title}
+      </Text>
+      <View style={styles.savedMeta}>
+        <Text style={styles.savedAuthor}>{item.author ?? 'Redaksia Fontana'}</Text>
+        <RelativeTime timestamp={item.publishedAt} />
+      </View>
+    </Pressable>
+  );
+});
+
+const HistoryCard = memo(function HistoryCard({ item }: { item: ListeningHistoryItem }) {
+  return (
+    <View style={styles.historyCard}>
+      <Text numberOfLines={2} style={styles.historyTitle}>
+        {item.title}
+      </Text>
+      <Text numberOfLines={1} style={styles.historyArtist}>
+        {item.artist ?? 'Radio Fontana'}
+      </Text>
+      <RelativeTime timestamp={item.listenedAt} />
+    </View>
+  );
+});
 
 export default function LibraryScreen() {
   const router = useRouter();
@@ -65,34 +102,8 @@ export default function LibraryScreen() {
   );
 
   const renderSavedItem = useCallback(
-    ({ item }: { item: SavedArticle }) => (
-      <Pressable onPress={() => onOpenSavedArticle(item)} style={styles.savedCard}>
-        <Text style={styles.savedCategory}>{item.category ?? 'Lajme'}</Text>
-        <Text numberOfLines={2} style={styles.savedTitle}>
-          {item.title}
-        </Text>
-        <View style={styles.savedMeta}>
-          <Text style={styles.savedAuthor}>{item.author ?? 'Redaksia Fontana'}</Text>
-          <RelativeTime timestamp={item.publishedAt} />
-        </View>
-      </Pressable>
-    ),
+    ({ item }: { item: SavedArticle }) => <SavedArticleCard item={item} onOpen={onOpenSavedArticle} />,
     [onOpenSavedArticle],
-  );
-
-  const renderHistoryItem = useCallback(
-    ({ item }: { item: ListeningHistoryItem }) => (
-      <View style={styles.historyCard}>
-        <Text numberOfLines={2} style={styles.historyTitle}>
-          {item.title}
-        </Text>
-        <Text numberOfLines={1} style={styles.historyArtist}>
-          {item.artist ?? 'Radio Fontana'}
-        </Text>
-        <RelativeTime timestamp={item.listenedAt} />
-      </View>
-    ),
-    [],
   );
 
   const listHeader = useMemo(
@@ -107,9 +118,7 @@ export default function LibraryScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.historyRail}
           >
-            {history.map((item, index) =>
-              renderHistoryItem({ item, index, target: 'Cell' as never } as never),
-            )}
+            {history.map((item) => <HistoryCard key={item.id} item={item} />)}
           </ScrollView>
         ) : (
           <Text style={styles.emptyText}>Nuk ka histori dëgjimi ende.</Text>
@@ -133,7 +142,7 @@ export default function LibraryScreen() {
         {!savedArticles.length ? <Text style={styles.emptyText}>Ende nuk keni ruajtur artikuj.</Text> : null}
       </View>
     ),
-    [history, onClearHistory, renderHistoryItem, savedArticles.length],
+    [history, onClearHistory, savedArticles.length],
   );
 
   if (isLoading) {

@@ -33,6 +33,7 @@ import Animated, {
 import { useIsFocused } from '@react-navigation/native';
 import { HamburgerButton } from '../../components/HamburgerButton';
 import { RelativeTime } from '../../components/RelativeTime';
+import { RefreshStatusBanner } from '../../components/RefreshStatusBanner';
 import { SkeletonCard } from '../../components/SkeletonCard';
 
 // AUDIT FIX P8.32: module-level constants — not reallocated per render.
@@ -733,6 +734,10 @@ export default function HomeScreen() {
   });
   const latestQuery   = useQuery({ queryKey: ['home-latest'],   queryFn: ({ signal }) => fetchLatestPosts('', '', 18, signal), enabled: enableLatest, staleTime: 2 * 60 * 1000 });
   const localQuery    = useQuery({ queryKey: ['home-local'],    queryFn: ({ signal }) => fetchLocalPosts(12, signal), enabled: enableLocal, staleTime: 5 * 60 * 1000 });
+  const refetchHero = heroQuery.refetch;
+  const refetchBreaking = breakingQuery.refetch;
+  const refetchLatest = latestQuery.refetch;
+  const refetchLocal = localQuery.refetch;
 
   const hero         = heroQuery.data ?? null;
   // X-8: with R-3 splitting the home payload back into 5 staggered queries,
@@ -829,16 +834,19 @@ export default function HomeScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const onPullToRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    // Fire invalidations without awaiting — queries refetch in the background
-    // and the UI updates as each one lands. Waiting for all responses was the
-    // source of multi-second spinner delays.
-    void queryClient.invalidateQueries({ queryKey: ['home-hero'] });
-    void queryClient.invalidateQueries({ queryKey: ['home-breaking'] });
-    void queryClient.invalidateQueries({ queryKey: ['home-latest'] });
-    void queryClient.invalidateQueries({ queryKey: ['home-local'] });
-    await new Promise<void>((r) => setTimeout(r, 300));
-    setIsRefreshing(false);
-  }, [queryClient]);
+    try {
+      await Promise.allSettled([
+        refetchHero(),
+        refetchBreaking(),
+        refetchLatest(),
+        refetchLocal(),
+        queryClient.invalidateQueries({ queryKey: ['weather-istog'] }),
+        new Promise<void>((resolve) => setTimeout(resolve, 650)),
+      ]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [queryClient, refetchBreaking, refetchHero, refetchLatest, refetchLocal]);
 
   const onHeaderSearch = useCallback(() => {
     setIsSearchActive(true);
@@ -883,9 +891,11 @@ export default function HomeScreen() {
     () => {
       return (
       <View>
-        {/* BUGFIX (scroll hijack): RefreshOverlay was tied to the gesture-
-            based pull-to-refresh that was hijacking scroll. Removed; native
-            RefreshControl on the FlashList now provides the spinner. */}
+        <RefreshStatusBanner
+          visible={isRefreshing}
+          title="Duke përditësuar kryefaqen"
+          subtitle="Po rifreskohen lajmet, moti dhe postimet kryesore."
+        />
 
         {/* ── HERO — only rendered when a featured or breaking post exists ── */}
         {(heroQuery.isLoading || hero) && (
@@ -908,7 +918,7 @@ export default function HomeScreen() {
       </View>
       );
     },
-    [hero, heroImageUri, heroQuery.isLoading, onPressPost, onHeaderSearch, latestData.length],
+    [hero, heroImageUri, heroQuery.isLoading, isRefreshing, onPressPost, onHeaderSearch, latestData.length],
   );
 
   // ── List footer: Lokale → Popular → Footer cards ──────────────────────────
@@ -1100,6 +1110,7 @@ export default function HomeScreen() {
         </View>
       )}
 
+
       {/* Search overlay */}
       {isSearchActive && (
         searchQuery.trim() === '' ? (
@@ -1164,9 +1175,10 @@ export default function HomeScreen() {
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={onPullToRefresh}
-            tintColor={colors.primary}
-            colors={[colors.primary]}
-            progressViewOffset={topInsetOffset}
+            tintColor="transparent"
+            colors={['transparent']}
+            progressBackgroundColor="transparent"
+            progressViewOffset={0}
           />
         }
       />

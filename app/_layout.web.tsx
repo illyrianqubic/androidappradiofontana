@@ -13,8 +13,8 @@ import {
 import { QueryClient } from '@tanstack/react-query';
 import {
   PersistQueryClientProvider,
+  type Persister,
 } from '@tanstack/react-query-persist-client';
-import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 import { LaunchSplash } from '../components/LaunchSplash';
 import { MiniPlayerVisibilityGate } from '../components/MiniPlayer';
 import { HamburgerDrawer } from '../components/HamburgerDrawer';
@@ -28,7 +28,7 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60 * 5,
-      gcTime: 1000 * 60 * 60 * 24,
+      gcTime: 1000 * 60 * 60,
       networkMode: 'offlineFirst',
       retry: 1,
       refetchOnReconnect: true,
@@ -37,13 +37,87 @@ const queryClient = new QueryClient({
   },
 });
 
-const persister = createSyncStoragePersister({
+function createAsyncStoragePersister(opts: {
+  storage: typeof queryStorage;
+  throttleTime?: number;
+}): Persister {
+  const KEY = 'REACT_QUERY_OFFLINE_CACHE';
+  const MAX_RESTORE_CHARS = 250_000;
+  let lastWriteTs = 0;
+  let pending: unknown | undefined;
+  let scheduled = false;
+
+  const flush = () => {
+    scheduled = false;
+    const value = pending;
+    pending = undefined;
+    if (value === undefined) return;
+
+    setTimeout(() => {
+      try {
+        opts.storage.setItem(KEY, JSON.stringify(value));
+        lastWriteTs = Date.now();
+      } catch {
+        // Persistence is an optimization; queries can always refetch.
+      }
+    }, 0);
+  };
+
+  return {
+    persistClient: async (client) => {
+      pending = client;
+      if (scheduled) return;
+      const throttle = opts.throttleTime ?? 10_000;
+      const sinceLast = Date.now() - lastWriteTs;
+      scheduled = true;
+      setTimeout(flush, sinceLast >= throttle ? 0 : throttle - sinceLast);
+    },
+    restoreClient: async () => {
+      const raw = opts.storage.getItem(KEY);
+      if (!raw) return undefined;
+      if (raw.length > MAX_RESTORE_CHARS) {
+        opts.storage.removeItem(KEY);
+        return undefined;
+      }
+      try {
+        return JSON.parse(raw);
+      } catch {
+        opts.storage.removeItem(KEY);
+        return undefined;
+      }
+    },
+    removeClient: async () => {
+      pending = undefined;
+      opts.storage.removeItem(KEY);
+    },
+  };
+}
+
+const persister = createAsyncStoragePersister({
   storage: queryStorage,
+  throttleTime: 10_000,
 });
+
+const SKIP_PERSIST_KEYS: ReadonlySet<string> = new Set([
+  'post-detail',
+  'news-feed',
+  'related-posts',
+  'home-popular',
+  'home-local',
+  'home-latest',
+  'weather-istog',
+]);
 
 const PERSIST_OPTIONS = {
   persister,
-  maxAge: 1000 * 60 * 60 * 24,
+  maxAge: 1000 * 60 * 60 * 2,
+  dehydrateOptions: {
+    shouldDehydrateQuery: (query: { queryKey: readonly unknown[] }) => {
+      const root = query.queryKey[0];
+      if (typeof root !== 'string') return true;
+      return !SKIP_PERSIST_KEYS.has(root);
+    },
+  },
 } as const;
 
 const ROOT_STACK_SCREEN_OPTIONS = { headerShown: false, animation: 'fade' } as const;
@@ -61,7 +135,6 @@ function MiniPlayerHost() {
 }
 
 export default function RootLayout() {
-  const router = useRouter();
   const [showLaunchSplash, setShowLaunchSplash] = useState(true);
   const [nativeSplashHidden, setNativeSplashHidden] = useState(false);
 
@@ -80,8 +153,7 @@ export default function RootLayout() {
 
   const onLaunchSplashComplete = useCallback(() => {
     setShowLaunchSplash(false);
-    router.replace('/(tabs)' as never);
-  }, [router]);
+  }, []);
 
   if (!interLoaded) {
     return null;

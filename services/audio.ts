@@ -20,7 +20,6 @@ import { InteractionManager } from 'react-native';
 import { appIdentity } from '../design-tokens';
 import { addListeningHistory } from './storage';
 
-const STREAM_URL = 'https://live.radiostreaming.al:8010/stream.mp3';
 const reconnectDelaysMs = [1000, 2000, 4000, 8000, 16000, 30000];
 const lockScreenOptions: AudioLockScreenOptions = {
   showSeekBackward: false,
@@ -75,6 +74,11 @@ const AudioStateContext = createContext<AudioStateValue | null>(null);
 const AudioMetadataContext = createContext<NowPlayingMetadata | null>(null);
 const AudioActionsContext = createContext<AudioActionsValue | null>(null);
 
+// expo-audio lock-screen controls are attached to the mounted AudioPlayer.
+// There is no headless JS playback task here: if Android kills the process,
+// playback and its media notification end with it. True process-kill recovery
+// would require a native/headless playback stack and is intentionally not
+// bolted on during this release-readiness pass.
 export async function playbackService() {
   return;
 }
@@ -285,6 +289,21 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     // the player confirms it has stopped. This prevents the UI from flickering
     // back to buffering/playing right after the user presses pause.
     if (pauseIntentRef.current) {
+      if (playing && !buffering) {
+        pauseIntentRef.current = false;
+        userIntentRef.current = 'play';
+        reconnectAttemptRef.current = 0;
+        activateLockScreenControls();
+        updateState({
+          isPlaying: true,
+          isBuffering: false,
+          isReconnecting: false,
+          playbackState: PlayerState.playing,
+          metadata: { title: appIdentity.stationName, artist: appIdentity.location },
+        });
+        return;
+      }
+
       if (!playing && !buffering) {
         // Player has confirmed paused — but only honour it if no new user
         // action has been issued since we entered this callback (C-A2).
@@ -359,7 +378,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       releaseCurrentPlayer();
 
       const player = createAudioPlayer(
-        { uri: STREAM_URL },
+        { uri: appIdentity.streamUrl },
         {
           // C-A8: 2000ms interval. expo-audio's status callback drives only
           // 4 meaningful UI transitions per session (connecting → buffering

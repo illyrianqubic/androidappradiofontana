@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useRouter } from 'expo-router';
 // A-3: deep import skips loading all other icon sets' glyph maps.
@@ -27,6 +27,7 @@ import {
   fetchHeroPost,
   fetchLatestPosts,
   fetchPopularPosts,
+  sanityImageWidths,
   type Post,
 } from '../../services/api';
 
@@ -42,14 +43,22 @@ function isSkeletonItem(item: LatestGridItem): item is { _skeleton: string } {
   return '_skeleton' in item;
 }
 
-function BreakingTicker({ headlines }: { headlines: string[] }) {
-  const marqueeText = useMemo(
-    () =>
-      headlines.length > 0
-        ? headlines.join('   •   ')
-        : 'Lajmet e fundit nga RTV Fontana',
-    [headlines],
-  );
+function headlinesEqual(
+  prev: { headlines: string[] },
+  next: { headlines: string[] },
+): boolean {
+  const a = prev.headlines;
+  const b = next.headlines;
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+const BreakingTicker = memo(function BreakingTicker({ headlines }: { headlines: string[] }) {
+  const marqueeText = useMemo(() => headlines.join('   •   '), [headlines]);
 
   const [segmentWidth, setSegmentWidth] = useState(0);
   const translateX = useSharedValue(0);
@@ -105,7 +114,7 @@ function BreakingTicker({ headlines }: { headlines: string[] }) {
       </View>
     </View>
   );
-}
+}, headlinesEqual);
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -129,14 +138,14 @@ export default function HomeScreen() {
     [],
   );
 
-  const heroQuery = useQuery({ queryKey: ['home-hero-post'], queryFn: ({ signal }) => fetchHeroPost(signal) });
-  const breakingQuery = useQuery({ queryKey: ['home-breaking-posts'], queryFn: ({ signal }) => fetchBreakingPosts(signal) });
+  const heroQuery = useQuery({ queryKey: ['home-hero'], queryFn: ({ signal }) => fetchHeroPost(signal) });
+  const breakingQuery = useQuery({ queryKey: ['home-breaking'], queryFn: ({ signal }) => fetchBreakingPosts(signal) });
   const latestQuery = useQuery({
-    queryKey: ['home-latest-posts'],
+    queryKey: ['home-latest'],
     queryFn: ({ signal }) => fetchLatestPosts('', '', 18, signal),
   });
   const popularQuery = useQuery({
-    queryKey: ['home-popular-posts'],
+    queryKey: ['home-popular'],
     queryFn: ({ signal }) => fetchPopularPosts(8, signal),
   });
 
@@ -185,7 +194,7 @@ export default function HomeScreen() {
   }, [router]);
 
   const heroImageUri = useMemo(
-    () => buildSanityImageUrl(hero?.mainImageUrl, 1600),
+    () => buildSanityImageUrl(hero?.mainImageUrl, sanityImageWidths.newsFeatured),
     [hero?.mainImageUrl],
   );
 
@@ -194,8 +203,9 @@ export default function HomeScreen() {
       <Pressable onPress={() => onPressPost(item)} style={styles.popularCard}>
         <View style={styles.popularImageWrap}>
           <Image
-            source={item.mainImageUrl ? { uri: buildSanityImageUrl(item.mainImageUrl, 480) } : undefined}
+            source={item.mainImageUrl ? { uri: buildSanityImageUrl(item.mainImageUrl, sanityImageWidths.feedThumb) } : undefined}
             placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
+            recyclingKey={item._id}
             contentFit="cover"
             style={styles.popularImage}
           />
@@ -230,7 +240,7 @@ export default function HomeScreen() {
         );
       }
 
-      const imageUri = buildSanityImageUrl(item.mainImageUrl, 900);
+      const imageUri = buildSanityImageUrl(item.mainImageUrl, sanityImageWidths.feedCard);
 
       return (
         <View style={[styles.latestColumn, columnSpacing]}>
@@ -239,6 +249,7 @@ export default function HomeScreen() {
               <Image
                 source={imageUri ? { uri: imageUri } : undefined}
                 placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
+                recyclingKey={item._id}
                 contentFit="cover"
                 transition={220}
                 style={styles.latestImage}
@@ -319,9 +330,11 @@ export default function HomeScreen() {
           ) : null}
         </View>
 
-        <View style={styles.sectionBlock}>
-          <BreakingTicker headlines={breakingData.map((item) => item.title)} />
-        </View>
+        {breakingData.length > 0 ? (
+          <View style={styles.sectionBlock}>
+            <BreakingTicker headlines={breakingData.map((item) => item.title)} />
+          </View>
+        ) : null}
 
         <View style={styles.sectionBlock}>
           <Text style={styles.sectionTitle}>Më të Lexuara</Text>

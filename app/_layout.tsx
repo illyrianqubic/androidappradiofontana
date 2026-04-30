@@ -252,11 +252,11 @@ export default function RootLayout() {
   const [startup, setStartup] = useState<StartupState>(initialStartupState);
   const { showLaunchSplash, nativeSplashHidden, contentReady } = startup;
 
-  // AUDIT FIX P1.1: subscribe to the home-hero query cache so the splash
-  // can dismiss the moment cached data is available (or the network call
-  // resolves). When persisted hero data hydrates from MMKV at startup this
-  // typically fires within ~50–150 ms after mount — well below the 600 ms
-  // splash ceiling.
+  // Subscribe to the home-hero query cache so the splash can dismiss the
+  // moment cached data is available. On a warm MMKV cache this typically
+  // fires within ~50–150 ms after mount. A 600ms fallback timer ensures
+  // contentReady is set even on first install (empty cache) so Home always
+  // renders with skeletons rather than waiting for a Sanity network response.
   useEffect(() => {
     const cache = queryClient.getQueryCache();
     const check = () => {
@@ -269,7 +269,18 @@ export default function RootLayout() {
     };
     if (check()) return;
     const unsub = cache.subscribe(() => { check(); });
-    return () => unsub();
+    // Cold-start fallback: if MMKV cache is empty (first install) or home-hero
+    // is excluded from the persisted set, contentReady would wait for a Sanity
+    // network response before the splash can exit. Instead, unblock after 600ms
+    // so Home renders with skeletons and data fills in as requests land. This
+    // matches the pattern used by Twitter, Instagram, and BBC News.
+    const fallback = setTimeout(() => {
+      setStartup((s) => (s.contentReady ? s : { ...s, contentReady: true }));
+    }, 600);
+    return () => {
+      unsub();
+      clearTimeout(fallback);
+    };
   }, []);
 
   // S-3: NetInfo wiring removed — the @react-native-community/netinfo native

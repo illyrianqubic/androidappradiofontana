@@ -23,21 +23,21 @@ const RING_BASE = LOGO_SIZE + 6;       // ring diameter before scale animation
 const SHIMMER_W = Math.round(LOGO_SIZE * 0.52);
 const PRIMARY = '#dc2626';
 
-// AUDIT FIX P1.1: hard-cap max splash time to 600 ms. Exit the moment the
-// caller signals content is ready (home-hero hydrated from MMKV cache OR
-// network resolved), or fall back to the 600 ms ceiling — whichever happens
-// first. Removed the previous 1300 ms hardcoded EXIT_DELAY which alone burned
-// up to 900 ms of perceived cold-start time.
-const MAX_VISIBLE_MS = 600;
-const MIN_VISIBLE_MS = 280; // never flash; let the logo entrance complete
-const EXIT_DURATION = 200;
+// MIN_VISIBLE_MS: long enough for the logo entrance (580ms fade + ~530ms spring)
+// and one full shimmer sweep (starts 560ms, ends ~1030ms) to complete.
+// Set to 1100 — logo is settled and shimmer has passed; any shorter feels jarring.
+// MAX_VISIBLE_MS: hard ceiling for cold-start / slow-network cases. The
+// _layout.tsx contentReady fallback fires at 600ms so in practice MAX is
+// rarely reached; it is a safety valve, not the normal exit path.
+const MIN_VISIBLE_MS = 1100;
+const MAX_VISIBLE_MS = 2800;
+const EXIT_DURATION = 260;
 
 // ─── types ────────────────────────────────────────────────────────────────────
 type LaunchSplashProps = {
   onComplete: () => void;
   // True when first home query has data (from cache or network). When this
-  // flips true past MIN_VISIBLE_MS we exit immediately; otherwise we exit at
-  // MAX_VISIBLE_MS regardless.
+  // flips true, the splash still waits for MIN_VISIBLE_MS before exiting.
   isContentReady?: boolean;
 };
 
@@ -133,9 +133,9 @@ export function LaunchSplash({ onComplete, isContentReady = false }: LaunchSplas
       ),
     );
 
-    // 3 — exit: fade entire screen to white, then notify parent. Now
-    // capped at MAX_VISIBLE_MS as a fallback ceiling. The early-exit path
-    // (driven by isContentReady) lives in the second effect below.
+    // 3 — fallback exit: fade entire screen to white, then notify parent.
+    // The normal content-ready path lives in the second effect below and
+    // exits after MIN_VISIBLE_MS.
     screenOpacity.value = withDelay(
       MAX_VISIBLE_MS,
       withTiming(0, { duration: EXIT_DURATION, easing: Easing.in(Easing.quad) }, (finished) => {
@@ -155,9 +155,8 @@ export function LaunchSplash({ onComplete, isContentReady = false }: LaunchSplas
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // AUDIT FIX P1.1: early exit the moment content is ready (after the
-  // minimum visible window so the entrance doesn't pop). Cancels the
-  // scheduled fallback fade and starts the exit immediately.
+  // Exit once content is ready and the minimum branded window has elapsed.
+  // Cancels the scheduled fallback fade and starts the exit immediately.
   useEffect(() => {
     if (!isContentReady || exitedRef.current) return;
     const elapsed = Date.now() - mountedAtRef.current;

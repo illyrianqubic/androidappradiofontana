@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList, type FlashListRef, type ListRenderItemInfo } from '@shopify/flash-list';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { NewsCard } from '../../../components/NewsCard';
+import { RefreshStatusBanner } from '../../../components/RefreshStatusBanner';
 import { SkeletonCard } from '../../../components/SkeletonCard';
 import { HamburgerButton } from '../../../components/HamburgerButton';
 import { appIdentity, colors, fonts } from '../../../design-tokens';
@@ -221,6 +222,7 @@ export default function NewsIndexScreen() {
     // category within 5 min still hits cache; longer than that just refetches.
     gcTime: 5 * 60 * 1000,
   });
+  const refetchPosts = postsQuery.refetch;
 
   const queryClient = useQueryClient();
 
@@ -252,10 +254,15 @@ export default function NewsIndexScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const onPullToRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    void queryClient.invalidateQueries({ queryKey: ['news-feed'] });
-    await new Promise<void>((r) => setTimeout(r, 300));
-    setIsRefreshing(false);
-  }, [queryClient]);
+    try {
+      await Promise.allSettled([
+        refetchPosts(),
+        new Promise<void>((resolve) => setTimeout(resolve, 650)),
+      ]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refetchPosts]);
 
   // AUDIT FIX P2.6: idle-prefetch the first 3 visible posts after 2 s of
   // dwell time so the most likely next taps are near-instant. Declared
@@ -375,6 +382,17 @@ export default function NewsIndexScreen() {
     [insets.top, activeCategory.slug, onSelectCategory],
   );
 
+  const refreshHeader = useMemo(
+    () => (
+      <RefreshStatusBanner
+        visible={isRefreshing}
+        title="Duke përditësuar lajmet"
+        subtitle="Po kontrollohen artikujt më të fundit nga redaksia."
+      />
+    ),
+    [isRefreshing],
+  );
+
   // ── Loading state ──────────────────────────────────────────────────────────
   if (initialLoading) {
     return (
@@ -403,14 +421,16 @@ export default function NewsIndexScreen() {
         contentContainerStyle={listContentContainerStyle}
         renderItem={renderPostItem}
         getItemType={getPostItemType}
+        ListHeaderComponent={refreshHeader}
         ListEmptyComponent={emptyState}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={onPullToRefresh}
-            tintColor={colors.primary}
-            colors={[colors.primary]}
-            progressViewOffset={HEADER_H}
+            tintColor="transparent"
+            colors={['transparent']}
+            progressBackgroundColor="transparent"
+            progressViewOffset={0}
           />
         }
       />

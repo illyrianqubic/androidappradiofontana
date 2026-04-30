@@ -178,31 +178,45 @@ function saveJson(key: string, value: unknown) {
   store.set(key, JSON.stringify(value));
 }
 
+let _bookmarksCache: SavedArticle[] | null = null;
+
+function readSavedArticles(): SavedArticle[] {
+  if (_bookmarksCache !== null) return _bookmarksCache;
+  const parsed = parseJson<SavedArticle[]>(store.getString(keys.bookmarks), []);
+  _bookmarksCache = parsed;
+  return parsed;
+}
+
+function saveSavedArticles(next: SavedArticle[]) {
+  _bookmarksCache = next;
+  saveJson(keys.bookmarks, next);
+}
+
 export function getSavedArticles(): SavedArticle[] {
-  return parseJson<SavedArticle[]>(store.getString(keys.bookmarks), []);
+  return readSavedArticles().slice();
 }
 
 export function isArticleSaved(slug: string): boolean {
-  return getSavedArticles().some((item) => item.slug === slug);
+  return readSavedArticles().some((item) => item.slug === slug);
 }
 
 function upsertSavedArticle(article: SavedArticle): SavedArticle[] {
-  const current = getSavedArticles();
-  const idx = current.findIndex((item) => item.slug === article.slug);
+  const next = readSavedArticles().slice();
+  const idx = next.findIndex((item) => item.slug === article.slug);
 
   if (idx >= 0) {
-    current[idx] = article;
+    next[idx] = article;
   } else {
-    current.unshift(article);
+    next.unshift(article);
   }
 
-  saveJson(keys.bookmarks, current);
-  return current;
+  saveSavedArticles(next);
+  return next;
 }
 
 function removeSavedArticle(slug: string): SavedArticle[] {
-  const next = getSavedArticles().filter((item) => item.slug !== slug);
-  saveJson(keys.bookmarks, next);
+  const next = readSavedArticles().filter((item) => item.slug !== slug);
+  saveSavedArticles(next);
   return next;
 }
 
@@ -237,7 +251,9 @@ export function getListeningHistory(): ListeningHistoryItem[] {
   );
   _historyCache = parsed;
   return parsed;
-}export function addListeningHistory(item: ListeningHistoryItem) {
+}
+
+export function addListeningHistory(item: ListeningHistoryItem) {
   const current = getListeningHistory().filter((entry) => entry.id !== item.id);
   current.unshift(item);
   const next = current.slice(0, 30);
@@ -288,7 +304,14 @@ export function subscribeToStorageKey(
   if (!userDataStore.subscribeKey) {
     return () => undefined;
   }
-  const sub = userDataStore.subscribeKey(watchedKey, listener);
+  const sub = userDataStore.subscribeKey(watchedKey, () => {
+    if (watchedKey === keys.bookmarks) {
+      _bookmarksCache = null;
+    } else if (watchedKey === keys.listeningHistory) {
+      _historyCache = null;
+    }
+    listener();
+  });
   return () => sub.remove();
 }
 

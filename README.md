@@ -8,7 +8,7 @@ Mobile app for **Radio Fontana 98.8 FM**, a local radio station based in Istog, 
 
 | Layer | Technology | Version |
 |---|---|---|
-| Framework | Expo (React Native) | ~54.0.33 |
+| Framework | Expo (React Native) | ~54.0.34 |
 | React | React | 19.1.0 |
 | React Native | React Native | 0.81.5 |
 | Language | TypeScript | ~5.9.2 |
@@ -25,15 +25,10 @@ Mobile app for **Radio Fontana 98.8 FM**, a local radio station based in Istog, 
 | Fonts | Inter + Merriweather (via @expo-google-fonts) | ^0.4.1 |
 | Icons | @expo/vector-icons (Ionicons + MaterialCommunityIcons) | ^15.1.1 |
 | Gradients | expo-linear-gradient | ~15.0.7 |
-| Notifications | expo-notifications | ~0.32.13 |
-| Web Embeds | react-native-webview | 13.15.0 |
-| Blur | expo-blur | ~15.0.7 |
+| Notifications | expo-notifications | ~0.32.17 |
 | Haptics | expo-haptics | ~15.0.7 |
 | Safe Area | react-native-safe-area-context | ~5.6.0 |
 | Screen | react-native-screens | ~4.16.0 |
-| Keep Awake | expo-keep-awake | ~15.0.8 |
-| Skia | @shopify/react-native-skia | 2.2.12 |
-| Worklets | react-native-worklets | 0.5.1 |
 | Web Support | react-native-web + @expo/metro-runtime | ^0.21.0 / ~6.1.2 |
 
 **Architecture:** React Native New Architecture enabled (`newArchEnabled: true`).
@@ -209,53 +204,40 @@ The project uses Expo's runtime version policy (`"policy": "appVersion"`). OTA u
 ## Issues & Warnings Found
 
 ### 🔴 Active Issues
-1. **`na-kontakto.tsx` has placeholder contact info** — phone `+383 49 000 000`, email `info@rtvfontana.com`, and social URLs (`https://facebook.com`, `https://instagram.com`) are generic/incorrect placeholders. The `HamburgerDrawer` uses the correct number (`+383 44 150 027`) and email (`rtvfontana@gmail.com`). These should be unified.
+1. **`notification.icon` uses legacy `./assets/icon.png`** — The `app.json` sets the main icon to `./assets/logoandroid.jpg` but the notification icon still points to the old `./assets/icon.png`. Should be reviewed before Play release for visual consistency.
 
-2. **`notification.icon` uses legacy `./assets/icon.png`** — The `app.json` sets the main icon to `./assets/logoandroid.jpg` but the notification icon still points to the old `./assets/icon.png`. Should be updated for visual consistency.
+2. **Stream URL source of truth** — Native and web audio services now read `appIdentity.streamUrl`; future stream callers should keep using that token instead of hard-coding the URL.
 
-3. **`app/article/` folder is empty** — The directory exists but contains no files. Article routing is handled inside `app/(tabs)/news/[slug].tsx`. The empty folder can be removed.
-
-4. **`lib/` directory is empty** — Reserved but unused. Can be removed or used for shared utilities.
-
-5. **`fetchAuthors` imported in `news/index.tsx` but `fetchAuthors` does not exist in `api.ts`** — This will cause a runtime error on the news screen. Either the function needs to be added to `api.ts` or the import should be removed.
+3. **iOS audio behavior still needs physical validation** — iOS background mode is configured, but lock-screen / interruption behavior must be tested on a real iPhone before App Store work.
 
 ### 🟡 Warnings
-6. **`@shopify/react-native-skia` (2.2.12) is installed but not used** in any component. This is a heavy native dependency (~15 MB) that adds build time and app size without benefit. Should be removed.
+4. **`expo-notifications` is configured but no notification flow is implemented in JS** — Keep it only if breaking-news notifications are part of the release plan; otherwise remove the permission/plugin before store submission.
 
-7. **`react-native-worklets` (0.5.1)** — Installed as a dependency of Skia. If Skia is removed, this can be removed too.
+5. **`@react-navigation/bottom-tabs` and `@react-navigation/native`** — Direct dependencies may be redundant because Expo Router handles navigation, but they should only be removed after an Expo Router dependency check.
 
-8. **`@react-navigation/bottom-tabs` and `@react-navigation/native`** — Installed but navigation is handled entirely by Expo Router. These are redundant dependencies.
+6. **`expo-constants` (18.0.13)** — Direct dependency is not imported in source files, but it is also used transitively by Expo packages, so removal is low priority.
 
-9. **`expo-constants` (18.0.13)** — Installed but not imported anywhere in the codebase.
+7. **`expo-linking`** — Installed as a package but `Linking` is imported directly from React Native in `na-kontakto.tsx` and from `expo-linking` in `[slug].tsx`. Inconsistent usage.
 
-10. **`expo-blur`** — Installed but not actively used in any component.
+8. **Article font loading is lazy** — Merriweather loads on the article screen instead of at root for startup performance. Validate first article open on low-end Android so the fallback-to-final font swap feels acceptable.
 
-11. **`expo-linking`** — Installed as a package but `Linking` is imported directly from React Native in `na-kontakto.tsx` and from `expo-linking` in `[slug].tsx`. Inconsistent usage.
+9. **`as never` type casts on router.push calls** — Several screens use `router.push(path as never)` to bypass Expo Router typed routes. These work but suppress TypeScript's route validation. Regenerating `.expo/types` would allow removing them.
 
-12. **`Merriweather_700Bold` is loaded but only `articleBold` font alias is defined** — The font token `fonts.articleBold` is never actually applied in the article renderer (`[slug].tsx`); all body text uses `articleRegular`.
-
-13. **Hard-coded stream URL duplication** — `STREAM_URL` is defined in both `services/audio.ts` (as a local const) and `design-tokens.ts` (`appIdentity.streamUrl`). The audio service does not use the token — both should reference the same source.
-
-14. **`as never` type casts on router.push calls** — Several screens use `router.push(path as never)` to bypass Expo Router typed routes. These work but suppress TypeScript's route validation. Regenerating `.expo/types` would allow removing them.
-
-15. **18 moderate npm audit vulnerabilities** — Run `npm audit` to review. Most are likely in dev/transitive dependencies.
+10. **18 moderate npm audit vulnerabilities** — Run `npm audit` to review. Most are likely in dev/transitive dependencies.
 
 ---
 
 ## Dependencies Summary
 
 ### Used & Required
-All `expo-*` packages, `react`, `react-native`, `react-native-reanimated`, `react-native-gesture-handler`, `react-native-safe-area-context`, `react-native-screens`, `react-native-mmkv`, `react-native-webview`, `@shopify/flash-list`, `@tanstack/react-query`, `@expo-google-fonts/*`, `@expo/vector-icons`
+All current `expo-*` packages in `package.json`, `react`, `react-native`, `react-native-reanimated`, `react-native-gesture-handler`, `react-native-safe-area-context`, `react-native-screens`, `react-native-mmkv`, `@shopify/flash-list`, `@tanstack/react-query`, `@expo-google-fonts/*`, `@expo/vector-icons`
 
 ### Potentially Removable
 | Package | Reason |
 |---|---|
-| `@shopify/react-native-skia` | Installed but not used anywhere |
-| `react-native-worklets` | Only needed by Skia |
 | `@react-navigation/bottom-tabs` | Redundant — Expo Router handles tabs |
 | `@react-navigation/native` | Redundant — Expo Router handles navigation |
 | `expo-constants` | Not imported in any source file |
-| `expo-blur` | Not used in any component |
 
 ---
 

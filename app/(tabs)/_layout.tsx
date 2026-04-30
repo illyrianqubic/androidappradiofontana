@@ -1,6 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import { Tabs } from 'expo-router';
-import { CommonActions } from '@react-navigation/native';
+import { Tabs, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 // A-3: deep import skips loading all other icon sets' glyph maps.
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -21,6 +20,7 @@ const ICONS_INACTIVE: Record<string, keyof typeof Ionicons.glyphMap> = {
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   // Stable tab bar style — recomputed only when bottom inset changes (e.g.
   // device rotation), so screenOptions doesn't allocate a fresh array per route.
@@ -88,25 +88,14 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="news"
         options={{ title: 'Lajme' }}
-        listeners={({ navigation }) => ({
+        listeners={{
           // BUGFIX: tapping the Lajme tab must always land on the news
           // listing, never on a previously-opened article.
-          //
-          // Strategy: use CommonActions.navigate with nested `screen` param.
-          // React Navigation resolves this as "switch to the news tab AND
-          // navigate to its 'index' screen", which pops any [slug] screens
-          // off the news Stack. This does NOT require knowing the Stack key
-          // (unlike the previous StackActions.popToTop approach which failed
-          // silently when `newsRoute?.state?.key` was undefined).
-          tabPress: () => {
-            navigation.dispatch(
-              CommonActions.navigate({
-                name: 'news',
-                params: { screen: 'index' },
-              }),
-            );
+          tabPress: (event) => {
+            event.preventDefault();
+            router.replace('/news' as never);
           },
-        })}
+        }}
       />
       <Tabs.Screen name="library" options={{ href: null }} />
     </Tabs>

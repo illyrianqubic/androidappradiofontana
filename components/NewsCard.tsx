@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { Image } from 'expo-image';
-import { buildSanityImageUrl, defaultThumbhash, type Post } from '../services/api';
+import { buildSanityImageUrl, defaultThumbhash, sanityImageWidths, type Post } from '../services/api';
 import { colors, fonts } from '../design-tokens';
 import { RelativeTime } from './RelativeTime';
 
@@ -32,10 +32,10 @@ function NewsCardComponent({ post, compact = false, onPress }: NewsCardProps) {
   const cat = post.categories?.[0] ?? 'Lajme';
 
   const imageUri = useMemo(
-    // AUDIT FIX P4.13: lower the standard-card width from 900 to 540. The
-    // card itself only renders ~360 px on most devices, so 540 covers
-    // 1.5x DPR with ~50 % less bytes per image.
-    () => buildSanityImageUrl(post.mainImageUrl, compact ? 480 : 540),
+    () => buildSanityImageUrl(
+      post.mainImageUrl,
+      compact ? sanityImageWidths.feedThumb : sanityImageWidths.feedCard,
+    ),
     [compact, post.mainImageUrl],
   );
 
