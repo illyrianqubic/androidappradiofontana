@@ -246,9 +246,11 @@ export default function NewsIndexScreen() {
   }, []);
 
   const refresh = useCallback(async () => {
-    await queryClient.invalidateQueries({
+    // Use refetchQueries so the Promise resolves only after the network
+    // response lands (invalidateQueries resolves immediately on mark-stale).
+    await queryClient.refetchQueries({
       queryKey: ['news-feed', activeCategory.slug, debouncedSearch],
-      refetchType: 'active',
+      type: 'active',
     });
   }, [queryClient, activeCategory.slug, debouncedSearch]);
 
@@ -407,7 +409,6 @@ export default function NewsIndexScreen() {
         keyExtractor={(item) => item._id}
         showsVerticalScrollIndicator={false}
         scrollEnabled
-        decelerationRate="fast"
         contentContainerStyle={listContentContainerStyle}
         renderItem={renderPostItem}
         getItemType={getPostItemType}

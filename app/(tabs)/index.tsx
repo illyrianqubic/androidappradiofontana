@@ -819,12 +819,16 @@ export default function HomeScreen() {
   // Gesture-driven pull-to-refresh: pan tracked entirely on the UI thread,
   // refresh fires via runOnJS once threshold is crossed. Min 2.5s visible.
   const doRefetch = useCallback(async () => {
+    // Use refetchQueries (not invalidateQueries) so the Promise resolves
+    // only after the network responses land. invalidateQueries resolves as
+    // soon as queries are marked stale, which made the spinner vanish before
+    // new data arrived.
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['home-hero'],     refetchType: 'active' }),
-      queryClient.invalidateQueries({ queryKey: ['home-breaking'], refetchType: 'active' }),
-      queryClient.invalidateQueries({ queryKey: ['home-latest'],   refetchType: 'active' }),
-      queryClient.invalidateQueries({ queryKey: ['home-local'],    refetchType: 'active' }),
-      queryClient.invalidateQueries({ queryKey: ['weather-istog'], refetchType: 'active' }),
+      queryClient.refetchQueries({ queryKey: ['home-hero'],     type: 'active' }),
+      queryClient.refetchQueries({ queryKey: ['home-breaking'], type: 'active' }),
+      queryClient.refetchQueries({ queryKey: ['home-latest'],   type: 'active' }),
+      queryClient.refetchQueries({ queryKey: ['home-local'],    type: 'active' }),
+      queryClient.refetchQueries({ queryKey: ['weather-istog'], type: 'active' }),
     ]);
   }, [queryClient]);
 
@@ -1158,7 +1162,6 @@ export default function HomeScreen() {
         keyExtractor={(item) => (isSkeletonItem(item) ? item._skeleton : item._id)}
         showsVerticalScrollIndicator={false}
         scrollEnabled
-        decelerationRate="fast"
         contentContainerStyle={gridContentContainerStyle}
         ListHeaderComponent={listHeader}
         ListFooterComponent={listFooter}
