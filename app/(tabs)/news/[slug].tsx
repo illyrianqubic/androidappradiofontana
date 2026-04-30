@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import Animated, {
   useAnimatedScrollHandler,
@@ -419,17 +420,29 @@ export default function ArticleDetailScreen() {
   }, []);
 
   // ── Back navigation ─────────────────────────────────────────────────────
-  // AUDIT FIX P2.7: prefer router.back() so the previous screen's scroll
-  // position is restored and the News listing is not remounted on every
-  // article close. Fall back to the listing only when there's no back stack
-  // (e.g. cold-start deep-link into an article).
+  // BUGFIX: router.canGoBack() returns true even when the only back entry
+  // is the root Stack's (tabs) screen (i.e. the article was opened via
+  // router.push from the Home tab, which pushes to the root Stack rather
+  // than into the news nested Stack). In that case router.back() goes to the
+  // Home tab instead of the news listing.
+  //
+  // Fix: inspect the actual previous route name. If it's '(tabs)' we are
+  // the root of the root Stack — navigate to the news index explicitly.
+  // Otherwise (prev is 'index' = normal flow, or '[slug]' = related post
+  // chain) it's safe to router.back() within the current Stack.
+  const navRef = useNavigation();
   const onBack = useCallback(() => {
-    if (router.canGoBack()) {
+    const state = navRef.getState();
+    const prevName =
+      state && state.index > 0
+        ? (state.routes as Array<{ name: string }>)[state.index - 1]?.name
+        : undefined;
+    if (prevName && prevName !== '(tabs)') {
       router.back();
     } else {
-      router.replace('/(tabs)/news' as never);
+      router.navigate('/(tabs)/news' as never);
     }
-  }, [router]);
+  }, [router, navRef]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {

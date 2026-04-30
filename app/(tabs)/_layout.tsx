@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 import { Tabs } from 'expo-router';
-import { StackActions } from '@react-navigation/native';
+import { CommonActions } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 // A-3: deep import skips loading all other icon sets' glyph maps.
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -90,22 +90,21 @@ export default function TabsLayout() {
         options={{ title: 'Lajme' }}
         listeners={({ navigation }) => ({
           // BUGFIX: tapping the Lajme tab must always land on the news
-          // listing, never on a previously-opened article. Dispatch
-          // popToTop unconditionally on tabPress, targeted at the nested
-          // news Stack via its key. popToTop is a no-op when the stack is
-          // already at its root, so this is safe to fire on every tap.
+          // listing, never on a previously-opened article.
+          //
+          // Strategy: use CommonActions.navigate with nested `screen` param.
+          // React Navigation resolves this as "switch to the news tab AND
+          // navigate to its 'index' screen", which pops any [slug] screens
+          // off the news Stack. This does NOT require knowing the Stack key
+          // (unlike the previous StackActions.popToTop approach which failed
+          // silently when `newsRoute?.state?.key` was undefined).
           tabPress: () => {
-            const state = navigation.getState();
-            const newsRoute = state?.routes?.find(
-              (r: { name: string }) => r.name === 'news',
-            ) as { state?: { key?: string } } | undefined;
-            const nestedKey = newsRoute?.state?.key;
-            if (nestedKey) {
-              navigation.dispatch({
-                ...StackActions.popToTop(),
-                target: nestedKey,
-              });
-            }
+            navigation.dispatch(
+              CommonActions.navigate({
+                name: 'news',
+                params: { screen: 'index' },
+              }),
+            );
           },
         })}
       />
