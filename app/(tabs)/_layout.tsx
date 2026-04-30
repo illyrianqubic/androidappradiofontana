@@ -1,12 +1,11 @@
 import { StyleSheet, View } from 'react-native';
 import { Tabs } from 'expo-router';
-import { CommonActions } from '@react-navigation/native';
+import { StackActions } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 // A-3: deep import skips loading all other icon sets' glyph maps.
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMemo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
 import { colors, fonts } from '../../design-tokens';
 
 const ICONS_ACTIVE: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -39,13 +38,13 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenListeners={{
+        // Lightweight haptic feedback on tab press. Route prefetching was
+        // removed here because it ran on every tap (including taps on the
+        // already-active tab) and the resulting bundle resolution work
+        // showed up as a 30–80 ms hitch on tab switches. expo-router lazily
+        // mounts each tab on first focus anyway, which is fast enough.
         tabPress: () => {
           Haptics.selectionAsync().catch(() => undefined);
-          // AUDIT FIX P8.30: warm adjacent tab routes on press so the next
-          // tap is instant. router.prefetch is a no-op if already warm.
-          router.prefetch('/(tabs)' as never);
-          router.prefetch('/(tabs)/live' as never);
-          router.prefetch('/(tabs)/news' as never);
         },
       }}
       screenOptions={({ route }) => ({
@@ -90,28 +89,21 @@ export default function TabsLayout() {
         name="news"
         options={{ title: 'Lajme' }}
         listeners={({ navigation }) => ({
-          // Tapping the Lajme tab always resets the nested news Stack to its
-          // listing screen, even if the user previously navigated into an
-          // article. `navigation.navigate('news', { screen: 'index' })` alone
-          // only switches tabs without popping the nested stack — we have to
-          // dispatch a reset on the news navigator itself so the [slug] route
-          // is removed from history (otherwise back from the listing would
-          // exit the app instead of returning to wherever the user came from,
-          // and the listing itself wouldn't even render because the [slug]
-          // would still be the focused route).
-          tabPress: (e) => {
-            const parentState = navigation.getState();
-            const newsRoute = parentState?.routes.find((r: { name: string }) => r.name === 'news');
-            const nested = newsRoute?.state;
-            if (nested && typeof nested.index === 'number' && nested.index > 0) {
-              e.preventDefault();
-              navigation.navigate('news' as never, undefined as never);
+          // BUGFIX: tapping the Lajme tab must always land on the news
+          // listing, never on a previously-opened article. Dispatch
+          // popToTop unconditionally on tabPress, targeted at the nested
+          // news Stack via its key. popToTop is a no-op when the stack is
+          // already at its root, so this is safe to fire on every tap.
+          tabPress: () => {
+            const state = navigation.getState();
+            const newsRoute = state?.routes?.find(
+              (r: { name: string }) => r.name === 'news',
+            ) as { state?: { key?: string } } | undefined;
+            const nestedKey = newsRoute?.state?.key;
+            if (nestedKey) {
               navigation.dispatch({
-                ...CommonActions.reset({
-                  index: 0,
-                  routes: [{ name: 'index' }],
-                }),
-                target: nested.key,
+                ...StackActions.popToTop(),
+                target: nestedKey,
               });
             }
           },

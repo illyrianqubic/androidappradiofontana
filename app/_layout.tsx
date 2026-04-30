@@ -238,7 +238,6 @@ const initialStartupState: StartupState = {
 };
 
 export default function RootLayout() {
-  const router = useRouter();
   // M24: single state object so the three startup transitions don't each
   // produce an independent root re-render.
   const [startup, setStartup] = useState<StartupState>(initialStartupState);
@@ -317,9 +316,14 @@ export default function RootLayout() {
   }, [interLoaded, interFontError, nativeSplashHidden]);
 
   const onLaunchSplashComplete = useCallback(() => {
+    // PERF: previously called `router.replace('/(tabs)')` here, but the
+    // (tabs) stack is already mounted as the initial route. The replace
+    // forced an unnecessary route swap right at the most jank-sensitive
+    // moment of app startup (immediately after splash hides), causing
+    // a perceptible stutter before the home screen became interactive.
+    // Just hiding the overlay is enough.
     setStartup((s) => ({ ...s, showLaunchSplash: false }));
-    router.replace('/(tabs)' as never);
-  }, [router]);
+  }, []);
 
   if (!interLoaded && !interFontError) {
     return <View style={{ flex: 1, backgroundColor: '#ffffff' }} />;

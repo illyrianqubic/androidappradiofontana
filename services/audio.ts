@@ -39,7 +39,9 @@ type AudioStateValue = {
   isPlaying: boolean;
   isBuffering: boolean;
   isReconnecting: boolean;
-  metadata: NowPlayingMetadata;
+  // PROFILING FIX: `metadata` removed from this shape. Consumers that need
+  // the now-playing title/artist must call useAudioMetadata() so they only
+  // re-render when metadata actually changes (and not on status ticks).
   playbackState: number;
 };
 
@@ -54,7 +56,16 @@ type AudioActionsValue = {
 type AudioContextValue = AudioStateValue & AudioActionsValue;
 
 // Split contexts: consumers reading only callbacks never re-render on status ticks.
+//
+// PROFILING-DRIVEN FIX (round 2): MiniPlayer and LiveScreen only read the
+// boolean status fields (isPlaying / isBuffering / isReconnecting), but the
+// previous combined AudioStateContext value also carried `metadata`. Every
+// ICY-metadata tick (~once per song) updated the bundled value and forced
+// MiniPlayer + LiveScreen to re-render even though their visible output
+// did not change. We now publish status and metadata on separate contexts
+// so metadata updates only re-render the FullPlayer (the sole consumer).
 const AudioStateContext = createContext<AudioStateValue | null>(null);
+const AudioMetadataContext = createContext<NowPlayingMetadata | null>(null);
 const AudioActionsContext = createContext<AudioActionsValue | null>(null);
 
 export async function playbackService() {
@@ -542,17 +553,26 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     });
   }, [isPlaying, isBuffering, metadata.artist, metadata.title]);
 
-  // State context value: changes on every meaningful status update.
+  // State context value: status flags only. metadata is published on its own
+  // context so MiniPlayer + LiveScreen don't re-render when only the now-
+  // playing title changes.
   const stateValue = useMemo<AudioStateValue>(
     () => ({
       isReady,
       isPlaying,
       isBuffering,
       isReconnecting,
-      metadata,
       playbackState,
     }),
-    [isReady, isPlaying, isBuffering, isReconnecting, metadata, playbackState],
+    [isReady, isPlaying, isBuffering, isReconnecting, playbackState],
+  );
+
+  // Metadata context value: changes only when the now-playing title or
+  // artist actually changes (updateState already deep-compares those fields
+  // before committing).
+  const metadataValue = useMemo<NowPlayingMetadata>(
+    () => metadata,
+    [metadata],
   );
 
   // Actions context value: callback identities are stable across status ticks
@@ -566,7 +586,15 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   return React.createElement(
     AudioActionsContext.Provider,
     { value: actionsValue },
-    React.createElement(AudioStateContext.Provider, { value: stateValue }, children),
+    React.createElement(
+      AudioStateContext.Provider,
+      { value: stateValue },
+      React.createElement(
+        AudioMetadataContext.Provider,
+        { value: metadataValue },
+        children,
+      ),
+    ),
   );
 }
 
@@ -574,6 +602,14 @@ export function useAudioState(): AudioStateValue {
   const ctx = useContext(AudioStateContext);
   if (!ctx) {
     throw new Error('useAudioState must be used inside AudioProvider');
+  }
+  return ctx;
+}
+
+export function useAudioMetadata(): NowPlayingMetadata {
+  const ctx = useContext(AudioMetadataContext);
+  if (!ctx) {
+    throw new Error('useAudioMetadata must be used inside AudioProvider');
   }
   return ctx;
 }

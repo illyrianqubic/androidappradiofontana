@@ -79,10 +79,20 @@ const CAT_COLORS = [
   { bg: '#FDF2F8', text: '#86198F' },
 ] as const;
 
-// Public component — always keeps the inner subtree mounted so there is zero
-// cold-mount lag when the drawer opens. Visibility is controlled by the
-// translateX animation (panel fully off-screen = invisible at no GPU cost).
+// Public component — PROFILING FIX (round 2): lazy-mount the inner panel on
+// the first time the drawer opens, then keep it mounted for the rest of the
+// app session. This preserves the original "no cold-mount lag on subsequent
+// opens" guarantee while eliminating ~15 wasted re-renders per session that
+// were previously caused by the always-mounted panel reacting to every
+// pathname change (usePathname inside HamburgerDrawerInner re-runs on every
+// route navigation, even when the drawer is closed).
 export function HamburgerDrawer() {
+  const { isOpen } = useDrawer();
+  const [hasOpened, setHasOpened] = useState(false);
+  useEffect(() => {
+    if (isOpen && !hasOpened) setHasOpened(true);
+  }, [isOpen, hasOpened]);
+  if (!hasOpened) return null;
   return <HamburgerDrawerInner />;
 }
 

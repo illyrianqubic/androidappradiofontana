@@ -1,6 +1,8 @@
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  InteractionManager,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -8,7 +10,6 @@ import {
   View,
 } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { GestureDetector } from 'react-native-gesture-handler';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -20,11 +21,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { NewsCard } from '../../../components/NewsCard';
 import { SkeletonCard } from '../../../components/SkeletonCard';
 import { HamburgerButton } from '../../../components/HamburgerButton';
-import { RefreshOverlay } from '../../../components/RefreshOverlay';
-import { usePullToRefresh } from '../../../lib/usePullToRefresh';
-
-// FlashList wrapped for Reanimated scroll-handler integration.
-const AnimatedFlashList = Animated.createAnimatedComponent(FlashList) as unknown as typeof FlashList;
 import { appIdentity, colors, fonts } from '../../../design-tokens';
 import { queueImagePrefetch } from '../../../lib/prefetchQueue';
 import {
@@ -236,7 +232,8 @@ export default function NewsIndexScreen() {
       queryClient.prefetchQuery({
         queryKey: ['post-detail', post.slug],
         queryFn: () => fetchPostBySlug(post.slug),
-        staleTime: 30 * 60 * 1000,
+        // PROFILING FIX (round 2): see comment in (tabs)/index.tsx.
+        staleTime: Infinity,
       });
       router.push({ pathname: '/news/[slug]' as never, params: { slug: post.slug } as never });
     },
@@ -254,17 +251,18 @@ export default function NewsIndexScreen() {
       refetchType: 'active',
     });
   }, [queryClient, activeCategory.slug, debouncedSearch]);
-  // Gesture-driven pull-to-refresh: pan tracked entirely on the UI thread.
-  const { panGesture, scrollHandler, pullProgress, phaseValue, phase, refreshing, refreshNonce } = usePullToRefresh(refresh);
 
-  // Subtle content fade-in when a refresh completes.
-  const contentFade = useSharedValue(1);
-  useEffect(() => {
-    if (refreshNonce === 0) return;
-    contentFade.value = 0.55;
-    contentFade.value = withTiming(1, { duration: 380, easing: Easing.out(Easing.cubic) });
-  }, [refreshNonce, contentFade]);
-  const contentFadeStyle = useAnimatedStyle(() => ({ opacity: contentFade.value }));
+  // BUGFIX (scroll hijack): same fix as home — native RefreshControl
+  // instead of GestureDetector + AnimatedFlashList wrapper.
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const onPullToRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await refresh();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refresh]);
 
   // AUDIT FIX P2.6: idle-prefetch the first 3 visible posts after 2 s of
   // dwell time so the most likely next taps are near-instant. Declared
@@ -276,17 +274,27 @@ export default function NewsIndexScreen() {
     if (posts.length === 0) return;
     const slugs = posts.slice(0, 3).map((p) => p.slug).filter(Boolean);
     if (slugs.length === 0) return;
+    let interactionHandle: { cancel: () => void } | null = null;
     const t = setTimeout(() => {
-      for (const slug of slugs) {
-        router.prefetch(`/news/${slug}` as never);
-        queryClient.prefetchQuery({
-          queryKey: ['post-detail', slug],
-          queryFn: () => fetchPostBySlug(slug),
-          staleTime: 30 * 60 * 1000,
-        });
-      }
+      // PERF FIX: defer the actual prefetch burst until after any
+      // in-flight gestures/animations resolve so we don't compete with
+      // the UI thread.
+      interactionHandle = InteractionManager.runAfterInteractions(() => {
+        for (const slug of slugs) {
+          router.prefetch(`/news/${slug}` as never);
+          queryClient.prefetchQuery({
+            queryKey: ['post-detail', slug],
+            queryFn: () => fetchPostBySlug(slug),
+            // PROFILING FIX (round 2): see comment in (tabs)/index.tsx.
+            staleTime: Infinity,
+          });
+        }
+      });
     }, 2000);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      interactionHandle?.cancel();
+    };
   }, [posts, router, queryClient]);
   const showFeatured = !debouncedSearch && posts.length > 2;
 
@@ -393,30 +401,26 @@ export default function NewsIndexScreen() {
   return (
     <View style={S.screen}>
       {stickyHeader}
-      <GestureDetector gesture={panGesture}>
-        <Animated.View style={[S.flexFill, contentFadeStyle]}>
-          <AnimatedFlashList
-            ref={listRef}
-            data={posts}
-            keyExtractor={(item) => item._id}
-            showsVerticalScrollIndicator={false}
-            onScroll={scrollHandler}
-            scrollEventThrottle={16}
-            decelerationRate="fast"
-            contentContainerStyle={listContentContainerStyle}
-            ListHeaderComponent={
-              <RefreshOverlay
-                pullProgress={pullProgress}
-                phaseValue={phaseValue}
-                phase={phase}
-              />
-            }
-            renderItem={renderPostItem}
-            getItemType={getPostItemType}
-            ListEmptyComponent={emptyState}
+      <FlashList
+        ref={listRef}
+        data={posts}
+        keyExtractor={(item) => item._id}
+        showsVerticalScrollIndicator={false}
+        scrollEnabled
+        decelerationRate="fast"
+        contentContainerStyle={listContentContainerStyle}
+        renderItem={renderPostItem}
+        getItemType={getPostItemType}
+        ListEmptyComponent={emptyState}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onPullToRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
           />
-        </Animated.View>
-      </GestureDetector>
+        }
+      />
     </View>
   );
 }

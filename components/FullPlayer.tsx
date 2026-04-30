@@ -8,7 +8,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { appIdentity, colors, fonts, radius, spacing } from '../design-tokens';
-import { useAudioActions, useAudioState } from '../services/audio';
+import { useAudioActions, useAudioMetadata, useAudioState } from '../services/audio';
 import { DAYS, schedule } from '../constants/schedule';
 import { EqualizerBars } from './EqualizerBars';
 import { LiveBadge } from './LiveBadge';
@@ -61,7 +61,8 @@ type FullPlayerProps = {
 };
 
 export function FullPlayer({ isExpanded = true }: FullPlayerProps) {
-  const { isPlaying, isReconnecting, metadata } = useAudioState();
+  const { isPlaying, isReconnecting } = useAudioState();
+  const metadata = useAudioMetadata();
   const { toggle } = useAudioActions();
   const [renderedTitle, setRenderedTitle] = useState(metadata.title);
   const [renderedArtist, setRenderedArtist] = useState(metadata.artist);

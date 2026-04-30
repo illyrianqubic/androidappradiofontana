@@ -230,6 +230,19 @@ function formatPubDate(iso?: string): string {
 // related-query landing) re-walked the portable-text array and rebuilt every
 // <Text> block. With ~10–30 blocks per article this saved 8–20 ms per
 // re-render on Cortex-A53.
+//
+// PERF (root cause of "freeze on opening article"): rendering all 30–60
+// portable-text blocks synchronously after bodyReady=true blocked JS for
+// 80–250 ms on mid-range Android *right after the slide-in animation*,
+// producing a visible stall. We now render the first ARTICLE_BODY_INITIAL
+// blocks immediately (enough to fill the viewport and let the user start
+// reading), then incrementally append ARTICLE_BODY_CHUNK more blocks per
+// frame using requestAnimationFrame. Each chunk render is small enough to
+// stay under the 16 ms frame budget so subsequent scroll input is never
+// starved.
+const ARTICLE_BODY_INITIAL = 6;
+const ARTICLE_BODY_CHUNK = 6;
+
 const ArticleBody = memo(function ArticleBody({
   blocks,
   excerpt,
@@ -237,9 +250,33 @@ const ArticleBody = memo(function ArticleBody({
   blocks: PortableTextBlock[];
   excerpt: string | undefined;
 }) {
-  const bodyState: BodyBlockState = { firstParagraphRendered: false };
-  if (blocks.length > 0) {
-    return <>{blocks.map((b, i) => renderBodyBlock(b, i, bodyState))}</>;
+  const total = blocks.length;
+  const [renderedCount, setRenderedCount] = useState(() =>
+    Math.min(ARTICLE_BODY_INITIAL, total),
+  );
+
+  // Reset counter if the underlying blocks array changes (e.g. user navigates
+  // to a related article and the same <ArticleBody> instance gets new props).
+  useEffect(() => {
+    setRenderedCount(Math.min(ARTICLE_BODY_INITIAL, total));
+  }, [blocks, total]);
+
+  useEffect(() => {
+    if (renderedCount >= total) return;
+    let raf: number | null = null;
+    const tick = () => {
+      setRenderedCount((c) => Math.min(c + ARTICLE_BODY_CHUNK, total));
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      if (raf !== null) cancelAnimationFrame(raf);
+    };
+  }, [renderedCount, total]);
+
+  if (total > 0) {
+    const bodyState: BodyBlockState = { firstParagraphRendered: false };
+    const visible = renderedCount >= total ? blocks : blocks.slice(0, renderedCount);
+    return <>{visible.map((b, i) => renderBodyBlock(b, i, bodyState))}</>;
   }
   if (excerpt) {
     return <Text style={styles.firstParagraph}>{renderEditorialLead(excerpt)}</Text>;
@@ -266,6 +303,13 @@ export default function ArticleDetailScreen() {
     // an article (or coming back via prefetch) skips the network round-trip
     // for half an hour instead of ten minutes — better offline-first UX.
     staleTime: 30 * 60 * 1000,
+    // PROFILING FIX (round 2): React 19 dev StrictMode mounts effects twice;
+    // combined with the prefetchQuery already running on tap, this could
+    // trigger a duplicate Sanity fetch for the same slug (~1.2 s wasted on
+    // article open). `refetchOnMount: false` makes the screen rely on the
+    // cache (which the prefetch has already filled or is filling), and the
+    // shared in-flight promise dedupe is still in effect for the first miss.
+    refetchOnMount: false,
   });
 
   const categoriesKey = postQuery.data?.categories?.join('|') ?? '';

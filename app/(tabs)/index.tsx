@@ -3,6 +3,7 @@ import {
   AppState,
   InteractionManager,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,7 +19,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList, type ListRenderItemInfo } from '@shopify/flash-list';
-import { GestureDetector } from 'react-native-gesture-handler';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, {
   Easing,
@@ -34,11 +34,13 @@ import { useIsFocused } from '@react-navigation/native';
 import { HamburgerButton } from '../../components/HamburgerButton';
 import { RelativeTime } from '../../components/RelativeTime';
 import { SkeletonCard } from '../../components/SkeletonCard';
-import { RefreshOverlay } from '../../components/RefreshOverlay';
-import { usePullToRefresh } from '../../lib/usePullToRefresh';
 
-// FlashList wrapped for Reanimated scroll-handler integration.
-const AnimatedFlashList = Animated.createAnimatedComponent(FlashList) as unknown as typeof FlashList;
+// AUDIT FIX P8.32: module-level constants — not reallocated per render.
+// Hoisted to the top of the module so every closure that references them
+// (LatestNewsHeader's useMemo, etc.) sees the binding regardless of where
+// the consuming component is declared in the file.
+const ALBANIAN_DAYS = ['e diel', 'e hënë', 'e martë', 'e mërkurë', 'e enjte', 'e premte', 'e shtunë'];
+const ALBANIAN_MONTHS = ['janar', 'shkurt', 'mars', 'prill', 'maj', 'qershor', 'korrik', 'gusht', 'shtator', 'tetor', 'nëntor', 'dhjetor'];
 import { appIdentity, colors, fonts } from '../../design-tokens';
 import { ms, s } from '../../lib/responsive';
 import { queueImagePrefetch } from '../../lib/prefetchQueue';
@@ -174,9 +176,24 @@ const WeatherWidget = memo(function WeatherWidget() {
 });
 
 // ── BreakingTicker ─────────────────────────────────────────────────────────────
-// AUDIT FIX P8.32: module-level constants — not reallocated per render.
-const ALBANIAN_DAYS = ['e diel', 'e hënë', 'e martë', 'e mërkurë', 'e enjte', 'e premte', 'e shtunë'];
-const ALBANIAN_MONTHS = ['janar', 'shkurt', 'mars', 'prill', 'maj', 'qershor', 'korrik', 'gusht', 'shtator', 'tetor', 'nëntor', 'dhjetor'];
+// PROFILING FIX (round 2): a custom equality comparator on the memo wrapper
+// stops re-renders when the breaking-posts query refetches and returns a NEW
+// array reference but with the same titles. Without this, every refetch
+// (focus / interval / pull-to-refresh) busted memo and re-mounted the
+// marquee worklets even though nothing visible changed.
+function headlinesEqual(
+  prev: { headlines: string[] },
+  next: { headlines: string[] },
+): boolean {
+  const a = prev.headlines;
+  const b = next.headlines;
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
 
 const BreakingTicker = memo(function BreakingTicker({ headlines }: { headlines: string[] }) {
   // Early-return when there are no headlines: skip mounting the inner ticker
@@ -185,7 +202,7 @@ const BreakingTicker = memo(function BreakingTicker({ headlines }: { headlines: 
     return null;
   }
   return <BreakingTickerInner headlines={headlines} />;
-});
+}, headlinesEqual);
 
 function BreakingTickerInner({ headlines }: { headlines: string[] }) {
   const marqueeText = useMemo(() => headlines.join('   •   '), [headlines]);
@@ -669,6 +686,11 @@ export default function HomeScreen() {
     queryKey: ['home-hero'],
     queryFn: ({ signal }) => fetchHeroPost(signal),
     refetchOnWindowFocus: true,
+    // PROFILING FIX (round 2): hero/breaking previously had no staleTime, so
+    // every focus + every cold-start cache-hydration immediately fired a
+    // background refetch that took ~1.1 s on Sanity (visible in profiler
+    // logs). 5 min freshness keeps content recent without thrashing.
+    staleTime: 5 * 60 * 1000,
   });
 
   // C6: Staggered enable flags. Don't fire all secondary queries in the
@@ -699,9 +721,11 @@ export default function HomeScreen() {
     queryFn: ({ signal }) => fetchBreakingPosts(signal),
     enabled: enableBreaking,
     refetchOnWindowFocus: true,
+    // PROFILING FIX (round 2): see hero comment.
+    staleTime: 5 * 60 * 1000,
   });
-  const latestQuery   = useQuery({ queryKey: ['home-latest'],   queryFn: ({ signal }) => fetchLatestPosts('', '', 18, signal), enabled: enableLatest });
-  const localQuery    = useQuery({ queryKey: ['home-local'],    queryFn: ({ signal }) => fetchLocalPosts(12, signal), enabled: enableLocal });
+  const latestQuery   = useQuery({ queryKey: ['home-latest'],   queryFn: ({ signal }) => fetchLatestPosts('', '', 18, signal), enabled: enableLatest, staleTime: 2 * 60 * 1000 });
+  const localQuery    = useQuery({ queryKey: ['home-local'],    queryFn: ({ signal }) => fetchLocalPosts(12, signal), enabled: enableLocal, staleTime: 5 * 60 * 1000 });
 
   const hero         = heroQuery.data ?? null;
   // X-8: with R-3 splitting the home payload back into 5 staggered queries,
@@ -749,10 +773,14 @@ export default function HomeScreen() {
       // the listing object lacks `body[]` — seeding it would let
       // useQuery treat the cached value as fresh and skip the body fetch.
       router.prefetch(`/news/${post.slug}` as never);
+      // PROFILING FIX (round 2): staleTime Infinity makes a second prefetch
+      // for the same slug a no-op while data exists or a fetch is in-flight,
+      // and lets useQuery on the article screen treat the result as fresh
+      // forever (combined with `refetchOnMount: false` there).
       queryClient.prefetchQuery({
         queryKey: ['post-detail', post.slug],
         queryFn: () => fetchPostBySlug(post.slug),
-        staleTime: 30 * 60 * 1000,
+        staleTime: Infinity,
       });
       router.push({ pathname: '/news/[slug]' as never, params: { slug: post.slug } as never });
     },
@@ -761,23 +789,31 @@ export default function HomeScreen() {
 
   // AUDIT FIX P2.6: after the home screen has been idle for 2 s, warm up
   // the article route + post-detail query for the first 3 visible posts.
-  // This makes the most likely next taps near-instant. Cancels the timer
-  // on unmount or whenever the visible posts change.
+  // PERF FIX: wrap the work in InteractionManager so it never fires while
+  // the user is still actively scrolling/animating — prevents the prefetch
+  // burst from competing with frame production.
   useEffect(() => {
     if (latestData.length === 0) return;
     const slugs = latestData.slice(0, 3).map((p) => p.slug).filter(Boolean);
     if (slugs.length === 0) return;
+    let interactionHandle: { cancel: () => void } | null = null;
     const t = setTimeout(() => {
-      for (const slug of slugs) {
-        router.prefetch(`/news/${slug}` as never);
-        queryClient.prefetchQuery({
-          queryKey: ['post-detail', slug],
-          queryFn: () => fetchPostBySlug(slug),
-          staleTime: 30 * 60 * 1000,
-        });
-      }
+      interactionHandle = InteractionManager.runAfterInteractions(() => {
+        for (const slug of slugs) {
+          router.prefetch(`/news/${slug}` as never);
+          queryClient.prefetchQuery({
+            queryKey: ['post-detail', slug],
+            queryFn: () => fetchPostBySlug(slug),
+            // PROFILING FIX (round 2): see same comment in onPressPost.
+            staleTime: Infinity,
+          });
+        }
+      });
     }, 2000);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      interactionHandle?.cancel();
+    };
   }, [latestData, router, queryClient]);
 
   // Gesture-driven pull-to-refresh: pan tracked entirely on the UI thread,
@@ -791,17 +827,21 @@ export default function HomeScreen() {
       queryClient.invalidateQueries({ queryKey: ['weather-istog'], refetchType: 'active' }),
     ]);
   }, [queryClient]);
-  const { panGesture, scrollHandler, pullProgress, phaseValue, phase, refreshing, refreshNonce } = usePullToRefresh(doRefetch);
 
-  // Subtle content fade-in when a refresh completes — makes new articles
-  // feel "alive". Drives a SharedValue that the list wrapper reads.
-  const contentFade = useSharedValue(1);
-  useEffect(() => {
-    if (refreshNonce === 0) return;
-    contentFade.value = 0.55;
-    contentFade.value = withTiming(1, { duration: 380, easing: Easing.out(Easing.cubic) });
-  }, [refreshNonce, contentFade]);
-  const contentFadeStyle = useAnimatedStyle(() => ({ opacity: contentFade.value }));
+  // BUGFIX (scroll hijack): the previous gesture-based pull-to-refresh wrapped
+  // FlashList in a <GestureDetector><Animated.View> that intercepted touches
+  // and competed with the native scroll handler, producing the "scroll snaps
+  // article-by-article" symptom. Replaced with React Native's built-in
+  // RefreshControl which composes natively with FlashList's scroller.
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const onPullToRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await doRefetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [doRefetch]);
 
   const onHeaderSearch = useCallback(() => {
     setIsSearchActive(true);
@@ -837,27 +877,18 @@ export default function HomeScreen() {
     [],
   );
 
-  // H13: stable renderItem callback for the horizontal local rail. FlashList
-  // only mounts the visible window + drawDistance ahead, so the eager-mount
-  // cost is reduced to ~3 cards.
-  const renderLocalItem = useCallback(
-    ({ item }: ListRenderItemInfo<Post>) => (
-      <LocalCard post={item} onPress={onPressPost} />
-    ),
-    [onPressPost],
-  );
-  const keyExtractLocal = useCallback((item: Post) => item._id, []);
+  // PERF: removed `renderLocalItem` / `keyExtractLocal` — the local rail now
+  // uses a plain ScrollView+map, so these callbacks were dead code and only
+  // added to footer-memo dep churn.
 
   // ── List header: Hero → Weather → section header for grid ──────────────────
   const listHeader = useMemo(
-    () => (
+    () => {
+      return (
       <View>
-        {/* Premium 3-phase refresh banner — pushes hero down */}
-        <RefreshOverlay
-          pullProgress={pullProgress}
-          phaseValue={phaseValue}
-          phase={phase}
-        />
+        {/* BUGFIX (scroll hijack): RefreshOverlay was tied to the gesture-
+            based pull-to-refresh that was hijacking scroll. Removed; native
+            RefreshControl on the FlashList now provides the spinner. */}
 
         {/* ── HERO — only rendered when a featured or breaking post exists ── */}
         {(heroQuery.isLoading || hero) && (
@@ -878,13 +909,15 @@ export default function HomeScreen() {
         {/* ── LAJMET E FUNDIT — bespoke editorial masthead ────── */}
         <LatestNewsHeader count={latestData.length} onSeeAll={onHeaderSearch} />
       </View>
-    ),
-    [refreshing, pullProgress, phaseValue, phase, hero, heroImageUri, heroQuery.isLoading, onPressPost, onHeaderSearch, latestData.length],
+      );
+    },
+    [hero, heroImageUri, heroQuery.isLoading, onPressPost, onHeaderSearch, latestData.length],
   );
 
   // ── List footer: Lokale → Popular → Footer cards ──────────────────────────
   const listFooter = useMemo(
-    () => (
+    () => {
+      return (
       <View>
         {/* ── LAJMET E FUNDIT closer — editorial bookend for the grid ─── */}
         <View style={styles.latestCloser}>
@@ -984,8 +1017,13 @@ export default function HomeScreen() {
           </Text>
         </View>
       </View>
-    ),
-    [localData, onPressPost, onHeaderSearch, router, renderLocalItem, keyExtractLocal],
+      );
+    },
+    // PERF: `renderLocalItem` and `keyExtractLocal` were left over from when
+    // the local rail was a nested FlashList. The rail is now a plain
+    // ScrollView+map, so those callbacks are unused here and only added
+    // dependency churn that re-rendered the entire footer subtree.
+    [localData, onPressPost, onHeaderSearch, router],
   );
 
   // H15: stable contentContainerStyle reference.
@@ -1114,24 +1152,27 @@ export default function HomeScreen() {
       )}
 
       {/* Main content */}
-      <GestureDetector gesture={panGesture}>
-        <Animated.View style={[styles.flexFill, contentFadeStyle]}>
-          <AnimatedFlashList
-            data={gridData}
-            numColumns={2}
-            keyExtractor={(item) => (isSkeletonItem(item) ? item._skeleton : item._id)}
-            showsVerticalScrollIndicator={false}
-            onScroll={scrollHandler}
-            scrollEventThrottle={16}
-            decelerationRate="fast"
-            contentContainerStyle={gridContentContainerStyle}
-            ListHeaderComponent={listHeader}
-            ListFooterComponent={listFooter}
-            renderItem={renderGridItem}
-            getItemType={getGridItemType}
+      <FlashList
+        data={gridData}
+        numColumns={2}
+        keyExtractor={(item) => (isSkeletonItem(item) ? item._skeleton : item._id)}
+        showsVerticalScrollIndicator={false}
+        scrollEnabled
+        decelerationRate="fast"
+        contentContainerStyle={gridContentContainerStyle}
+        ListHeaderComponent={listHeader}
+        ListFooterComponent={listFooter}
+        renderItem={renderGridItem}
+        getItemType={getGridItemType}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onPullToRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
           />
-        </Animated.View>
-      </GestureDetector>
+        }
+      />
     </View>
   );
 }
