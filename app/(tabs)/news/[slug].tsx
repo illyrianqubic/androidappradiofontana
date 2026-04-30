@@ -39,6 +39,7 @@ import {
   defaultThumbhash,
   fetchPostBySlug,
   fetchRelatedPosts,
+  sanityImageWidths,
   type Post,
   type PortableTextBlock,
 } from '../../../services/api';
@@ -97,7 +98,7 @@ function renderBodyBlock(
   // Inline image: full-bleed (negative horizontal margins extend past the
   // article column padding so the image kisses both screen edges)
   if (block._type === 'image' && block.imageUrl) {
-    const imageUri = buildSanityImageUrl(block.imageUrl, 1080);
+    const imageUri = buildSanityImageUrl(block.imageUrl, sanityImageWidths.articleInline);
     if (!imageUri) return null;
     return (
       <View key={`${block._key}-${index}`} style={styles.inlineImageWrap}>
@@ -396,7 +397,7 @@ export default function ArticleDetailScreen() {
   const relatedPosts = useMemo(() => relatedQuery.data ?? [], [relatedQuery.data]);
   const post = postQuery.data;
   const heroImageUri = useMemo(
-    () => buildSanityImageUrl(post?.mainImageUrl, 1080),
+    () => buildSanityImageUrl(post?.mainImageUrl, sanityImageWidths.articleHero),
     [post?.mainImageUrl],
   );
   const heroCategory = useMemo(
@@ -656,7 +657,7 @@ export default function ArticleDetailScreen() {
                 post={item}
                 index={i}
                 isLast={i === Math.min(relatedPosts.length, 6) - 1}
-                onPress={() => onOpenRelatedPost(item)}
+                onPress={onOpenRelatedPost}
               />
             ))}
           </View>
@@ -705,7 +706,7 @@ function ShareIcon({
   );
 }
 
-function RelatedItem({
+const RelatedItem = memo(function RelatedItem({
   post,
   isLast,
   onPress,
@@ -713,14 +714,15 @@ function RelatedItem({
   post: Post;
   index: number;
   isLast: boolean;
-  onPress: () => void;
+  onPress: (post: Post) => void;
 }) {
-  const thumbUri = buildSanityImageUrl(post.mainImageUrl, 800);
+  const thumbUri = buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.articleRelated);
   const cat = (post.categories?.[0] ?? 'Lajme').trim().toUpperCase();
+  const handlePress = useCallback(() => onPress(post), [onPress, post]);
   return (
     <View style={styles.relatedCardWrap}>
       <Pressable
-        onPress={onPress}
+        onPress={handlePress}
         style={({ pressed }) => [styles.relatedCard, pressed && { opacity: 0.75 }]}
       >
         {/* Clean image — no overlay */}
@@ -751,7 +753,7 @@ function RelatedItem({
       {!isLast ? <View style={styles.relatedSep} /> : null}
     </View>
   );
-}
+});
 
 // ── StyleSheet ───────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({

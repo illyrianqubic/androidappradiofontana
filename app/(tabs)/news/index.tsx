@@ -1,4 +1,4 @@
-import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   InteractionManager,
   Pressable,
@@ -28,6 +28,7 @@ import {
   defaultThumbhash,
   fetchLatestPosts,
   fetchPostBySlug,
+  sanityImageWidths,
   type Post,
 } from '../../../services/api';
 
@@ -49,7 +50,7 @@ const NEWS_CATEGORY_TABS: NewsCategoryTab[] = [
 const FeaturedCard = memo(function FeaturedCard({ post, onPress }: { post: Post; onPress: (p: Post) => void }) {
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  const imageUri = buildSanityImageUrl(post.mainImageUrl, 1080);
+  const imageUri = buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.newsFeatured);
   const cat = post.categories?.[0] ?? 'Lajme';
   const initial = ((post.author ?? 'Redaksia Fontana').trim().charAt(0) || 'R').toUpperCase();
   // Reading time estimate — 4× (excerpt + title) at 220 wpm.
@@ -198,11 +199,14 @@ export default function NewsIndexScreen() {
   const listRef = useRef<FlashListRef<Post>>(null);
   const [activeCategory, setActiveCategory] = useState<NewsCategoryTab>(NEWS_CATEGORY_TABS[0]);
   const [search, setSearch] = useState('');
-  // AUDIT FIX P7.25 + P7.26: replace 300ms setTimeout debounce with React 19's
-  // useDeferredValue. The deferred value updates in a low-priority transition,
-  // so the TextInput stays at 60 fps while the heavy query/render is throttled
-  // automatically — no fixed delay, no setTimeout, no extra re-render.
-  const debouncedSearch = useDeferredValue(search);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const next = search.trim().toLowerCase();
+    const timer = setTimeout(() => {
+      setDebouncedSearch((prev) => (prev === next ? prev : next));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   // Header height: statusBar + titleRow(66) + search(54) + categories(50) + divider(1)
   const HEADER_H = insets.top + 171;
@@ -222,16 +226,16 @@ export default function NewsIndexScreen() {
 
   const openPost = useCallback(
     (post: Post) => {
-      // C-A7: pre-fetch the 480px hero (matches sizes used on the slug screen)
-      // so the article hero renders from memory cache on arrival.
+      // Pre-fetch the exact hero URL used by the article screen so navigation
+      // does not fetch a second, larger Sanity image variant.
       // M-C3: capped at 3 concurrent so card-mashing never floods the socket pool.
-      queueImagePrefetch(buildSanityImageUrl(post.mainImageUrl, 480));
+      queueImagePrefetch(buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.articleHero));
       // AUDIT FIX P2.5: warm route module + post-detail query so the article
       // screen renders the moment the slide animation completes.
       router.prefetch(`/news/${post.slug}` as never);
       queryClient.prefetchQuery({
         queryKey: ['post-detail', post.slug],
-        queryFn: () => fetchPostBySlug(post.slug),
+        queryFn: ({ signal }) => fetchPostBySlug(post.slug, signal),
         // PROFILING FIX (round 2): see comment in (tabs)/index.tsx.
         staleTime: Infinity,
       });
@@ -245,26 +249,13 @@ export default function NewsIndexScreen() {
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, []);
 
-  const refresh = useCallback(async () => {
-    // Use refetchQueries so the Promise resolves only after the network
-    // response lands (invalidateQueries resolves immediately on mark-stale).
-    await queryClient.refetchQueries({
-      queryKey: ['news-feed', activeCategory.slug, debouncedSearch],
-      type: 'active',
-    });
-  }, [queryClient, activeCategory.slug, debouncedSearch]);
-
-  // BUGFIX (scroll hijack): same fix as home — native RefreshControl
-  // instead of GestureDetector + AnimatedFlashList wrapper.
   const [isRefreshing, setIsRefreshing] = useState(false);
   const onPullToRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    try {
-      await refresh();
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [refresh]);
+    void queryClient.invalidateQueries({ queryKey: ['news-feed'] });
+    await new Promise<void>((r) => setTimeout(r, 300));
+    setIsRefreshing(false);
+  }, [queryClient]);
 
   // AUDIT FIX P2.6: idle-prefetch the first 3 visible posts after 2 s of
   // dwell time so the most likely next taps are near-instant. Declared
@@ -286,7 +277,7 @@ export default function NewsIndexScreen() {
           router.prefetch(`/news/${slug}` as never);
           queryClient.prefetchQuery({
             queryKey: ['post-detail', slug],
-            queryFn: () => fetchPostBySlug(slug),
+            queryFn: ({ signal }) => fetchPostBySlug(slug, signal),
             // PROFILING FIX (round 2): see comment in (tabs)/index.tsx.
             staleTime: Infinity,
           });
@@ -419,6 +410,7 @@ export default function NewsIndexScreen() {
             onRefresh={onPullToRefresh}
             tintColor={colors.primary}
             colors={[colors.primary]}
+            progressViewOffset={HEADER_H}
           />
         }
       />
@@ -698,4 +690,3 @@ const S = StyleSheet.create({
     lineHeight: 20,
   },
 });
-

@@ -56,6 +56,15 @@ export type Post = {
   body?: PortableTextBlock[];
 };
 
+export const sanityImageWidths = {
+  feedCard: 540,
+  feedThumb: 480,
+  newsFeatured: 720,
+  articleHero: 720,
+  articleInline: 720,
+  articleRelated: 540,
+} as const;
+
 type SanityResponse<T> = {
   result: T;
 };
@@ -296,5 +305,4 @@ export async function fetchRelatedPosts(slug: string, categories: string[] = [],
   const data = await sanityFetch<Post[]>(query, { slug, category, limit: 6 }, { signal });
   return data ?? [];
 }
-
 

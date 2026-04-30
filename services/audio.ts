@@ -11,14 +11,21 @@ import * as Haptics from 'expo-haptics';
 import {
   createAudioPlayer,
   setAudioModeAsync,
+  type AudioLockScreenOptions,
+  type AudioMetadata,
   type AudioPlayer,
   type AudioStatus,
 } from 'expo-audio';
+import { InteractionManager } from 'react-native';
 import { appIdentity } from '../design-tokens';
 import { addListeningHistory } from './storage';
 
 const STREAM_URL = 'https://live.radiostreaming.al:8010/stream.mp3';
 const reconnectDelaysMs = [1000, 2000, 4000, 8000, 16000, 30000];
+const lockScreenOptions: AudioLockScreenOptions = {
+  showSeekBackward: false,
+  showSeekForward: false,
+};
 
 const PlayerState = {
   none: 0,
@@ -143,6 +150,8 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
   const playerRef = useRef<AudioPlayer | null>(null);
   const statusSubscriptionRef = useRef<{ remove: () => void } | null>(null);
+  const lockScreenActiveRef = useRef(false);
+  const lockScreenMetadataRef = useRef<AudioMetadata | null>(null);
   const mountedRef = useRef(true);
   const initializingRef = useRef(false);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -171,6 +180,60 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const buildLockScreenMetadata = useCallback((): AudioMetadata => {
+    const cur = stateRef.current.metadata;
+    const title =
+      cur.title && cur.title !== 'Gabim në stream'
+        ? cur.title
+        : appIdentity.stationName;
+    const artist =
+      cur.artist && cur.artist !== 'Provo përsëri'
+        ? cur.artist
+        : appIdentity.location;
+    return {
+      title,
+      artist,
+      albumTitle: appIdentity.stationName,
+    };
+  }, []);
+
+  const clearLockScreenControls = useCallback(() => {
+    const player = playerRef.current;
+    try {
+      player?.clearLockScreenControls();
+    } catch {
+      // Lock-screen controls are best effort; playback state is still the source of truth.
+    }
+    lockScreenActiveRef.current = false;
+    lockScreenMetadataRef.current = null;
+  }, []);
+
+  const activateLockScreenControls = useCallback((player?: AudioPlayer | null) => {
+    const target = player ?? playerRef.current;
+    if (!target) return;
+
+    const metadata = buildLockScreenMetadata();
+    try {
+      if (!lockScreenActiveRef.current) {
+        target.setActiveForLockScreen(true, metadata, lockScreenOptions);
+        lockScreenActiveRef.current = true;
+      } else {
+        const prev = lockScreenMetadataRef.current;
+        if (
+          prev?.title !== metadata.title ||
+          prev?.artist !== metadata.artist ||
+          prev?.albumTitle !== metadata.albumTitle
+        ) {
+          target.updateLockScreenMetadata(metadata);
+        }
+      }
+      lockScreenMetadataRef.current = metadata;
+    } catch {
+      lockScreenActiveRef.current = false;
+      lockScreenMetadataRef.current = null;
+    }
+  }, [buildLockScreenMetadata]);
+
   const onPlaybackStatusUpdate = useCallback((status: AudioStatus) => {
     if (!mountedRef.current) {
       return;
@@ -190,6 +253,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
     if (isFailureState) {
       pauseIntentRef.current = false;
+      clearLockScreenControls();
       updateState({
         isPlaying: false,
         isBuffering: false,
@@ -226,6 +290,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         // action has been issued since we entered this callback (C-A2).
         if (!generationMatches()) return;
         pauseIntentRef.current = false;
+        clearLockScreenControls();
         updateState({
           isPlaying: false,
           isBuffering: false,
@@ -251,6 +316,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     if (playing) {
       reconnectAttemptRef.current = 0;
       if (!generationMatches()) return;
+      activateLockScreenControls();
       updateState({
         isPlaying: true,
         isBuffering: false,
@@ -269,21 +335,24 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     // queued callbacks issued before the latest user action.
     if (userIntentRef.current === 'play') return;
     if (!generationMatches()) return;
+    clearReconnectTimeout();
+    clearLockScreenControls();
     updateState({
       isPlaying: false,
       isBuffering: false,
       isReconnecting: false,
       playbackState: PlayerState.paused,
     });
-  }, [updateState]);
+  }, [activateLockScreenControls, clearLockScreenControls, clearReconnectTimeout, updateState]);
 
   const releaseCurrentPlayer = useCallback(() => {
     statusSubscriptionRef.current?.remove();
     statusSubscriptionRef.current = null;
 
+    clearLockScreenControls();
     playerRef.current?.remove();
     playerRef.current = null;
-  }, []);
+  }, [clearLockScreenControls]);
 
   const createAndAttachPlayer = useCallback(
     (autoPlay: boolean) => {
@@ -312,11 +381,12 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
       if (autoPlay) {
         player.play();
+        activateLockScreenControls(player);
       }
 
       return player;
     },
-    [onPlaybackStatusUpdate, releaseCurrentPlayer],
+    [activateLockScreenControls, onPlaybackStatusUpdate, releaseCurrentPlayer],
   );
 
   const ensurePlayer = useCallback(async () => {
@@ -461,10 +531,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       }
 
       player.play();
+      activateLockScreenControls(player);
     } catch {
       await reconnect();
     }
-  }, [ensurePlayer, reconnect, updateState]);
+  }, [activateLockScreenControls, ensurePlayer, reconnect, updateState]);
 
   const pause = useCallback(() => {
     // C-A2: bump generation + record intent so status callbacks from a
@@ -482,6 +553,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       isBuffering: false,
       playbackState: PlayerState.paused,
     });
+    clearLockScreenControls();
 
     const player = playerRef.current;
     if (!player) {
@@ -494,7 +566,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     } else {
       pauseIntentRef.current = false;
     }
-  }, [cancelReconnect, updateState]);
+  }, [cancelReconnect, clearLockScreenControls, updateState]);
 
   const toggle = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
@@ -510,15 +582,27 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     mountedRef.current = true;
-    ensurePlayer().catch(() => {
-      updateState({
-        playbackState: PlayerState.error,
-        metadata: { title: 'Gabim në stream', artist: 'Provo përsëri' },
+
+    // Native audio-mode setup and ExoPlayer/AVPlayer creation are useful to
+    // have ready, but they do not need to sit on the cold-start critical
+    // path. Prewarm shortly after the first screen settles; an immediate user
+    // tap still calls ensurePlayer() through play().
+    let interactionHandle: { cancel: () => void } | null = null;
+    const prewarmTimer = setTimeout(() => {
+      interactionHandle = InteractionManager.runAfterInteractions(() => {
+        ensurePlayer().catch(() => {
+          updateState({
+            playbackState: PlayerState.error,
+            metadata: { title: 'Gabim në stream', artist: 'Provo përsëri' },
+          });
+        });
       });
-    });
+    }, 2500);
 
     return () => {
       mountedRef.current = false;
+      clearTimeout(prewarmTimer);
+      interactionHandle?.cancel();
       cancelReconnect();
       releaseCurrentPlayer();
     };
@@ -529,6 +613,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   // record a history row once per actual song change. Track the last written
   // title and ignore re-emits for the same song.
   const lastHistoryTitleRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!lockScreenActiveRef.current) return;
+    activateLockScreenControls();
+  }, [activateLockScreenControls, metadata.artist, metadata.title]);
+
   useEffect(() => {
     if (
       !isPlaying ||

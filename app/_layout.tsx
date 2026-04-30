@@ -107,6 +107,11 @@ function createAsyncStoragePersister(opts: {
   throttleTime?: number;
 }): Persister {
   const KEY = 'REACT_QUERY_OFFLINE_CACHE';
+  // Old app versions persisted article bodies and every news category. Some
+  // devices may still have a 500KB+ dehydrated blob on disk; parsing that on
+  // startup blocks Hermes long before React can paint. If we see a legacy
+  // oversized cache, drop it and let the small allowlisted cache rebuild.
+  const MAX_RESTORE_CHARS = 250_000;
   let lastWriteTs = 0;
   let pending: unknown | undefined;
   let scheduled = false;
@@ -142,6 +147,10 @@ function createAsyncStoragePersister(opts: {
     restoreClient: async () => {
       const raw = opts.storage.getItem(KEY);
       if (!raw) return undefined;
+      if (raw.length > MAX_RESTORE_CHARS) {
+        opts.storage.removeItem(KEY);
+        return undefined;
+      }
       try {
         // First-restore parse runs ONCE at cold start. We accept this cost
         // (still ~10–40 ms) because there is no work to defer it behind —

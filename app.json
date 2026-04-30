@@ -25,7 +25,6 @@
       "infoPlist": {
         "UIBackgroundModes": [
           "audio",
-          "fetch",
           "remote-notification"
         ]
       }
@@ -45,6 +44,9 @@
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "notification": {
@@ -73,7 +75,13 @@
         }
       ],
       "expo-notifications",
-      "expo-audio"
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

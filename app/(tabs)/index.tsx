@@ -1,4 +1,4 @@
-import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AppState,
   InteractionManager,
@@ -52,6 +52,7 @@ import {
   fetchLatestPosts,
   fetchLocalPosts,
   fetchPostBySlug,
+  sanityImageWidths,
   type Post,
 } from '../../services/api';
 
@@ -367,7 +368,7 @@ const LocalCard = memo(function LocalCard({ post, onPress }: { post: Post; onPre
   const scale = useSharedValue(1);
   const scaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const imageUri = useMemo(
-    () => buildSanityImageUrl(post.mainImageUrl, 480),
+    () => buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.feedThumb),
     [post.mainImageUrl],
   );
 
@@ -521,7 +522,10 @@ const GridItem = memo(function GridItem({
   isLeft: boolean;
   onPress: (p: Post) => void;
 }) {
-  const imageUri = useMemo(() => buildSanityImageUrl(item.mainImageUrl, 540), [item.mainImageUrl]);
+  const imageUri = useMemo(
+    () => buildSanityImageUrl(item.mainImageUrl, sanityImageWidths.feedCard),
+    [item.mainImageUrl],
+  );
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const initial = ((item.author ?? 'Redaksia Fontana').trim().charAt(0) || 'R').toUpperCase();
@@ -607,7 +611,7 @@ const SearchResultCard = memo(function SearchResultCard({
 }) {
   // M27: thumbnails standardized at 480px wide.
   const imageUri = useMemo(
-    () => (item.mainImageUrl ? buildSanityImageUrl(item.mainImageUrl, 480) : undefined),
+    () => (item.mainImageUrl ? buildSanityImageUrl(item.mainImageUrl, sanityImageWidths.feedThumb) : undefined),
     [item.mainImageUrl],
   );
   // M26: shared-value driven press feedback (no per-press style array allocation).
@@ -658,7 +662,10 @@ export default function HomeScreen() {
   // typists drop frames. Mirrors the news-feed search debounce.
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearchQuery(searchQuery), 300);
+    const next = searchQuery.trim().toLowerCase();
+    const t = setTimeout(() => {
+      setDebouncedSearchQuery((prev) => (prev === next ? prev : next));
+    }, 300);
     return () => clearTimeout(t);
   }, [searchQuery]);
   const searchInputRef = useRef<TextInput>(null);
@@ -737,7 +744,10 @@ export default function HomeScreen() {
   // C-A7: hero rendered at 480 px (was 900). Even on full-width devices the
   // hero card paints at < 380 px wide. 900 px allocated ~6 MB of GPU texture
   // for an image that never displays at that resolution.
-  const heroImageUri = useMemo(() => buildSanityImageUrl(hero?.mainImageUrl, 480) ?? null, [hero?.mainImageUrl]);
+  const heroImageUri = useMemo(
+    () => buildSanityImageUrl(hero?.mainImageUrl, sanityImageWidths.feedThumb) ?? null,
+    [hero?.mainImageUrl],
+  );
   const latestData   = useMemo(() => latestQuery.data ?? [], [latestQuery.data]);
   const breakingData = useMemo(() => breakingQuery.data ?? [], [breakingQuery.data]);
   const localData    = useMemo(() => localQuery.data ?? [], [localQuery.data]);
@@ -746,7 +756,7 @@ export default function HomeScreen() {
   const gridData: LatestGridItem[] = showLatestSkeleton ? latestSkeleton : latestData;
 
   const filteredData = useMemo(() => {
-    const q = debouncedSearchQuery.trim().toLowerCase();
+    const q = debouncedSearchQuery;
     if (!q) return latestData;
     return latestData.filter(
       (p) => p.title.toLowerCase().includes(q) || (p.excerpt ?? '').toLowerCase().includes(q),
@@ -761,11 +771,11 @@ export default function HomeScreen() {
   );
   const onPressPost = useCallback(
     (post: Post) => {
-      // C-A7: hero on the article screen now also fetches at 480 px (matched
-      // in the slug screen). Prefetch the matching URL so it lands in the
-      // expo-image memory cache before navigation completes (~0 ms render).
+      // Prefetch the same URL the article hero will request so the image bind
+      // hits expo-image cache after navigation instead of downloading a
+      // second, larger Sanity variant.
       // M-C3: routed through queueImagePrefetch so rapid taps cap at 3 in-flight.
-      queueImagePrefetch(buildSanityImageUrl(post.mainImageUrl, 480));
+      queueImagePrefetch(buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.articleHero));
       // AUDIT FIX P2.5: warm both the route module bundle AND the
       // post-detail query so the article can render the moment the slide
       // animation completes. Saves ~400–700 ms perceived per article open.
@@ -779,7 +789,7 @@ export default function HomeScreen() {
       // forever (combined with `refetchOnMount: false` there).
       queryClient.prefetchQuery({
         queryKey: ['post-detail', post.slug],
-        queryFn: () => fetchPostBySlug(post.slug),
+        queryFn: ({ signal }) => fetchPostBySlug(post.slug, signal),
         staleTime: Infinity,
       });
       router.push({ pathname: '/news/[slug]' as never, params: { slug: post.slug } as never });
@@ -803,7 +813,7 @@ export default function HomeScreen() {
           router.prefetch(`/news/${slug}` as never);
           queryClient.prefetchQuery({
             queryKey: ['post-detail', slug],
-            queryFn: () => fetchPostBySlug(slug),
+            queryFn: ({ signal }) => fetchPostBySlug(slug, signal),
             // PROFILING FIX (round 2): see same comment in onPressPost.
             staleTime: Infinity,
           });
@@ -816,36 +826,19 @@ export default function HomeScreen() {
     };
   }, [latestData, router, queryClient]);
 
-  // Gesture-driven pull-to-refresh: pan tracked entirely on the UI thread,
-  // refresh fires via runOnJS once threshold is crossed. Min 2.5s visible.
-  const doRefetch = useCallback(async () => {
-    // Use refetchQueries (not invalidateQueries) so the Promise resolves
-    // only after the network responses land. invalidateQueries resolves as
-    // soon as queries are marked stale, which made the spinner vanish before
-    // new data arrived.
-    await Promise.all([
-      queryClient.refetchQueries({ queryKey: ['home-hero'],     type: 'active' }),
-      queryClient.refetchQueries({ queryKey: ['home-breaking'], type: 'active' }),
-      queryClient.refetchQueries({ queryKey: ['home-latest'],   type: 'active' }),
-      queryClient.refetchQueries({ queryKey: ['home-local'],    type: 'active' }),
-      queryClient.refetchQueries({ queryKey: ['weather-istog'], type: 'active' }),
-    ]);
-  }, [queryClient]);
-
-  // BUGFIX (scroll hijack): the previous gesture-based pull-to-refresh wrapped
-  // FlashList in a <GestureDetector><Animated.View> that intercepted touches
-  // and competed with the native scroll handler, producing the "scroll snaps
-  // article-by-article" symptom. Replaced with React Native's built-in
-  // RefreshControl which composes natively with FlashList's scroller.
   const [isRefreshing, setIsRefreshing] = useState(false);
   const onPullToRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    try {
-      await doRefetch();
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [doRefetch]);
+    // Fire invalidations without awaiting — queries refetch in the background
+    // and the UI updates as each one lands. Waiting for all responses was the
+    // source of multi-second spinner delays.
+    void queryClient.invalidateQueries({ queryKey: ['home-hero'] });
+    void queryClient.invalidateQueries({ queryKey: ['home-breaking'] });
+    void queryClient.invalidateQueries({ queryKey: ['home-latest'] });
+    void queryClient.invalidateQueries({ queryKey: ['home-local'] });
+    await new Promise<void>((r) => setTimeout(r, 300));
+    setIsRefreshing(false);
+  }, [queryClient]);
 
   const onHeaderSearch = useCallback(() => {
     setIsSearchActive(true);
@@ -1173,6 +1166,7 @@ export default function HomeScreen() {
             onRefresh={onPullToRefresh}
             tintColor={colors.primary}
             colors={[colors.primary]}
+            progressViewOffset={topInsetOffset}
           />
         }
       />
