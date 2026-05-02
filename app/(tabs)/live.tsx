@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { memo, useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 // A-3: deep import skips loading all other icon sets' glyph maps.
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -32,7 +32,7 @@ const TEXT_MUTED = '#9CA3AF';
 const BAR_HEIGHTS = [18, 32, 44, 28, 48, 36, 22, 42, 30, 20, 38, 26, 46].map((h) => s(h));
 const BAR_OFFSETS = [0, 0.18, 0.09, 0.31, 0.06, 0.24, 0.12, 0.37, 0.15, 0.27, 0.04, 0.21, 0.10];
 
-function EqBar({
+const EqBar = memo(function EqBar({
   maxH,
   offset,
   phase,
@@ -48,7 +48,7 @@ function EqBar({
   }, [maxH, offset]);
   const style = useAnimatedStyle(() => ({ height: h.value }));
   return <Animated.View style={[styles.eqBar, style]} />;
-}
+});
 
 function Equalizer({ playing }: { playing: boolean }) {
   const phase = useSharedValue(0);
@@ -213,11 +213,11 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 40,
     backgroundColor: colors.surface,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    shadowColor: colors.navy,
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
   headerRow: {
     height: 66,
@@ -228,9 +228,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   headerLogo: {
-    width: s(46),
-    height: s(46),
-    borderRadius: s(11),
+    width: 46,
+    height: 46,
+    borderRadius: 11,
     backgroundColor: colors.surfaceSubtle,
   },
   headerSpacer: {

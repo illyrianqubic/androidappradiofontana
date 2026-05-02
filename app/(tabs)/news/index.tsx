@@ -192,6 +192,8 @@ export default function NewsIndexScreen() {
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlashListRef<Post>>(null);
   const [activeCategory, setActiveCategory] = useState<NewsCategoryTab>(NEWS_CATEGORY_TABS[0]);
+  const activeCategorySlugRef = useRef(activeCategory.slug);
+  activeCategorySlugRef.current = activeCategory.slug;
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
   // Header height: statusBar + titleRow(66) + search(54) + categories(50) + divider(1)
@@ -232,10 +234,10 @@ export default function NewsIndexScreen() {
   );
 
   const onSelectCategory = useCallback((tab: NewsCategoryTab) => {
-    if (tab.slug === activeCategory.slug) return;
+    if (tab.slug === activeCategorySlugRef.current) return;
     setActiveCategory(tab);
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
-  }, [activeCategory.slug]);
+  }, []);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [bannerVisible, setBannerVisible] = useState(false);
