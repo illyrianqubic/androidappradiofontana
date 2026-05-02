@@ -20,18 +20,18 @@ import { appIdentity, colors, fonts } from '../../constants/tokens';
 import { ms, s } from '../../lib/responsive';
 import { useAudioActions, useAudioState } from '../../services/audio';
 
-const BG = '#0d1117';
-const SURFACE = '#161b22';
 const RED = '#dc2626';
-const RED_BOX = 'rgba(220,38,38,0.22)';
+const RED_DEEP = '#b91c1c';
+const RED_TINT = 'rgba(220,38,38,0.07)';
+const SURFACE = '#F3F4F6';
+const TEXT_PRIMARY = '#111827';
+const TEXT_SECONDARY = '#6B7280';
+const TEXT_MUTED = '#9CA3AF';
 
 // ── Animated equalizer bar ─────────────────────────────────────────────────────
 const BAR_HEIGHTS = [18, 32, 44, 28, 48, 36, 22, 42, 30, 20, 38, 26, 46].map((h) => s(h));
-// Phase offset per bar (0..1) — staggers the wave across the row.
 const BAR_OFFSETS = [0, 0.18, 0.09, 0.31, 0.06, 0.24, 0.12, 0.37, 0.15, 0.27, 0.04, 0.21, 0.10];
 
-// H10/H11: single shared phase drives all 13 bars via cheap derived values.
-// Previously each bar held its own withRepeat loop = 13 UI-thread animators.
 function EqBar({
   maxH,
   offset,
@@ -43,8 +43,8 @@ function EqBar({
 }) {
   const h = useDerivedValue(() => {
     'worklet';
-    const s = (Math.sin((phase.value + offset) * Math.PI * 2) + 1) * 0.5;
-    return 6 + (maxH - 6) * s;
+    const sv = (Math.sin((phase.value + offset) * Math.PI * 2) + 1) * 0.5;
+    return 6 + (maxH - 6) * sv;
   }, [maxH, offset]);
   const style = useAnimatedStyle(() => ({ height: h.value }));
   return <Animated.View style={[styles.eqBar, style]} />;
@@ -104,7 +104,7 @@ export default function LiveScreen() {
 
   return (
     <View style={styles.screen}>
-      {/* ── Top bar (same as home) ──────────────────────────── */}
+      {/* ── Top bar ──────────────────────────────────────────── */}
       <View style={[styles.headerShell, { paddingTop: insets.top }]}>
         <View style={styles.headerRow}>
           <Image source={appIdentity.logo} contentFit="cover" style={styles.headerLogo} />
@@ -113,9 +113,8 @@ export default function LiveScreen() {
         </View>
       </View>
 
-      {/* ── Top zone: icon → play button ─────────────────── */}
+      {/* ── Top zone: icon → play button ─────────────────────── */}
       <View style={[styles.topZone, { paddingTop: headerHeight + 24 }]}>
-        {/* Flexible spacer pushes content below center */}
         <View style={[styles.topSpacer, !isPlaying && { flex: 1.6 }]} />
 
         {/* Radio icon box */}
@@ -123,7 +122,7 @@ export default function LiveScreen() {
           <Ionicons
             name="radio-outline"
             size={s(28)}
-            color={isPlaying ? RED : 'rgba(255,255,255,0.82)'}
+            color={isPlaying ? RED : TEXT_MUTED}
           />
         </View>
 
@@ -135,8 +134,8 @@ export default function LiveScreen() {
 
         {/* Station info */}
         <View style={styles.infoGroup}>
-          <Text style={styles.name}>Radio Fontana 98.8 FM</Text>
-          <Text style={styles.freq}>98.8 FM · Istog, Kosovë</Text>
+          <Text style={styles.name}>RTV Fontana 98.8 FM</Text>
+          <Text style={styles.freq}>Istog, Kosovë</Text>
           <Text style={styles.desc}>Transmetim 24/7 me cilësi të lartë</Text>
         </View>
 
@@ -153,35 +152,29 @@ export default function LiveScreen() {
           <Ionicons
             name={playIconName}
             size={s(36)}
-            color={isPlaying ? '#FFFFFF' : BG}
+            color="#FFFFFF"
             style={playIconName === 'play' ? styles.playIconNudge : undefined}
           />
         </Pressable>
 
-        {/* M-C7: keep Equalizer mounted always; just toggle `playing` so its
-            withRepeat tween cancels/resumes without tearing down 5 worklets +
-            5 useDerivedValue subscriptions per play/pause toggle.
-            R-7: removed redundant outer eqRow wrapper \u2014 Equalizer already
-            renders its own <View style={styles.eqRow}>. The double wrap
-            added a useless intermediate View to layout / shadow tree. */}
         <Equalizer playing={isPlaying} />
       </View>
 
-      {/* ── Bottom zone: stat cards ───────────────────────── */}
+      {/* ── Bottom zone: stat cards ───────────────────────────── */}
       <View style={[styles.bottomZone, { paddingBottom: insets.bottom + s(14) }]}>
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <Ionicons name="time-outline" size={s(22)} color="rgba(255,255,255,0.42)" />
+            <Ionicons name="time-outline" size={s(22)} color={TEXT_MUTED} />
             <Text style={styles.statVal}>24/7</Text>
             <Text style={styles.statLbl}>LIVE</Text>
           </View>
           <View style={styles.statCard}>
-            <Ionicons name="volume-medium-outline" size={s(22)} color="rgba(255,255,255,0.42)" />
+            <Ionicons name="volume-medium-outline" size={s(22)} color={TEXT_MUTED} />
             <Text style={styles.statVal}>HQ</Text>
             <Text style={styles.statLbl}>320KBPS</Text>
           </View>
           <View style={styles.statCard}>
-            <Ionicons name="wifi-outline" size={s(22)} color="rgba(255,255,255,0.42)" />
+            <Ionicons name="wifi-outline" size={s(22)} color={TEXT_MUTED} />
             <Text style={styles.statVal}>FM</Text>
             <Text style={styles.statLbl}>98.8</Text>
           </View>
@@ -194,7 +187,7 @@ export default function LiveScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: BG,
+    backgroundColor: '#FFFFFF',
   },
   topZone: {
     flex: 1.35,
@@ -220,11 +213,11 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 40,
     backgroundColor: colors.surface,
-    shadowColor: colors.navy,
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   headerRow: {
     height: 66,
@@ -255,7 +248,7 @@ const styles = StyleSheet.create({
     marginBottom: s(12),
   },
   iconBoxPlaying: {
-    backgroundColor: RED_BOX,
+    backgroundColor: RED_TINT,
   },
 
   // ── Status badge ────────────────────────────────────────────
@@ -276,13 +269,13 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 3.5,
-    backgroundColor: 'rgba(255,255,255,0.55)',
+    backgroundColor: TEXT_MUTED,
   },
   badgeDotPlaying: {
     backgroundColor: '#FFFFFF',
   },
   badgeText: {
-    color: 'rgba(255,255,255,0.85)',
+    color: TEXT_SECONDARY,
     fontFamily: fonts.uiBold,
     fontSize: ms(12),
     letterSpacing: 0.8,
@@ -300,7 +293,7 @@ const styles = StyleSheet.create({
     marginBottom: s(24),
   },
   name: {
-    color: '#FFFFFF',
+    color: TEXT_PRIMARY,
     fontFamily: fonts.uiBold,
     fontSize: ms(26),
     letterSpacing: -0.8,
@@ -308,13 +301,13 @@ const styles = StyleSheet.create({
     lineHeight: ms(34),
   },
   freq: {
-    color: 'rgba(255,255,255,0.58)',
+    color: TEXT_SECONDARY,
     fontFamily: fonts.uiRegular,
     fontSize: ms(14),
     textAlign: 'center',
   },
   desc: {
-    color: 'rgba(255,255,255,0.34)',
+    color: TEXT_MUTED,
     fontFamily: fonts.uiRegular,
     fontSize: ms(12.5),
     textAlign: 'center',
@@ -326,14 +319,19 @@ const styles = StyleSheet.create({
     width: s(78),
     height: s(78),
     borderRadius: s(39),
-    backgroundColor: '#FFFFFF',
+    backgroundColor: RED,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: s(16),
     marginTop: s(10),
+    shadowColor: RED,
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
   playBtnPlaying: {
-    backgroundColor: RED,
+    backgroundColor: RED_DEEP,
   },
   playBtnPressed: {
     opacity: 0.86,
@@ -373,13 +371,13 @@ const styles = StyleSheet.create({
     gap: s(4),
   },
   statVal: {
-    color: '#FFFFFF',
+    color: TEXT_PRIMARY,
     fontFamily: fonts.uiBold,
     fontSize: ms(20),
     letterSpacing: -0.3,
   },
   statLbl: {
-    color: 'rgba(255,255,255,0.40)',
+    color: TEXT_MUTED,
     fontFamily: fonts.uiBold,
     fontSize: ms(9),
     letterSpacing: 0.7,

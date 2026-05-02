@@ -1,7 +1,7 @@
 import { Component, useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -24,7 +24,6 @@ import {
   type Persister,
 } from '@tanstack/react-query-persist-client';
 import { LaunchSplash } from '../components/ui/LaunchSplash';
-import { MiniPlayerVisibilityGate } from '../components/audio/MiniPlayer';
 import { HamburgerDrawer } from '../components/ui/HamburgerDrawer';
 import { AudioProvider } from '../services/audio';
 import { DrawerProvider } from '../providers/DrawerProvider';
@@ -230,14 +229,6 @@ const PLAYER_SCREEN_OPTIONS = {
   gestureEnabled: true,
 } as const;
 
-// MiniPlayer host — isolates `usePathname()` so route changes only re-render
-// the visibility gate (and not the audio-driven MiniPlayer body).
-function MiniPlayerHost() {
-  const router = useRouter();
-  const onOpen = useCallback(() => router.push('/player' as never), [router]);
-  return <MiniPlayerVisibilityGate onOpenPlayer={onOpen} />;
-}
-
 type StartupState = {
   showLaunchSplash: boolean;
   nativeSplashHidden: boolean;
@@ -376,8 +367,6 @@ export default function RootLayout() {
                 <Stack.Screen name="na-kontakto" />
                 <Stack.Screen name="player" options={PLAYER_SCREEN_OPTIONS} />
               </Stack>
-
-              <MiniPlayerHost />
 
               {showLaunchSplash ? (
                 <LaunchSplash onComplete={onLaunchSplashComplete} isContentReady={contentReady} />
