@@ -310,12 +310,6 @@ const HeroCard = memo(function HeroCard({
   const scale = useSharedValue(1);
   const scaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const cat = hero.categories?.[0] ?? 'Lajme';
-  const initial = ((hero.author ?? 'Redaksia Fontana').trim().charAt(0) || 'R').toUpperCase();
-  const readingMin = (() => {
-    const text = `${hero.title ?? ''} ${hero.excerpt ?? ''}`.trim();
-    if (!text) return 3;
-    return Math.max(2, Math.ceil((text.split(/\s+/).length * 4) / 220));
-  })();
 
   return (
     <Animated.View style={[styles.heroOuter, scaleStyle]}>
@@ -361,22 +355,7 @@ const HeroCard = memo(function HeroCard({
           ) : null}
 
           <View style={styles.heroBylineRule} />
-
-          <View style={styles.heroByline}>
-            <View style={styles.heroAvatar}>
-              <Text style={styles.heroAvatarText}>{initial}</Text>
-            </View>
-            <View style={styles.heroBylineCol}>
-              <Text numberOfLines={1} style={styles.heroAuthor}>
-                {hero.author ?? 'Redaksia Fontana'}
-              </Text>
-              <View style={styles.heroMetaRow}>
-                <Text style={styles.heroMetaText}>{readingMin} min lexim</Text>
-                <View style={styles.heroMetaDot} />
-                <RelativeTime timestamp={hero.publishedAt} style={styles.heroMetaText} />
-              </View>
-            </View>
-          </View>
+          <RelativeTime timestamp={hero.publishedAt} style={styles.heroMetaText} />
         </View>
       </Pressable>
     </Animated.View>
@@ -561,7 +540,6 @@ const GridItem = memo(function GridItem({
   );
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  const initial = ((item.author ?? 'Redaksia Fontana').trim().charAt(0) || 'R').toUpperCase();
   // "Fresh" indicator if published within the last 60 minutes — surfaces the
   // editorial heartbeat without an extra network call.
   const isFresh = useMemo(() => {
@@ -616,17 +594,7 @@ const GridItem = memo(function GridItem({
               <Text numberOfLines={2} style={styles.gridExcerpt}>{item.excerpt}</Text>
             ) : null}
             <View style={styles.gridRule} />
-            <View style={styles.gridByline}>
-              <View style={styles.gridAvatar}>
-                <Text style={styles.gridAvatarText}>{initial}</Text>
-              </View>
-              <View style={styles.gridBylineCol}>
-                <Text numberOfLines={1} style={styles.gridAuthor}>
-                  {item.author ?? 'Redaksia Fontana'}
-                </Text>
-                <RelativeTime timestamp={item.publishedAt} style={styles.gridTime} />
-              </View>
-            </View>
+            <RelativeTime timestamp={item.publishedAt} style={styles.gridTime} />
           </View>
         </Pressable>
       </Animated.View>
@@ -1793,54 +1761,10 @@ const styles = StyleSheet.create({
     marginTop: 14,
     marginBottom: 12,
   },
-  heroByline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-  },
-  heroAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  heroAvatarText: {
-    color: '#DC2626',
-    fontFamily: fonts.uiBold,
-    fontSize: 13.5,
-    letterSpacing: -0.2,
-  },
-  heroBylineCol: {
-    flex: 1,
-    flexShrink: 1,
-    gap: 2,
-  },
-  heroAuthor: {
-    color: '#0A0F1C',
-    fontFamily: fonts.uiBold,
-    fontSize: 12.5,
-    letterSpacing: -0.1,
-  },
-  heroMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-  },
   heroMetaText: {
     color: '#7A8294',
     fontFamily: fonts.uiRegular,
     fontSize: 11.5,
-  },
-  heroMetaDot: {
-    width: 2,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: '#B5BAC8',
   },
 
   // ── Weather card ────────────────────────────────────────────────────────────
@@ -2186,38 +2110,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#EEF0F4',
     marginTop: 11,
     marginBottom: 9,
-  },
-  gridByline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  gridAvatar: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  gridAvatarText: {
-    color: '#DC2626',
-    fontFamily: fonts.uiBold,
-    fontSize: 10,
-    letterSpacing: -0.2,
-  },
-  gridBylineCol: {
-    flex: 1,
-    flexShrink: 1,
-  },
-  gridAuthor: {
-    color: '#0A0F1C',
-    fontFamily: fonts.uiBold,
-    fontSize: 10.5,
-    letterSpacing: -0.1,
   },
   gridTime: {
     color: '#7A8294',

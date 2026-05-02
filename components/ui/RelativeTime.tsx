@@ -30,13 +30,6 @@ function tickSubscribe(fn: () => void): () => void {
   };
 }
 
-// Module-level cached formatter \u2014 Intl.DateTimeFormat construction is expensive
-// (parses locale data); reuse a single instance across all calls.
-const dateFormatter = new Intl.DateTimeFormat('sq-AL', {
-  day: '2-digit',
-  month: 'short',
-});
-
 function formatRelative(timestamp: string, nowMs: number) {
   const publishedMs = new Date(timestamp).getTime();
 
@@ -67,7 +60,7 @@ function formatRelative(timestamp: string, nowMs: number) {
     return 'Dje';
   }
 
-  return dateFormatter.format(new Date(publishedMs));
+  return `${Math.floor(diffMs / day)} ditë më parë`;
 }
 
 export const RelativeTime = memo(function RelativeTime({ timestamp, style }: RelativeTimeProps) {
