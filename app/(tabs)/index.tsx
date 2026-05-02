@@ -700,23 +700,28 @@ const RadioLiveBanner = memo(function RadioLiveBanner({ onPress }: { onPress: ()
       {/* Left red accent bar */}
       <View style={styles.radioAccentBar} />
 
-      {/* Icon */}
-      <View style={styles.radioIconWrap}>
-        <Ionicons name="radio-outline" size={s(22)} color="#dc2626" />
-      </View>
+      {/* Text stack */}
+      <View style={styles.radioBody}>
+        <Text style={styles.radioEyebrow}>RADIO LIVE</Text>
 
-      {/* Text */}
-      <View style={styles.radioTextWrap}>
-        <Text style={styles.radioTitle}>RTV Fontana 98.8 FM</Text>
-        <Text style={styles.radioSubtitle}>Dëgjo radion live tani</Text>
-      </View>
+        <View style={styles.radioStationRow}>
+          <View style={styles.radioStationText}>
+            <Text style={styles.radioName}>RTV Fontana</Text>
+            <Text style={styles.radioMeta}>98.8 FM · Istog, Kosovë</Text>
+          </View>
 
-      {/* Chevron */}
-      <Ionicons name="chevron-forward" size={s(17)} color="#C4C9D4" />
+          {/* Icon block */}
+          <View style={styles.radioIconBlock}>
+            <Ionicons name="mic" size={s(26)} color="#FFFFFF" />
+          </View>
+        </View>
 
-      {/* LIVE badge — floats top-right */}
-      <View style={styles.radioLiveBadge}>
-        <Text style={styles.radioLiveBadgeText}>LIVE</Text>
+        <View style={styles.radioRule} />
+
+        <View style={styles.radioCtaRow}>
+          <Text style={styles.radioCta}>Dëgjo radion live tani</Text>
+          <Ionicons name="arrow-forward" size={s(13)} color="#dc2626" />
+        </View>
       </View>
     </Pressable>
   );
@@ -1417,68 +1422,82 @@ const styles = StyleSheet.create({
   radioCard: {
     marginHorizontal: 16,
     marginBottom: 14,
-    borderRadius: s(14),
+    borderRadius: s(18),
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: s(14),
-    paddingRight: s(14),
-    shadowColor: '#000',
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
     overflow: 'hidden',
   },
   radioCardPressed: {
-    backgroundColor: '#FAFAFA',
+    opacity: 0.86,
   },
   radioAccentBar: {
     width: s(3),
     alignSelf: 'stretch',
     backgroundColor: '#dc2626',
-    marginRight: s(14),
   },
-  radioIconWrap: {
-    width: s(42),
-    height: s(42),
-    borderRadius: s(11),
-    backgroundColor: 'rgba(220,38,38,0.07)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: s(13),
-  },
-  radioTextWrap: {
+  radioBody: {
     flex: 1,
-    gap: s(3),
-    paddingRight: s(44),
+    paddingTop: s(16),
+    paddingBottom: s(15),
+    paddingHorizontal: s(16),
   },
-  radioTitle: {
-    fontFamily: fonts.uiBold,
-    fontSize: ms(15),
-    color: '#111827',
-    letterSpacing: -0.3,
-  },
-  radioSubtitle: {
-    fontFamily: fonts.uiRegular,
-    fontSize: ms(12.5),
-    color: '#6B7280',
-  },
-  radioLiveBadge: {
-    position: 'absolute',
-    top: s(10),
-    right: s(12),
-    backgroundColor: '#dc2626',
-    borderRadius: 999,
-    paddingHorizontal: s(8),
-    paddingVertical: s(3),
-  },
-  radioLiveBadgeText: {
-    color: '#FFFFFF',
+  radioEyebrow: {
     fontFamily: fonts.uiBold,
     fontSize: ms(9),
-    letterSpacing: 1.2,
+    color: '#dc2626',
+    letterSpacing: 2.2,
     textTransform: 'uppercase',
+    marginBottom: s(10),
+  },
+  radioStationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: s(14),
+  },
+  radioStationText: {
+    flex: 1,
+    paddingRight: s(14),
+  },
+  radioName: {
+    fontFamily: fonts.uiBold,
+    fontSize: ms(22),
+    color: colors.navy,
+    letterSpacing: -0.6,
+    lineHeight: ms(27),
+  },
+  radioMeta: {
+    fontFamily: fonts.uiRegular,
+    fontSize: ms(13),
+    color: colors.textMuted,
+    marginTop: s(4),
+  },
+  radioIconBlock: {
+    width: s(54),
+    height: s(54),
+    borderRadius: s(14),
+    backgroundColor: '#dc2626',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioRule: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginBottom: s(12),
+  },
+  radioCtaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s(6),
+  },
+  radioCta: {
+    fontFamily: fonts.uiMedium,
+    fontSize: ms(13),
+    color: '#dc2626',
   },
 
   // ── Section layout ──────────────────────────────────────────────────────────
