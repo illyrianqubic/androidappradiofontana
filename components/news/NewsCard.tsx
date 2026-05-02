@@ -25,88 +25,67 @@ function NewsCardComponent({ post, compact = false, onPress }: NewsCardProps) {
 
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-
   const onCardPress = useCallback(() => { onPress?.(post); }, [onPress, post]);
 
   if (compact) {
-    // Compact horizontal thumb card (kept for future use)
     return (
-      <Animated.View style={[S.compactOuter, animStyle]}>
+      <Animated.View style={[S.cOuter, animStyle]}>
         <Pressable
           onPress={onCardPress}
           onPressIn={() => { scale.value = withSpring(0.97, { damping: 22, stiffness: 440 }); }}
-          onPressOut={() => { scale.value = withSpring(1,    { damping: 20, stiffness: 300 }); }}
-          style={S.compactInner}
+          onPressOut={() => { scale.value = withSpring(1, { damping: 20, stiffness: 300 }); }}
+          style={S.cInner}
         >
-          <View style={S.compactThumbWrap}>
+          <View style={S.cImgWrap}>
             <Image
               source={imageUri ? { uri: imageUri } : undefined}
               placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
-              // AUDIT FIX P4.12: stable recycling key prevents the FlashList
-              // bitmap-recycle path from showing the previous cell's image
-              // while the next URL is decoding.
               recyclingKey={post._id}
               contentFit="cover"
               transition={0}
-              style={S.compactThumb}
+              style={S.cImg}
             />
           </View>
-          <View style={S.compactBody}>
-            <Text style={S.compactCat} numberOfLines={1}>{cat.toUpperCase()}</Text>
-            <Text numberOfLines={2} style={S.compactTitle}>{post.title}</Text>
-            <RelativeTime timestamp={post.publishedAt} style={S.compactTime} />
+          <View style={S.cBody}>
+            <Text style={S.cCat} numberOfLines={1}>{cat.toUpperCase()}</Text>
+            <Text numberOfLines={3} style={S.cTitle}>{post.title}</Text>
+            <RelativeTime timestamp={post.publishedAt} style={S.cTime} />
           </View>
         </Pressable>
       </Animated.View>
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // STANDARD — editorial-grade card. Magazine-quality typography on white.
-  // ─────────────────────────────────────────────────────────────────────────
   return (
     <Animated.View style={[S.outer, animStyle]}>
       <Pressable
         onPress={onCardPress}
         onPressIn={() => { scale.value = withSpring(0.985, { damping: 24, stiffness: 460 }); }}
-        onPressOut={() => { scale.value = withSpring(1,    { damping: 20, stiffness: 300 }); }}
+        onPressOut={() => { scale.value = withSpring(1, { damping: 20, stiffness: 300 }); }}
         style={S.inner}
       >
-        {/* ── Image: clean, full-bleed, no overlays ─────────────────────── */}
-        <View style={S.imageZone}>
+        {/* Full-bleed 16:9 image — no text overlay */}
+        <View style={S.imgWrap}>
           <Image
             source={imageUri ? { uri: imageUri } : undefined}
             placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
-            // AUDIT FIX P4.12: stable recycling key for FlashList cells.
             recyclingKey={post._id}
             contentFit="cover"
             transition={0}
-            style={S.image}
+            style={S.img}
           />
-          {/* Hairline divider between image and content for crispness */}
-          <View style={S.imageDivider} />
         </View>
 
-        {/* ── White editorial content panel ─────────────────────────────── */}
-        <View style={S.content}>
-          {/* Breaking — dramatic full-width pill above category */}
+        {/* Content panel — always below image */}
+        <View style={S.body}>
           {post.breaking ? (
-            <View style={S.breakingRow}>
-              <View style={S.breakingPulse} />
-              <Text style={S.breakingText}>LAJM I FUNDIT</Text>
+            <View style={S.badge}>
+              <Text style={S.badgeText}>LAJM I FUNDIT</Text>
             </View>
           ) : null}
-
-          {/* Category — minimal: red dot + uppercase tracked label */}
-          <View style={S.kickerRow}>
-            <View style={S.kickerDot} />
-            <Text style={S.kicker} numberOfLines={1}>{cat.toUpperCase()}</Text>
-          </View>
-
-          {/* Headline — editorial serif (Merriweather), tight leading */}
-          <Text numberOfLines={2} style={S.headline}>
-            {post.title}
-          </Text>
+          <Text style={S.cat} numberOfLines={1}>{cat.toUpperCase()}</Text>
+          <Text numberOfLines={2} style={S.headline}>{post.title}</Text>
+          <RelativeTime timestamp={post.publishedAt} style={S.time} />
         </View>
       </Pressable>
     </Animated.View>
@@ -136,157 +115,133 @@ export const NewsCard = memo(
     sameVisiblePost(prev.post, next.post),
 );
 
-// ─── DESIGN TOKENS (local to card) ──────────────────────────────────────────
-const INK         = '#0A0F1C';   // headline ink
-const INK_MUTED   = '#7A8294';   // metadata
-const INK_FAINT   = '#B5BAC8';   // separators
-const PAPER       = '#FFFFFF';
-const HAIRLINE    = '#EEF0F4';   // ultra-light divider
-const ACCENT      = '#DC2626';   // brand red
+// ─── Palette ─────────────────────────────────────────────────────────────────
+const INK     = '#0F172A';
+const DUST    = '#64748B';
+const CRIMSON = '#DC2626';
+const PAPER   = '#FFFFFF';
 
 const S = StyleSheet.create({
-  // ── Card shell ─────────────────────────────────────────────────────────────
+  // ── Standard card ──────────────────────────────────────────────────────────
   outer: {
-    borderRadius: 18,
-    marginBottom: 14,
-    backgroundColor: PAPER,
-    // Two-tier shadow: soft ambient + tight contact = depth without mud
-    shadowColor: '#0A0F1C',
-    shadowOpacity: 0.08,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 4,
-  },
-  inner: {
-    borderRadius: 18,
-    overflow: 'hidden',
-  },
-
-  // ── Image zone ────────────────────────────────────────────────────────────
-  imageZone: {
-    width: '100%',
-    aspectRatio: 16 / 9,
-    backgroundColor: '#E6E8EE',
-  },
-  image: {
-    width: '100%',
-    height: '100%',
-  },
-  imageDivider: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(10,15,28,0.06)',
-  },
-
-  // ── Content panel ──────────────────────────────────────────────────────────
-  content: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
-  },
-
-  // ── Breaking strip ─────────────────────────────────────────────────────────
-  breakingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 7,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    backgroundColor: ACCENT,
-    borderRadius: 4,
+    borderRadius: 12,
     marginBottom: 10,
-  },
-  breakingPulse: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#FFFFFF',
-  },
-  breakingText: {
-    color: '#FFFFFF',
-    fontFamily: fonts.uiBold,
-    fontSize: 9.5,
-    letterSpacing: 1.6,
-  },
-
-  // ── Kicker (category) — minimal, editorial ────────────────────────────────
-  kickerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    marginBottom: 7,
-  },
-  kickerDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 1, // tiny square, not pill — feels intentional
-    backgroundColor: ACCENT,
-  },
-  kicker: {
-    color: ACCENT,
-    fontFamily: fonts.uiBold,
-    fontSize: 10,
-    letterSpacing: 2.0,
-  },
-
-  // ── Headline — editorial serif, tight leading ─────────────────────────────
-  headline: {
-    color: INK,
-    fontFamily: fonts.articleBold,
-    fontSize: 17,
-    lineHeight: 23,
-    letterSpacing: -0.3,
-  },
-
-  // ── Compact (kept for future use) ──────────────────────────────────────────
-  compactOuter: {
-    width: 220,
-    marginRight: 12,
-    borderRadius: 14,
-    backgroundColor: colors.surface,
-    shadowColor: colors.navy,
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
+    backgroundColor: PAPER,
+    shadowColor: INK,
+    shadowOpacity: 0.055,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
     elevation: 2,
   },
-  compactInner: {
-    borderRadius: 14,
+  inner: {
+    borderRadius: 12,
     overflow: 'hidden',
   },
-  compactThumbWrap: {
+
+  imgWrap: {
     width: '100%',
     aspectRatio: 16 / 9,
+    backgroundColor: '#E2E8F0',
   },
-  compactThumb: {
+  img: {
     width: '100%',
     height: '100%',
-    backgroundColor: colors.surfaceElevated,
   },
-  compactBody: {
-    padding: 11,
+
+  body: {
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 11,
     gap: 4,
   },
-  compactCat: {
-    color: colors.primary,
+
+  // Breaking badge — shown above category only on breaking posts
+  badge: {
+    alignSelf: 'flex-start',
+    backgroundColor: CRIMSON,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 3,
+    marginBottom: 2,
+  },
+  badgeText: {
+    color: PAPER,
     fontFamily: fonts.uiBold,
     fontSize: 9,
-    letterSpacing: 1.1,
+    letterSpacing: 1.5,
   },
-  compactTitle: {
-    color: colors.text,
+
+  cat: {
+    color: CRIMSON,
     fontFamily: fonts.uiBold,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 9,
+    letterSpacing: 2.0,
+  },
+  headline: {
+    color: INK,
+    fontFamily: fonts.uiBold,
+    fontSize: 15,
+    lineHeight: 21,
+    letterSpacing: -0.25,
+  },
+  time: {
+    color: DUST,
+    fontFamily: fonts.uiRegular,
+    fontSize: 10,
+    marginTop: 1,
+  },
+
+  // ── Compact card (horizontal rail) ─────────────────────────────────────────
+  cOuter: {
+    width: 190,
+    borderRadius: 10,
+    marginRight: 10,
+    backgroundColor: PAPER,
+    shadowColor: INK,
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  cInner: {
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  cImgWrap: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    backgroundColor: '#E2E8F0',
+  },
+  cImg: {
+    width: '100%',
+    height: '100%',
+  },
+  cBody: {
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    paddingBottom: 9,
+    gap: 4,
+  },
+  cCat: {
+    color: CRIMSON,
+    fontFamily: fonts.uiBold,
+    fontSize: 8.5,
+    letterSpacing: 1.7,
+  },
+  cTitle: {
+    color: INK,
+    fontFamily: fonts.uiBold,
+    fontSize: 12,
+    lineHeight: 17,
     letterSpacing: -0.15,
   },
-  compactTime: {
-    color: colors.textTertiary,
+  cTime: {
+    color: DUST,
     fontFamily: fonts.uiRegular,
-    fontSize: 11,
+    fontSize: 9.5,
+    marginTop: 1,
   },
+
+  // Legacy alias kept so callers using compactOuter-etc. don't break
+  compactOuter: { width: 0, height: 0 },
 });

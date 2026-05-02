@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList, type FlashListRef, type ListRenderItemInfo } from '@shopify/flash-list';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { NewsCard } from '../../../components/news/NewsCard';
+import { RelativeTime } from '../../../components/ui/RelativeTime';
 import { RefreshStatusBanner } from '../../../components/ui/RefreshStatusBanner';
 import { SkeletonCard } from '../../../components/news/SkeletonCard';
 import { HamburgerButton } from '../../../components/ui/HamburgerButton';
@@ -83,22 +84,20 @@ const FeaturedCard = memo(function FeaturedCard({ post, onPress }: { post: Post;
         {/* White editorial panel */}
         <View style={SF.content}>
           {post.breaking ? (
-            <View style={SF.breakingRow}>
-              <View style={SF.breakingPulse} />
+            <View style={SF.breakingBadge}>
               <Text style={SF.breakingText}>LAJM I FUNDIT</Text>
             </View>
           ) : null}
 
-          <View style={SF.kickerRow}>
-            <View style={SF.kickerDot} />
-            <Text style={SF.kicker} numberOfLines={1}>{cat.toUpperCase()}</Text>
-          </View>
+          <Text style={SF.kicker} numberOfLines={1}>{cat.toUpperCase()}</Text>
 
           <Text numberOfLines={3} style={SF.headline}>{post.title}</Text>
 
           {post.excerpt ? (
-            <Text numberOfLines={3} style={SF.deck}>{post.excerpt}</Text>
+            <Text numberOfLines={2} style={SF.deck}>{post.excerpt}</Text>
           ) : null}
+
+          <RelativeTime timestamp={post.publishedAt} style={SF.time} />
         </View>
       </Pressable>
     </Animated.View>
@@ -425,22 +424,22 @@ export default function NewsIndexScreen() {
 // ── Styles — featured card ────────────────────────────────────────────────────
 const SF = StyleSheet.create({
   outer: {
-    borderRadius: 20,
-    marginBottom: 18,
+    borderRadius: 14,
+    marginBottom: 16,
     backgroundColor: '#FFFFFF',
     shadowColor: '#0A0F1C',
-    shadowOpacity: 0.10,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 6,
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
   },
   inner: {
-    borderRadius: 20,
+    borderRadius: 14,
     overflow: 'hidden',
   },
   imageZone: {
     width: '100%',
-    aspectRatio: 16 / 10,
+    aspectRatio: 16 / 9,
     backgroundColor: '#E6E8EE',
   },
   image: {
@@ -456,64 +455,48 @@ const SF = StyleSheet.create({
     backgroundColor: 'rgba(10,15,28,0.06)',
   },
   content: {
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 18,
+    paddingHorizontal: 14,
+    paddingTop: 13,
+    paddingBottom: 14,
+    gap: 5,
   },
-  breakingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  breakingBadge: {
     alignSelf: 'flex-start',
-    gap: 7,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
     backgroundColor: '#DC2626',
-    borderRadius: 4,
-    marginBottom: 12,
-  },
-  breakingPulse: {
-    width: 6,
-    height: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     borderRadius: 3,
-    backgroundColor: '#FFFFFF',
   },
   breakingText: {
     color: '#FFFFFF',
     fontFamily: fonts.uiBold,
-    fontSize: 10,
-    letterSpacing: 1.8,
-  },
-  kickerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-  },
-  kickerDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 1,
-    backgroundColor: '#DC2626',
+    fontSize: 9,
+    letterSpacing: 1.6,
   },
   kicker: {
     color: '#DC2626',
     fontFamily: fonts.uiBold,
-    fontSize: 11,
-    letterSpacing: 2.2,
+    fontSize: 10,
+    letterSpacing: 2.0,
   },
   headline: {
     color: '#0A0F1C',
-    fontFamily: fonts.articleBold,
-    fontSize: 24,
-    lineHeight: 31,
-    letterSpacing: -0.5,
+    fontFamily: fonts.uiBold,
+    fontSize: 21,
+    lineHeight: 27,
+    letterSpacing: -0.45,
   },
   deck: {
     color: '#3C4358',
     fontFamily: fonts.uiRegular,
-    fontSize: 14.5,
-    lineHeight: 22,
-    marginTop: 10,
+    fontSize: 13.5,
+    lineHeight: 20,
+  },
+  time: {
+    color: '#64748B',
+    fontFamily: fonts.uiRegular,
+    fontSize: 10,
+    marginTop: 1,
   },
 });
 

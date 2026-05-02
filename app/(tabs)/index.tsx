@@ -337,24 +337,15 @@ const HeroCard = memo(function HeroCard({
         {/* White editorial content */}
         <View style={styles.heroContent}>
           {hero.breaking ? (
-            <View style={styles.heroBreakingRow}>
-              <View style={styles.heroBreakingPulse} />
-              <Text style={styles.heroBreakingText}>LAJM I FUNDIT</Text>
+            <View style={styles.heroBadge}>
+              <Text style={styles.heroBadgeText}>LAJM I FUNDIT</Text>
             </View>
           ) : null}
-
-          <View style={styles.heroKickerRow}>
-            <View style={styles.heroKickerDot} />
-            <Text style={styles.heroKicker} numberOfLines={1}>{cat.toUpperCase()}</Text>
-          </View>
-
+          <Text style={styles.heroKicker} numberOfLines={1}>{cat.toUpperCase()}</Text>
           <Text numberOfLines={3} style={styles.heroHeadline}>{hero.title}</Text>
-
           {hero.excerpt ? (
             <Text numberOfLines={2} style={styles.heroDeck}>{hero.excerpt}</Text>
           ) : null}
-
-          <View style={styles.heroBylineRule} />
           <RelativeTime timestamp={hero.publishedAt} style={styles.heroMetaText} />
         </View>
       </Pressable>
@@ -395,14 +386,10 @@ const LocalCard = memo(function LocalCard({ post, onPress }: { post: Post; onPre
           <View style={styles.localImageDivider} />
         </View>
         <View style={styles.localBody}>
-          <View style={styles.localKickerRow}>
-            <View style={styles.localKickerDot} />
-            <Text style={styles.localCatText} numberOfLines={1}>
-              {(post.categories?.[0] ?? 'Lajme').toUpperCase()}
-            </Text>
-          </View>
+          <Text style={styles.localCatText} numberOfLines={1}>
+            {(post.categories?.[0] ?? 'Lajme').toUpperCase()}
+          </Text>
           <Text numberOfLines={3} style={styles.localTitle}>{post.title}</Text>
-          <View style={styles.localRule} />
           <RelativeTime timestamp={post.publishedAt} style={styles.localTime} />
         </View>
       </Pressable>
@@ -556,8 +543,7 @@ const GridItem = memo(function GridItem({
           onPressOut={() => { scale.value = withSpring(1, { damping: 20, stiffness: 300 }); }}
           style={styles.gridCard}
         >
-          {/* Editorial accent on the top edge */}
-          <View style={styles.gridAccentBar} />
+          {/* 16:9 image — text never overlaid */}
           <View style={styles.gridImgWrap}>
             <Image
               source={imageUri ? { uri: imageUri } : undefined}
@@ -567,33 +553,20 @@ const GridItem = memo(function GridItem({
               transition={0}
               style={styles.gridImg}
             />
-            {item.breaking ? (
-              <View style={styles.gridBreakingPin}>
-                <View style={styles.gridBreakingPinPulse} />
-                <Text style={styles.gridBreakingPinText}>LAJM</Text>
-              </View>
-            ) : null}
-            <View style={styles.gridImageDivider} />
           </View>
           <View style={styles.gridBody}>
-            <View style={styles.gridKickerRow}>
-              <View style={styles.gridKickerDot} />
+            {item.breaking ? (
+              <View style={styles.gridBadge}>
+                <Text style={styles.gridBadgeText}>LAJM I FUNDIT</Text>
+              </View>
+            ) : null}
+            <View style={styles.gridCatRow}>
               <Text numberOfLines={1} style={styles.gridCatText}>
                 {(item.categories?.[0] ?? 'Lajme').toUpperCase()}
               </Text>
-              {isFresh ? (
-                <>
-                  <View style={styles.gridKickerSpacer} />
-                  <View style={styles.gridFreshDot} />
-                  <Text style={styles.gridFreshText}>I RI</Text>
-                </>
-              ) : null}
+              {isFresh ? <Text style={styles.gridFreshText}>I RI</Text> : null}
             </View>
             <Text numberOfLines={3} style={styles.gridTitle}>{item.title}</Text>
-            {item.excerpt ? (
-              <Text numberOfLines={2} style={styles.gridExcerpt}>{item.excerpt}</Text>
-            ) : null}
-            <View style={styles.gridRule} />
             <RelativeTime timestamp={item.publishedAt} style={styles.gridTime} />
           </View>
         </Pressable>
@@ -1663,22 +1636,22 @@ const styles = StyleSheet.create({
 
   // ── Hero card ───────────────────────────────────────────────────────────────
   heroOuter: {
-    borderRadius: 20,
+    borderRadius: 14,
     backgroundColor: '#FFFFFF',
-    shadowColor: '#0A0F1C',
-    shadowOpacity: 0.10,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 6,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 3,
   },
   heroCard: {
-    borderRadius: 20,
+    borderRadius: 14,
     overflow: 'hidden',
   },
   heroImageWrap: {
     width: '100%',
-    aspectRatio: 16 / 10,
-    backgroundColor: '#E6E8EE',
+    aspectRatio: 16 / 9,
+    backgroundColor: '#E2E8F0',
   },
   heroImage: {
     width: '100%',
@@ -1693,78 +1666,51 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(10,15,28,0.06)',
   },
   heroSkeleton: {
-    borderRadius: 22,
+    borderRadius: 14,
   },
   heroContent: {
-    paddingHorizontal: 18,
-    paddingTop: 16,
-    paddingBottom: 16,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 13,
+    gap: 5,
   },
-  heroBreakingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  heroBadge: {
     alignSelf: 'flex-start',
-    gap: 7,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
     backgroundColor: '#DC2626',
-    borderRadius: 4,
-    marginBottom: 11,
-  },
-  heroBreakingPulse: {
-    width: 6,
-    height: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
     borderRadius: 3,
-    backgroundColor: '#FFFFFF',
+    marginBottom: 1,
   },
-  heroBreakingText: {
+  heroBadgeText: {
     color: '#FFFFFF',
     fontFamily: fonts.uiBold,
-    fontSize: 9.5,
-    letterSpacing: 1.6,
-  },
-  heroKickerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    marginBottom: 11,
-  },
-  heroKickerDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 1,
-    backgroundColor: '#DC2626',
+    fontSize: 9,
+    letterSpacing: 1.5,
   },
   heroKicker: {
     color: '#DC2626',
     fontFamily: fonts.uiBold,
-    fontSize: 10.5,
-    letterSpacing: 2.2,
+    fontSize: 10,
+    letterSpacing: 2.0,
   },
   heroHeadline: {
-    color: '#0A0F1C',
-    fontFamily: fonts.articleBold,
-    fontSize: 22,
-    lineHeight: 29,
-    letterSpacing: -0.5,
+    color: '#0F172A',
+    fontFamily: fonts.uiBold,
+    fontSize: 19,
+    lineHeight: 26,
+    letterSpacing: -0.4,
   },
   heroDeck: {
-    color: '#3C4358',
+    color: '#475569',
     fontFamily: fonts.uiRegular,
-    fontSize: 14,
-    lineHeight: 21,
-    marginTop: 9,
-  },
-  heroBylineRule: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: '#EEF0F4',
-    marginTop: 14,
-    marginBottom: 12,
+    fontSize: 13,
+    lineHeight: 19,
   },
   heroMetaText: {
-    color: '#7A8294',
+    color: '#64748B',
     fontFamily: fonts.uiRegular,
-    fontSize: 11.5,
+    fontSize: 10.5,
   },
 
   // ── Weather card ────────────────────────────────────────────────────────────
@@ -1887,7 +1833,7 @@ const styles = StyleSheet.create({
   // can't auto-measure horizontal layouts). Height covers the tallest card +
   // shadow extent.
   localRailContainer: {
-    height: s(230),
+    height: s(200),
   },
   localRail: {
     paddingLeft: 16,
@@ -1899,28 +1845,28 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   localSkeletonCard: {
-    width: s(160),
-    borderRadius: 14,
-    marginRight: 12,
+    width: s(155),
+    borderRadius: 10,
+    marginRight: 10,
   },
   localOuter: {
-    width: s(168),
-    borderRadius: 16,
-    marginRight: 14,
+    width: s(155),
+    borderRadius: 10,
+    marginRight: 10,
     backgroundColor: '#FFFFFF',
     shadowColor: '#0A0F1C',
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
   },
   localCard: {
-    borderRadius: 16,
+    borderRadius: 10,
     overflow: 'hidden',
   },
   localImageWrap: {
     width: '100%',
-    aspectRatio: 4 / 3,
+    aspectRatio: 16 / 9,
     backgroundColor: '#E6E8EE',
   },
   localImage: {
@@ -1936,185 +1882,114 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(10,15,28,0.06)',
   },
   localBody: {
-    paddingHorizontal: 12,
-    paddingTop: 11,
-    paddingBottom: 11,
-  },
-  localKickerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
-  localKickerDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 1,
-    backgroundColor: '#DC2626',
+    paddingHorizontal: 9,
+    paddingTop: 8,
+    paddingBottom: 9,
+    gap: 3,
   },
   localCatText: {
     color: '#DC2626',
     fontFamily: fonts.uiBold,
-    fontSize: 9,
-    letterSpacing: 1.8,
+    fontSize: 8,
+    letterSpacing: 1.6,
   },
   localTitle: {
     color: '#0A0F1C',
-    fontFamily: fonts.articleBold,
-    fontSize: 14,
-    lineHeight: 19,
-    letterSpacing: -0.2,
-  },
-  localRule: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: '#EEF0F4',
-    marginTop: 10,
-    marginBottom: 8,
+    fontFamily: fonts.uiBold,
+    fontSize: 12.5,
+    lineHeight: 17,
+    letterSpacing: -0.15,
   },
   localTime: {
-    color: '#7A8294',
+    color: '#64748B',
     fontFamily: fonts.uiRegular,
-    fontSize: 10.5,
+    fontSize: 9,
+    marginTop: 1,
   },
 
   // ── Latest grid ──────────────────────────────────────────────────────────────
   gridColumn: {
     flex: 1,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   gridColLeft: {
-    paddingRight: 6,
+    paddingRight: 5,
   },
   gridColRight: {
-    paddingLeft: 6,
+    paddingLeft: 5,
   },
   gridSkeleton: {
-    borderRadius: 14,
+    borderRadius: 10,
   },
   gridCard: {
-    borderRadius: 16,
+    borderRadius: 10,
     backgroundColor: '#FFFFFF',
     overflow: 'hidden',
-    shadowColor: '#0A0F1C',
-    shadowOpacity: 0.08,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 4,
-  },
-  gridAccentBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 2,
-    backgroundColor: '#DC2626',
-    zIndex: 2,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   gridImgWrap: {
     width: '100%',
-    aspectRatio: 4 / 3,
-    backgroundColor: '#E6E8EE',
+    aspectRatio: 16 / 9,
+    backgroundColor: '#E2E8F0',
   },
   gridImg: {
     width: '100%',
     height: '100%',
   },
-  gridImageDivider: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(10,15,28,0.06)',
+  gridBody: {
+    paddingHorizontal: 10,
+    paddingTop: 9,
+    paddingBottom: 10,
+    gap: 4,
   },
-  gridBreakingPin: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 7,
-    paddingVertical: 4,
+  gridBadge: {
+    alignSelf: 'flex-start',
     backgroundColor: '#DC2626',
-    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 3,
+    marginBottom: 1,
   },
-  gridBreakingPinPulse: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: '#FFFFFF',
-  },
-  gridBreakingPinText: {
+  gridBadgeText: {
     color: '#FFFFFF',
     fontFamily: fonts.uiBold,
-    fontSize: 8.5,
-    letterSpacing: 1.4,
+    fontSize: 8,
+    letterSpacing: 1.3,
   },
-  gridBody: {
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 12,
-    minHeight: 132,
-  },
-  gridKickerRow: {
+  gridCatRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 8,
-  },
-  gridKickerDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 1,
-    backgroundColor: '#DC2626',
-  },
-  gridKickerSpacer: {
-    flex: 1,
-  },
-  gridFreshDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: '#16A34A',
   },
   gridFreshText: {
     color: '#16A34A',
     fontFamily: fonts.uiBold,
-    fontSize: 8.5,
-    letterSpacing: 1.6,
+    fontSize: 8,
+    letterSpacing: 1.4,
   },
   gridCatText: {
     color: '#DC2626',
     fontFamily: fonts.uiBold,
-    fontSize: 9,
+    fontSize: 8.5,
     letterSpacing: 1.8,
+    flex: 1,
   },
   gridTitle: {
-    color: '#0A0F1C',
-    fontFamily: fonts.articleBold,
-    fontSize: 14.5,
-    lineHeight: 19.5,
+    color: '#0F172A',
+    fontFamily: fonts.uiBold,
+    fontSize: 13,
+    lineHeight: 18,
     letterSpacing: -0.2,
     flexShrink: 1,
   },
-  gridExcerpt: {
-    color: '#5C6478',
-    fontFamily: fonts.uiRegular,
-    fontSize: 11.5,
-    lineHeight: 16,
-    marginTop: 6,
-  },
-  gridRule: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: '#EEF0F4',
-    marginTop: 11,
-    marginBottom: 9,
-  },
   gridTime: {
-    color: '#7A8294',
+    color: '#64748B',
     fontFamily: fonts.uiRegular,
-    fontSize: 10,
+    fontSize: 9.5,
   },
 
   // ── Footer ───────────────────────────────────────────────────────────────────
