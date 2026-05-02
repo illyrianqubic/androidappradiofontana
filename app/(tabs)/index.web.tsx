@@ -17,9 +17,9 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { RelativeTime } from '../../components/RelativeTime';
-import { SkeletonCard } from '../../components/SkeletonCard';
-import { appIdentity, colors, elevation, fonts, radius } from '../../design-tokens';
+import { RelativeTime } from '../../components/ui/RelativeTime';
+import { SkeletonCard } from '../../components/news/SkeletonCard';
+import { appIdentity, colors, elevation, fonts, radius } from '../../constants/tokens';
 import {
   buildSanityImageUrl,
   defaultThumbhash,

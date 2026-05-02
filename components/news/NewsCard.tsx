@@ -2,9 +2,9 @@ import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { Image } from 'expo-image';
-import { buildSanityImageUrl, defaultThumbhash, sanityImageWidths, type Post } from '../services/api';
-import { colors, fonts } from '../design-tokens';
-import { RelativeTime } from './RelativeTime';
+import { buildSanityImageUrl, defaultThumbhash, sanityImageWidths, type Post } from '../../services/api';
+import { colors, fonts } from '../../constants/tokens';
+import { RelativeTime } from '../ui/RelativeTime';
 
 type NewsCardProps = {
   post: Post;
@@ -156,11 +156,31 @@ function NewsCardComponent({ post, compact = false, onPress }: NewsCardProps) {
   );
 }
 
-export const NewsCard = memo(NewsCardComponent);
+function sameVisiblePost(a: Post, b: Post): boolean {
+  return (
+    a._id === b._id &&
+    a.slug === b.slug &&
+    a.title === b.title &&
+    a.excerpt === b.excerpt &&
+    a.publishedAt === b.publishedAt &&
+    a.breaking === b.breaking &&
+    a.mainImageUrl === b.mainImageUrl &&
+    a.thumbhash === b.thumbhash &&
+    a.author === b.author &&
+    (a.categories?.[0] ?? 'Lajme') === (b.categories?.[0] ?? 'Lajme')
+  );
+}
+
+export const NewsCard = memo(
+  NewsCardComponent,
+  (prev, next) =>
+    prev.compact === next.compact &&
+    prev.onPress === next.onPress &&
+    sameVisiblePost(prev.post, next.post),
+);
 
 // ─── DESIGN TOKENS (local to card) ──────────────────────────────────────────
 const INK         = '#0A0F1C';   // headline ink
-const INK_BODY    = '#3C4358';   // body / deck
 const INK_MUTED   = '#7A8294';   // metadata
 const INK_FAINT   = '#B5BAC8';   // separators
 const PAPER       = '#FFFFFF';

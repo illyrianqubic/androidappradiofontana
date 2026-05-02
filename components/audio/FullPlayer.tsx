@@ -7,9 +7,9 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { appIdentity, colors, fonts, radius, spacing } from '../design-tokens';
-import { useAudioActions, useAudioMetadata, useAudioState } from '../services/audio';
-import { DAYS, schedule } from '../constants/schedule';
+import { appIdentity, colors, fonts, radius, spacing } from '../../constants/tokens';
+import { useAudioActions, useAudioMetadata, useAudioState } from '../../services/audio';
+import { DAYS, schedule } from '../../constants/schedule';
 import { EqualizerBars } from './EqualizerBars';
 import { LiveBadge } from './LiveBadge';
 

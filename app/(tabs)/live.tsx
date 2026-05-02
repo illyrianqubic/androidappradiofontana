@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 // A-3: deep import skips loading all other icon sets' glyph maps.
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
+import { useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -14,8 +15,8 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import { HamburgerButton } from '../../components/HamburgerButton';
-import { appIdentity, colors, fonts } from '../../design-tokens';
+import { HamburgerButton } from '../../components/ui/HamburgerButton';
+import { appIdentity, colors, fonts } from '../../constants/tokens';
 import { ms, s } from '../../lib/responsive';
 import { useAudioActions, useAudioState } from '../../services/audio';
 
@@ -51,9 +52,11 @@ function EqBar({
 
 function Equalizer({ playing }: { playing: boolean }) {
   const phase = useSharedValue(0);
+  const isFocused = useIsFocused();
+  const shouldAnimate = playing && isFocused;
 
   useEffect(() => {
-    if (playing) {
+    if (shouldAnimate) {
       phase.value = 0;
       phase.value = withRepeat(
         withTiming(1, { duration: 1100, easing: Easing.linear }),
@@ -67,7 +70,7 @@ function Equalizer({ playing }: { playing: boolean }) {
     return () => {
       cancelAnimation(phase);
     };
-  }, [playing, phase]);
+  }, [shouldAnimate, phase]);
 
   return (
     <View style={styles.eqRow}>

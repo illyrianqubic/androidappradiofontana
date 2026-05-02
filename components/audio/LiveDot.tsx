@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
+  cancelAnimation,
   Easing,
   interpolate,
   useAnimatedStyle,
@@ -9,7 +10,7 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { colors } from '../design-tokens';
+import { colors } from '../../constants/tokens';
 
 type LiveDotProps = {
   size?: number;
@@ -32,6 +33,7 @@ export function LiveDot({ size = 8 }: LiveDotProps) {
       -1,
       false,
     );
+    return () => cancelAnimation(pulse);
   }, [pulse, reducedMotion]);
 
   const rippleStyle = useAnimatedStyle(() => ({

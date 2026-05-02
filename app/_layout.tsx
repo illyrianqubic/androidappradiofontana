@@ -23,13 +23,13 @@ import {
   PersistQueryClientProvider,
   type Persister,
 } from '@tanstack/react-query-persist-client';
-import { LaunchSplash } from '../components/LaunchSplash';
-import { MiniPlayerVisibilityGate } from '../components/MiniPlayer';
-import { HamburgerDrawer } from '../components/HamburgerDrawer';
+import { LaunchSplash } from '../components/ui/LaunchSplash';
+import { MiniPlayerVisibilityGate } from '../components/audio/MiniPlayer';
+import { HamburgerDrawer } from '../components/ui/HamburgerDrawer';
 import { AudioProvider } from '../services/audio';
-import { DrawerProvider } from '../context/DrawerContext';
+import { DrawerProvider } from '../providers/DrawerProvider';
 import { queryStorage } from '../services/storage';
-import { colors } from '../design-tokens';
+import { colors } from '../constants/tokens';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -146,7 +146,9 @@ function createAsyncStoragePersister(opts: {
     },
     restoreClient: async () => {
       const raw = opts.storage.getItem(KEY);
-      if (!raw) return undefined;
+      if (!raw) {
+        return undefined;
+      }
       if (raw.length > MAX_RESTORE_CHARS) {
         opts.storage.removeItem(KEY);
         return undefined;
@@ -155,7 +157,8 @@ function createAsyncStoragePersister(opts: {
         // First-restore parse runs ONCE at cold start. We accept this cost
         // (still ~10–40 ms) because there is no work to defer it behind —
         // it must complete before queries hydrate.
-        return JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        return parsed;
       } catch {
         return undefined;
       }
@@ -240,6 +243,9 @@ type StartupState = {
   nativeSplashHidden: boolean;
   contentReady: boolean;
 };
+
+const HOME_SHELL_READY_FALLBACK_MS = 120;
+
 const initialStartupState: StartupState = {
   showLaunchSplash: true,
   nativeSplashHidden: false,
@@ -252,31 +258,33 @@ export default function RootLayout() {
   const [startup, setStartup] = useState<StartupState>(initialStartupState);
   const { showLaunchSplash, nativeSplashHidden, contentReady } = startup;
 
-  // Subscribe to the home-hero query cache so the splash can dismiss the
-  // moment cached data is available. On a warm MMKV cache this typically
-  // fires within ~50–150 ms after mount. A 600ms fallback timer ensures
-  // contentReady is set even on first install (empty cache) so Home always
-  // renders with skeletons rather than waiting for a Sanity network response.
+  // Mark the root/Home visual shell as safe to reveal. A warm home-hero cache
+  // can settle quickly, and the fallback keeps this gate network-independent so
+  // the splash never waits for Sanity/weather/audio data.
   useEffect(() => {
+    const setContentReady = () => {
+      setStartup((s) => {
+        if (s.contentReady) return s;
+        return { ...s, contentReady: true };
+      });
+    };
     const cache = queryClient.getQueryCache();
     const check = () => {
       const heroState = cache.find({ queryKey: ['home-hero'] })?.state;
       if (heroState && (heroState.data !== undefined || heroState.error !== null)) {
-        setStartup((s) => (s.contentReady ? s : { ...s, contentReady: true }));
+        setContentReady();
         return true;
       }
       return false;
     };
     if (check()) return;
     const unsub = cache.subscribe(() => { check(); });
-    // Cold-start fallback: if MMKV cache is empty (first install) or home-hero
-    // is excluded from the persisted set, contentReady would wait for a Sanity
-    // network response before the splash can exit. Instead, unblock after 600ms
-    // so Home renders with skeletons and data fills in as requests land. This
-    // matches the pattern used by Twitter, Instagram, and BBC News.
+    // Cold-start fallback: if MMKV cache is empty (first install), do not wait
+    // for a Sanity response before the splash can exit. Unblock quickly so Home
+    // renders with skeletons and data fills in as requests land.
     const fallback = setTimeout(() => {
-      setStartup((s) => (s.contentReady ? s : { ...s, contentReady: true }));
-    }, 600);
+      setContentReady();
+    }, HOME_SHELL_READY_FALLBACK_MS);
     return () => {
       unsub();
       clearTimeout(fallback);
@@ -331,7 +339,8 @@ export default function RootLayout() {
   useEffect(() => {
     if ((interLoaded || interFontError) && !nativeSplashHidden) {
       setStartup((s) => ({ ...s, nativeSplashHidden: true }));
-      SplashScreen.hideAsync().catch(() => undefined);
+      SplashScreen.hideAsync()
+        .catch(() => undefined);
     }
   }, [interLoaded, interFontError, nativeSplashHidden]);
 
@@ -353,7 +362,10 @@ export default function RootLayout() {
     <RootErrorBoundary>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <PersistQueryClientProvider client={queryClient} persistOptions={PERSIST_OPTIONS}>
+        <PersistQueryClientProvider
+          client={queryClient}
+          persistOptions={PERSIST_OPTIONS}
+        >
           <AudioProvider>
             <DrawerProvider>
               <StatusBar style="dark" />

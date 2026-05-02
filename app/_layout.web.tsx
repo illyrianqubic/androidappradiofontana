@@ -15,11 +15,11 @@ import {
   PersistQueryClientProvider,
   type Persister,
 } from '@tanstack/react-query-persist-client';
-import { LaunchSplash } from '../components/LaunchSplash';
-import { MiniPlayerVisibilityGate } from '../components/MiniPlayer';
-import { HamburgerDrawer } from '../components/HamburgerDrawer';
+import { LaunchSplash } from '../components/ui/LaunchSplash';
+import { MiniPlayerVisibilityGate } from '../components/audio/MiniPlayer';
+import { HamburgerDrawer } from '../components/ui/HamburgerDrawer';
 import { AudioProvider } from '../services/audio';
-import { DrawerProvider } from '../context/DrawerContext';
+import { DrawerProvider } from '../providers/DrawerProvider';
 import { queryStorage } from '../services/storage';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);

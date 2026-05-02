@@ -25,7 +25,6 @@ Mobile app for **Radio Fontana 98.8 FM**, a local radio station based in Istog, 
 | Fonts | Inter + Merriweather (via @expo-google-fonts) | ^0.4.1 |
 | Icons | @expo/vector-icons (Ionicons + MaterialCommunityIcons) | ^15.1.1 |
 | Gradients | expo-linear-gradient | ~15.0.7 |
-| Notifications | expo-notifications | ~0.32.17 |
 | Haptics | expo-haptics | ~15.0.7 |
 | Safe Area | react-native-safe-area-context | ~5.6.0 |
 | Screen | react-native-screens | ~4.16.0 |
@@ -88,15 +87,17 @@ androidappradiofontana/
 │   └── schedule.ts             # Full weekly broadcast schedule data (Mon–Sun, typed)
 │
 ├── assets/
-│   ├── logoandroid.jpg         # Main station logo (used for app icon, splash, adaptive icon)
+│   ├── logoandroid.jpg         # Main station logo used by splash and in-app branding
 │   ├── images/
-│   │   └── logoandroid.png     # PNG copy of logo (generated for icon pipeline)
-│   ├── adaptive-icon.png       # Legacy adaptive icon (superseded by logoandroid.jpg)
-│   ├── icon.png                # Legacy app icon (used for notification icon)
+│   │   ├── logoandroid.png     # PNG copy of logo
+│   │   └── lockscreen-artwork.png # Square high-res media notification artwork
+│   ├── adaptive-icon-foreground.png # Android adaptive icon foreground
+│   ├── adaptive-icon.png       # Legacy adaptive icon
+│   ├── icon.png                # App launcher icon
 │   ├── splash-icon.png         # Legacy splash image
 │   └── favicon.png             # Web favicon
 │
-├── lib/                        # Empty — reserved for future shared utilities
+├── lib/                        # Shared utilities such as bounded image prefetching
 │
 ├── design-tokens.ts            # Central design system — colors, spacing, radius, fonts, elevation
 ├── app.json                    # Expo config — icons, splash, permissions, plugins
@@ -157,11 +158,11 @@ npm install
 
 ### Start dev server
 ```bash
-# Expo Go (fastest — no native build needed)
-npm start             # or: npx expo start --go --lan
+# Custom dev client (required for RNTP audio, MMKV, and native features)
+npm start             # or: npm run start:dev-client
 
-# Custom dev client (required for MMKV, expo-audio native features)
-npm run start:dev-client
+# Expo Go (UI-only; native radio playback is unavailable here)
+npm run start:go
 
 # Web
 npm run web
@@ -204,26 +205,22 @@ The project uses Expo's runtime version policy (`"policy": "appVersion"`). OTA u
 ## Issues & Warnings Found
 
 ### 🔴 Active Issues
-1. **`notification.icon` uses legacy `./assets/icon.png`** — The `app.json` sets the main icon to `./assets/logoandroid.jpg` but the notification icon still points to the old `./assets/icon.png`. Should be reviewed before Play release for visual consistency.
+1. **Stream URL source of truth** — Native and web audio services now read `appIdentity.streamUrl`; future stream callers should keep using that token instead of hard-coding the URL.
 
-2. **Stream URL source of truth** — Native and web audio services now read `appIdentity.streamUrl`; future stream callers should keep using that token instead of hard-coding the URL.
-
-3. **iOS audio behavior still needs physical validation** — iOS background mode is configured, but lock-screen / interruption behavior must be tested on a real iPhone before App Store work.
+2. **iOS audio behavior still needs physical validation** — iOS background mode is configured, but lock-screen / interruption behavior must be tested on a real iPhone before App Store work.
 
 ### 🟡 Warnings
-4. **`expo-notifications` is configured but no notification flow is implemented in JS** — Keep it only if breaking-news notifications are part of the release plan; otherwise remove the permission/plugin before store submission.
+3. **`@react-navigation/bottom-tabs` and `@react-navigation/native`** — Direct dependencies may be redundant because Expo Router handles navigation, but they should only be removed after an Expo Router dependency check.
 
-5. **`@react-navigation/bottom-tabs` and `@react-navigation/native`** — Direct dependencies may be redundant because Expo Router handles navigation, but they should only be removed after an Expo Router dependency check.
+4. **`expo-constants` (18.0.13)** — Direct dependency is not imported in source files, but it is also used transitively by Expo packages, so removal is low priority.
 
-6. **`expo-constants` (18.0.13)** — Direct dependency is not imported in source files, but it is also used transitively by Expo packages, so removal is low priority.
+5. **`expo-linking`** — Installed as a package but `Linking` is imported directly from React Native in `na-kontakto.tsx` and from `expo-linking` in `[slug].tsx`. Inconsistent usage.
 
-7. **`expo-linking`** — Installed as a package but `Linking` is imported directly from React Native in `na-kontakto.tsx` and from `expo-linking` in `[slug].tsx`. Inconsistent usage.
+6. **Article font loading is lazy** — Merriweather loads on the article screen instead of at root for startup performance. Validate first article open on low-end Android so the fallback-to-final font swap feels acceptable.
 
-8. **Article font loading is lazy** — Merriweather loads on the article screen instead of at root for startup performance. Validate first article open on low-end Android so the fallback-to-final font swap feels acceptable.
+7. **`as never` type casts on router.push calls** — Several screens use `router.push(path as never)` to bypass Expo Router typed routes. These work but suppress TypeScript's route validation. Regenerating `.expo/types` would allow removing them.
 
-9. **`as never` type casts on router.push calls** — Several screens use `router.push(path as never)` to bypass Expo Router typed routes. These work but suppress TypeScript's route validation. Regenerating `.expo/types` would allow removing them.
-
-10. **18 moderate npm audit vulnerabilities** — Run `npm audit` to review. Most are likely in dev/transitive dependencies.
+8. **17 moderate npm audit vulnerabilities** — Run `npm audit` to review. Most are likely in dev/transitive dependencies.
 
 ---
 
@@ -256,10 +253,10 @@ No `.env` file is used. The Sanity project ID (`ksakxvtt`), dataset, and API ver
 | Version | 2.0.0 |
 | Bundle scheme | `radiofontana://` |
 | Orientation | Portrait only |
-| Icon | `./assets/logoandroid.jpg` |
-| Adaptive icon | `./assets/logoandroid.jpg` / bg `#ffffff` |
+| Icon | `./assets/icon.png` |
+| Adaptive icon | `./assets/adaptive-icon-foreground.png` / bg `#ffffff` |
 | Splash | `./assets/logoandroid.jpg` / contain / bg `#ffffff` |
 | New Architecture | Enabled |
 | Edge-to-edge | Enabled (Android) |
 | Predictive back | Disabled (Android) |
-| Plugins | expo-router, expo-dev-client, expo-font, expo-notifications, expo-audio |
+| Plugins | expo-router, expo-dev-client, expo-font |

@@ -9,20 +9,19 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 // A-3: deep import skips loading all other icon sets' glyph maps.
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList, type FlashListRef, type ListRenderItemInfo } from '@shopify/flash-list';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { NewsCard } from '../../../components/NewsCard';
-import { RefreshStatusBanner } from '../../../components/RefreshStatusBanner';
-import { SkeletonCard } from '../../../components/SkeletonCard';
-import { HamburgerButton } from '../../../components/HamburgerButton';
-import { appIdentity, colors, fonts } from '../../../design-tokens';
+import { NewsCard } from '../../../components/news/NewsCard';
+import { RefreshStatusBanner } from '../../../components/ui/RefreshStatusBanner';
+import { SkeletonCard } from '../../../components/news/SkeletonCard';
+import { HamburgerButton } from '../../../components/ui/HamburgerButton';
+import { appIdentity, colors, fonts } from '../../../constants/tokens';
 import { queueImagePrefetch } from '../../../lib/prefetchQueue';
 import {
   buildSanityImageUrl,
@@ -47,24 +46,30 @@ const NEWS_CATEGORY_TABS: NewsCategoryTab[] = [
   { label: 'Nga Bota',   slug: 'nga-bota' },
 ];
 
+const DISABLE_MAINTAIN_VISIBLE_CONTENT_POSITION = { disabled: true } as const;
+
 // ── Featured card (first item, large editorial) ───────────────────────────────
 const FeaturedCard = memo(function FeaturedCard({ post, onPress }: { post: Post; onPress: (p: Post) => void }) {
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  const imageUri = buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.newsFeatured);
+  const imageUri = useMemo(
+    () => buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.newsFeatured),
+    [post.mainImageUrl],
+  );
   const cat = post.categories?.[0] ?? 'Lajme';
   const initial = ((post.author ?? 'Redaksia Fontana').trim().charAt(0) || 'R').toUpperCase();
   // Reading time estimate — 4× (excerpt + title) at 220 wpm.
-  const readingMin = (() => {
+  const readingMin = useMemo(() => {
     const text = `${post.title ?? ''} ${post.excerpt ?? ''}`.trim();
     if (!text) return 3;
     return Math.max(2, Math.ceil((text.split(/\s+/).length * 4) / 220));
-  })();
+  }, [post.excerpt, post.title]);
+  const onCardPress = useCallback(() => onPress(post), [onPress, post]);
 
   return (
     <Animated.View style={[SF.outer, animStyle]}>
       <Pressable
-        onPress={() => onPress(post)}
+        onPress={onCardPress}
         onPressIn={() => { scale.value = withTiming(0.985, { duration: 100 }); }}
         onPressOut={() => { scale.value = withTiming(1, { duration: 180 }); }}
         style={SF.inner}
@@ -74,6 +79,7 @@ const FeaturedCard = memo(function FeaturedCard({ post, onPress }: { post: Post;
           <Image
             source={imageUri ? { uri: imageUri } : undefined}
             placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
+            recyclingKey={post._id}
             contentFit="cover"
             transition={0}
             style={SF.image}
@@ -158,23 +164,34 @@ const CategoryPill = memo(function CategoryPill({
 });
 
 // ── Search input (isolated) ──────────────────────────────────────────────────
-// Extracted so the sticky-header useMemo does NOT depend on `search`. The
-// header tree is large; rebuilding it on every keystroke caused visible input
-// latency. Now only this small component re-renders as the user types.
+// Owns its per-keystroke state so the large sticky header and FlashList only
+// hear about search after the debounce settles.
 const SearchInput = memo(function SearchInput({
-  value,
-  onChange,
+  onSearchChange,
 }: {
-  value: string;
-  onChange: (next: string) => void;
+  onSearchChange: (next: string) => void;
 }) {
-  const onClear = useCallback(() => onChange(''), [onChange]);
+  const [value, setValue] = useState('');
+
+  useEffect(() => {
+    const next = value.trim().toLowerCase();
+    const timer = setTimeout(() => {
+      onSearchChange(next);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [onSearchChange, value]);
+
+  const onClear = useCallback(() => {
+    setValue('');
+    onSearchChange('');
+  }, [onSearchChange]);
+
   return (
     <View style={S.searchRow}>
       <Ionicons name="search-outline" size={16} color={colors.textMuted} style={S.searchIcon} />
       <TextInput
         value={value}
-        onChangeText={onChange}
+        onChangeText={setValue}
         placeholder="Kërko lajme..."
         placeholderTextColor={colors.textTertiary}
         style={S.searchInput}
@@ -199,15 +216,7 @@ export default function NewsIndexScreen() {
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlashListRef<Post>>(null);
   const [activeCategory, setActiveCategory] = useState<NewsCategoryTab>(NEWS_CATEGORY_TABS[0]);
-  const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  useEffect(() => {
-    const next = search.trim().toLowerCase();
-    const timer = setTimeout(() => {
-      setDebouncedSearch((prev) => (prev === next ? prev : next));
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [search]);
 
   // Header height: statusBar + titleRow(66) + search(54) + categories(50) + divider(1)
   const HEADER_H = insets.top + 171;
@@ -247,9 +256,10 @@ export default function NewsIndexScreen() {
   );
 
   const onSelectCategory = useCallback((tab: NewsCategoryTab) => {
+    if (tab.slug === activeCategory.slug) return;
     setActiveCategory(tab);
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
-  }, []);
+  }, [activeCategory.slug]);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const onPullToRefresh = useCallback(async () => {
@@ -257,7 +267,7 @@ export default function NewsIndexScreen() {
     try {
       await Promise.allSettled([
         refetchPosts(),
-        new Promise<void>((resolve) => setTimeout(resolve, 650)),
+        new Promise<void>((resolve) => setTimeout(resolve, 1100)),
       ]);
     } finally {
       setIsRefreshing(false);
@@ -313,7 +323,10 @@ export default function NewsIndexScreen() {
   // FlashList item-type discriminator — featured card has a very different
   // layout than NewsCard, so tell the recycler not to reuse views across them.
   const getPostItemType = useCallback(
-    (_item: Post, index: number) => (index === 0 && showFeatured ? 'featured' : 'card'),
+    (item: Post, index: number) => {
+      if (index === 0 && showFeatured) return 'featured';
+      return item.breaking ? 'card-breaking' : 'card';
+    },
     [showFeatured],
   );
 
@@ -324,11 +337,11 @@ export default function NewsIndexScreen() {
         <Ionicons name="newspaper-outline" size={52} color={colors.border} />
         <Text style={S.emptyTitle}>Nuk ka lajme</Text>
         <Text style={S.emptySubtitle}>
-          {search ? 'Provo me fjalë kyçe tjetër' : 'Zgjidh një kategori tjetër ose kthehu pas pak.'}
+          {debouncedSearch ? 'Provo me fjalë kyçe tjetër' : 'Zgjidh një kategori tjetër ose kthehu pas pak.'}
         </Text>
       </View>
     ),
-    [search],
+    [debouncedSearch],
   );
 
   // H15: stable contentContainerStyle so FlashList doesn't see a new prop
@@ -354,7 +367,7 @@ export default function NewsIndexScreen() {
         </View>
 
         {/* Search — isolated component so this memo does not bust per keystroke */}
-        <SearchInput value={search} onChange={setSearch} />
+        <SearchInput onSearchChange={setDebouncedSearch} />
 
         {/* Category pills */}
         <ScrollView
@@ -376,9 +389,8 @@ export default function NewsIndexScreen() {
         <View style={S.headerDivider} />
       </View>
     ),
-    // search intentionally excluded — SearchInput owns its visible state and
-    // bubbles changes via setSearch (which is a stable React setter).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // SearchInput owns per-keystroke state and only updates this screen after
+    // debounce, so typing does not rebuild the title/category header.
     [insets.top, activeCategory.slug, onSelectCategory],
   );
 
@@ -392,6 +404,21 @@ export default function NewsIndexScreen() {
     ),
     [isRefreshing],
   );
+  const postKeyExtractor = useCallback((item: Post) => item._id, []);
+  const loadingKeyExtractor = useCallback((item: number) => String(item), []);
+  const refreshControl = useMemo(
+    () => (
+      <RefreshControl
+        refreshing={isRefreshing}
+        onRefresh={onPullToRefresh}
+        tintColor="transparent"
+        colors={['transparent']}
+        progressBackgroundColor="transparent"
+        progressViewOffset={0}
+      />
+    ),
+    [isRefreshing, onPullToRefresh],
+  );
 
   // ── Loading state ──────────────────────────────────────────────────────────
   if (initialLoading) {
@@ -400,9 +427,10 @@ export default function NewsIndexScreen() {
         {stickyHeader}
         <FlashList
           data={LOADING_ROWS}
-          keyExtractor={(item) => String(item)}
+          keyExtractor={loadingKeyExtractor}
           contentContainerStyle={listContentContainerStyle}
           renderItem={renderLoadingItem}
+          maintainVisibleContentPosition={DISABLE_MAINTAIN_VISIBLE_CONTENT_POSITION}
         />
       </View>
     );
@@ -415,7 +443,7 @@ export default function NewsIndexScreen() {
       <FlashList
         ref={listRef}
         data={posts}
-        keyExtractor={(item) => item._id}
+        keyExtractor={postKeyExtractor}
         showsVerticalScrollIndicator={false}
         scrollEnabled
         contentContainerStyle={listContentContainerStyle}
@@ -423,16 +451,8 @@ export default function NewsIndexScreen() {
         getItemType={getPostItemType}
         ListHeaderComponent={refreshHeader}
         ListEmptyComponent={emptyState}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={onPullToRefresh}
-            tintColor="transparent"
-            colors={['transparent']}
-            progressBackgroundColor="transparent"
-            progressViewOffset={0}
-          />
-        }
+        refreshControl={refreshControl}
+        maintainVisibleContentPosition={DISABLE_MAINTAIN_VISIBLE_CONTENT_POSITION}
       />
     </View>
   );
@@ -620,9 +640,6 @@ const S = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.surfaceSubtle,
-  },
-  flexFill: {
-    flex: 1,
   },
   // Sticky header
   header: {

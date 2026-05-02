@@ -24,8 +24,8 @@ import {
   TrackType,
   type RadioTrack,
 } from './trackPlayerNative';
-import { appIdentity } from '../design-tokens';
-import { addListeningHistory } from './storage';
+import { appIdentity } from '../../constants/tokens';
+import { addListeningHistory } from '../storage';
 
 const reconnectDelaysMs = [1000, 2000, 4000, 8000, 16000, 30000];
 const RADIO_TRACK_ID = 'rtv-fontana-live';

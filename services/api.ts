@@ -155,8 +155,9 @@ export function buildSanityImageUrl(url?: string, width = 800) {
   // Keep aspect ratio 16:9. AUDIT FIX P4.17 + P8.29: drop the conflicting
   // `fm=webp` so `auto=format` can serve AVIF on supporting clients (~30 %
   // smaller than WebP). Sanity respects the Accept header to negotiate.
+  const baseUrl = url.split('?')[0];
   const h = Math.round(width * 0.5625);
-  return `${url}?w=${width}&h=${h}&auto=format&fit=crop&q=75`;
+  return `${baseUrl}?w=${width}&h=${h}&auto=format&fit=crop&q=75`;
 }
 
 export async function fetchHeroPost(signal?: AbortSignal): Promise<Post | null> {
@@ -299,10 +300,20 @@ export async function fetchPostBySlug(slug: string, signal?: AbortSignal): Promi
   return { ...raw, body } as Post;
 }
 
-export async function fetchRelatedPosts(slug: string, categories: string[] = [], signal?: AbortSignal): Promise<Post[]> {
+export async function fetchRelatedPosts(
+  slug: string,
+  categorySlugs: string[] = [],
+  categories: string[] = [],
+  signal?: AbortSignal,
+): Promise<Post[]> {
+  const categorySlug = categorySlugs[0] ?? '';
   const category = categories[0] ?? '';
-  const query = `*[_type == "post" && slug.current != $slug && ($category in array::compact(coalesce(categories[]->title, []) + [category->title]) || $category == "")] | order(publishedAt desc)[0...$limit] { ${postProjection} }`;
-  const data = await sanityFetch<Post[]>(query, { slug, category, limit: 6 }, { signal });
+  const query = `*[_type == "post" && slug.current != $slug && (($categorySlug != "" && $categorySlug in array::compact(coalesce(categories[]->slug.current, []) + [category->slug.current])) || ($category != "" && $category in array::compact(coalesce(categories[]->title, []) + [category->title])) || ($categorySlug == "" && $category == ""))] | order(publishedAt desc)[0...$limit] { ${postProjection} }`;
+  const data = await sanityFetch<Post[]>(query, {
+    slug,
+    categorySlug,
+    category,
+    limit: 6,
+  }, { signal });
   return data ?? [];
 }
-

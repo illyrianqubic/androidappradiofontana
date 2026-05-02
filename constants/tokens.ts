@@ -79,11 +79,13 @@ export const fonts = {
 
 export const appIdentity = {
   name: 'Radio Fontana',
-  stationName: 'Radio Fontana 98.8 FM',
+  stationName: 'RTV Fontana 98.8 FM',
+  albumTitle: 'Radio Fontana',
   location: 'Istog, Kosovë',
   frequency: '98.8 FM',
   streamUrl: 'https://live.radiostreaming.al:8010/stream.mp3',
-  logo: require('./assets/logoandroid.jpg'),
+  logo: require('../assets/logoandroid.jpg'),
+  lockScreenArtwork: require('../assets/images/media-artwork.png'),
 } as const;
 
 export const elevation = {

@@ -22,7 +22,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Font from 'expo-font';
 import {
   Merriweather_400Regular,
@@ -30,10 +30,11 @@ import {
   Merriweather_700Bold,
 } from '@expo-google-fonts/merriweather';
 
-import { HamburgerButton } from '../../../components/HamburgerButton';
-import { SkeletonCard } from '../../../components/SkeletonCard';
-import { appIdentity, colors, fonts, spacing } from '../../../design-tokens';
+import { HamburgerButton } from '../../../components/ui/HamburgerButton';
+import { SkeletonCard } from '../../../components/news/SkeletonCard';
+import { appIdentity, colors, fonts, spacing } from '../../../constants/tokens';
 import { ms, s, vs } from '../../../lib/responsive';
+import { queueImagePrefetch } from '../../../lib/prefetchQueue';
 import {
   buildSanityImageUrl,
   defaultThumbhash,
@@ -78,6 +79,8 @@ const ACCENT = colors.primary; // brand red
 
 // Approximate average words-per-minute for Albanian readers
 const WPM = 220;
+const ARTICLE_STALE_TIME_MS = 30 * 60 * 1000;
+const RELATED_STALE_TIME_MS = 15 * 60 * 1000;
 
 // ── Body block renderer ──────────────────────────────────────────────────────
 type BodyBlockState = { firstParagraphRendered: boolean };
@@ -289,9 +292,11 @@ const ArticleBody = memo(function ArticleBody({
 // ─────────────────────────────────────────────────────────────────────────────
 export default function ArticleDetailScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ slug: string }>();
-  const slug = params.slug;
+  const rawSlug = params.slug;
+  const slug = Array.isArray(rawSlug) ? rawSlug[0] : rawSlug;
   const [linkCopied, setLinkCopied] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -304,7 +309,7 @@ export default function ArticleDetailScreen() {
     // AUDIT FIX P5.20: staleTime raised from 10 min to 30 min so revisiting
     // an article (or coming back via prefetch) skips the network round-trip
     // for half an hour instead of ten minutes — better offline-first UX.
-    staleTime: 30 * 60 * 1000,
+    staleTime: ARTICLE_STALE_TIME_MS,
     // PROFILING FIX (round 2): React 19 dev StrictMode mounts effects twice;
     // combined with the prefetchQuery already running on tap, this could
     // trigger a duplicate Sanity fetch for the same slug (~1.2 s wasted on
@@ -314,16 +319,26 @@ export default function ArticleDetailScreen() {
     refetchOnMount: false,
   });
 
-  const categoriesKey = postQuery.data?.categories?.join('|') ?? '';
+  const relatedCategoryKey =
+    postQuery.data?.categorySlugs?.[0] ?? postQuery.data?.categories?.[0] ?? '';
   const relatedQuery = useQuery({
-    queryKey: ['related-posts', slug, categoriesKey],
+    queryKey: ['related-posts', slug, relatedCategoryKey],
     enabled: Boolean(postQuery.data && slug),
-    queryFn: ({ signal }) => fetchRelatedPosts(slug, postQuery.data?.categories, signal),
+    queryFn: ({ signal }) =>
+      fetchRelatedPosts(
+        slug,
+        postQuery.data?.categorySlugs,
+        postQuery.data?.categories,
+        signal,
+      ),
+    staleTime: RELATED_STALE_TIME_MS,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   // AUDIT FIX P1.2: lazy-load Merriweather on mount. Until it resolves we
   // render the body anyway — the system serif fallback is acceptable.
-  const [serifReady, setSerifReady] = useState(false);
+  const [, setSerifReady] = useState(false);
   useEffect(() => {
     let cancelled = false;
     loadMerriweather().then(() => {
@@ -337,11 +352,12 @@ export default function ArticleDetailScreen() {
   // mount during the slide animation, dropping 1–3 frames.
   const [bodyReady, setBodyReady] = useState(false);
   useEffect(() => {
+    setBodyReady(false);
     const handle = InteractionManager.runAfterInteractions(() => {
       setBodyReady(true);
     });
     return () => handle.cancel();
-  }, []);
+  }, [slug]);
 
   const navBarHeight = insets.top + ARTICLE_NAV_H;
 
@@ -388,9 +404,16 @@ export default function ArticleDetailScreen() {
   }, [postQuery.data]);
   const onOpenRelatedPost = useCallback(
     (nextPost: Post) => {
+      queueImagePrefetch(buildSanityImageUrl(nextPost.mainImageUrl, sanityImageWidths.articleHero));
+      router.prefetch(`/news/${nextPost.slug}` as never);
+      queryClient.prefetchQuery({
+        queryKey: ['post-detail', nextPost.slug],
+        queryFn: ({ signal }) => fetchPostBySlug(nextPost.slug, signal),
+        staleTime: ARTICLE_STALE_TIME_MS,
+      });
       router.push({ pathname: '/news/[slug]' as never, params: { slug: nextPost.slug } as never });
     },
-    [router],
+    [queryClient, router],
   );
 
   const articleBody = useMemo(() => postQuery.data?.body ?? [], [postQuery.data?.body]);
@@ -454,35 +477,40 @@ export default function ArticleDetailScreen() {
   }, [onBack]);
 
   // ── Sticky nav bar (translucent → solid on scroll) ───────────────────────
-  const articleNav = (
-    <View
-      pointerEvents="box-none"
-      style={[styles.articleNav, { paddingTop: insets.top + 8, height: navBarHeight }]}
-    >
-      <Animated.View
-        pointerEvents="none"
-        style={styles.articleNavSolid}
-      />
-      <View style={styles.articleNavRow}>
-        <View style={styles.articleNavSlot}>
-          <Pressable onPress={onBack} hitSlop={12}>
-            <View style={styles.articleNavButton}>
-              <Ionicons name="chevron-back" size={20} color={INK} />
-            </View>
-          </Pressable>
+  const articleNavStyle = useMemo(
+    () => [styles.articleNav, { paddingTop: insets.top + 8, height: navBarHeight }],
+    [insets.top, navBarHeight],
+  );
+  const articleNav = useMemo(
+    () => (
+      <View pointerEvents="box-none" style={articleNavStyle}>
+        <Animated.View pointerEvents="none" style={styles.articleNavSolid} />
+        <View style={styles.articleNavRow}>
+          <View style={styles.articleNavSlot}>
+            <Pressable onPress={onBack} hitSlop={12}>
+              <View style={styles.articleNavButton}>
+                <Ionicons name="chevron-back" size={20} color={INK} />
+              </View>
+            </Pressable>
+          </View>
+          <View style={styles.articleNavCenter}>
+            <Image source={appIdentity.logo} contentFit="cover" style={styles.articleNavLogo} />
+          </View>
+          <View style={styles.articleNavSlot}>
+            <HamburgerButton />
+          </View>
         </View>
-        <View style={styles.articleNavCenter}>
-          <Image source={appIdentity.logo} contentFit="cover" style={styles.articleNavLogo} />
-        </View>
-        <View style={styles.articleNavSlot}>
-          <HamburgerButton />
+        {/* Reading progress bar — sits flush at the very bottom of the nav */}
+        <View style={styles.progressTrack}>
+          <Animated.View style={[styles.progressFill, progressBarStyle]} />
         </View>
       </View>
-      {/* Reading progress bar — sits flush at the very bottom of the nav */}
-      <View style={styles.progressTrack}>
-        <Animated.View style={[styles.progressFill, progressBarStyle]} />
-      </View>
-    </View>
+    ),
+    [articleNavStyle, onBack, progressBarStyle],
+  );
+  const scrollContentStyle = useMemo(
+    () => [styles.scrollContent, { paddingTop: navBarHeight, paddingBottom: insets.bottom + 120 }],
+    [navBarHeight, insets.bottom],
   );
 
   // ── Loading ─────────────────────────────────────────────────────────────
@@ -527,7 +555,7 @@ export default function ArticleDetailScreen() {
       {articleNav}
 
       <Animated.ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingTop: navBarHeight, paddingBottom: insets.bottom + 120 }]}
+        contentContainerStyle={scrollContentStyle}
         showsVerticalScrollIndicator={false}
         onScroll={scrollHandler}
         scrollEventThrottle={16}
@@ -716,7 +744,10 @@ const RelatedItem = memo(function RelatedItem({
   isLast: boolean;
   onPress: (post: Post) => void;
 }) {
-  const thumbUri = buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.articleRelated);
+  const thumbUri = useMemo(
+    () => buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.articleRelated),
+    [post.mainImageUrl],
+  );
   const cat = (post.categories?.[0] ?? 'Lajme').trim().toUpperCase();
   const handlePress = useCallback(() => onPress(post), [onPress, post]);
   return (
@@ -730,6 +761,7 @@ const RelatedItem = memo(function RelatedItem({
           <Image
             source={thumbUri ? { uri: thumbUri } : undefined}
             placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
+            recyclingKey={post._id}
             contentFit="cover"
             transition={0}
             style={StyleSheet.absoluteFillObject}
@@ -753,7 +785,17 @@ const RelatedItem = memo(function RelatedItem({
       {!isLast ? <View style={styles.relatedSep} /> : null}
     </View>
   );
-});
+}, (prev, next) =>
+  prev.isLast === next.isLast &&
+  prev.onPress === next.onPress &&
+  prev.post._id === next.post._id &&
+  prev.post.slug === next.post.slug &&
+  prev.post.title === next.post.title &&
+  prev.post.publishedAt === next.post.publishedAt &&
+  prev.post.mainImageUrl === next.post.mainImageUrl &&
+  prev.post.thumbhash === next.post.thumbhash &&
+  (prev.post.categories?.[0] ?? 'Lajme') === (next.post.categories?.[0] ?? 'Lajme'),
+);
 
 // ── StyleSheet ───────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({

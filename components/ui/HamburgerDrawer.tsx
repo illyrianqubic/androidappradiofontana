@@ -27,9 +27,9 @@ import Svg, { Path } from 'react-native-svg';
 // A-3: deep imports skip loading the full glyph maps for every icon set.
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useDrawer } from '../context/DrawerContext';
+import { useDrawer } from '../../providers/DrawerProvider';
 
-import { colors, fonts } from '../design-tokens';
+import { colors, fonts } from '../../constants/tokens';
 
 // ── TikTok SVG logo (simple-icons) ──────────────────────────────────────────
 function TikTokIcon({ size = 22, color = '#010101' }: { size?: number; color?: string }) {
@@ -110,9 +110,7 @@ function HamburgerDrawerInner() {
   const scrollRef = useRef<ScrollView>(null);
 
   const progress = useSharedValue(0);
-  // panelWidth computed early so we can use it in animated styles
-  const { width: windowWidthForPanel } = useWindowDimensions();
-  const panelWidthForAnim = Math.min(Math.round(windowWidthForPanel * 0.75), PANEL_MAX_W);
+  const panelWidth = Math.min(Math.round(windowWidth * 0.75), PANEL_MAX_W);
 
   useEffect(() => {
     if (isOpen) {
@@ -170,7 +168,7 @@ function HamburgerDrawerInner() {
   // translateX: slide in from the right edge. Pure GPU compositing on Android
   // — no layout pass per frame, so it starts immediately.
   const panelStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: interpolate(progress.value, [0, 1], [panelWidthForAnim, 0]) }],
+    transform: [{ translateX: interpolate(progress.value, [0, 1], [panelWidth, 0]) }],
   }));
 
   const navigate = (path: string) => { close(); router.push(path as never); };
@@ -182,8 +180,6 @@ function HamburgerDrawerInner() {
   const isHomeActive = pathname === '/' || pathname === '/(tabs)' || pathname === '/(tabs)/';
   const isLiveActive = pathname.includes('/live');
   const isNewsActive = pathname.includes('/news');
-
-  const panelWidth = Math.min(Math.round(windowWidth * 0.75), PANEL_MAX_W);
 
   return (
     <View
@@ -220,7 +216,7 @@ function HamburgerDrawerInner() {
             showsVerticalScrollIndicator={false}
             bounces={false}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={[S.scrollContent, { paddingBottom: 16 }]}
+            contentContainerStyle={S.scrollContent}
             onScrollBeginDrag={onScrollBeginDrag}            // R-8: removed `removeClippedSubviews`. It breaks Reanimated's
             // LinearTransition layout animations on Android \u2014 nodes that
             // get clipped during the animation lose their shared-element
@@ -476,8 +472,7 @@ const S = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   scrollContent: {
-    // paddingTop / paddingBottom are applied dynamically using insets so
-    // content clears the status bar and navigation bar.
+    paddingBottom: 16,
   },
 
   // ── Nav cards ───────────────────────────────────────────────────────────────

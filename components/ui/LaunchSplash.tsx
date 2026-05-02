@@ -15,7 +15,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import { appIdentity } from '../design-tokens';
+import { appIdentity } from '../../constants/tokens';
 
 // ─── constants ────────────────────────────────────────────────────────────────
 const LOGO_SIZE = 124;
@@ -23,21 +23,18 @@ const RING_BASE = LOGO_SIZE + 6;       // ring diameter before scale animation
 const SHIMMER_W = Math.round(LOGO_SIZE * 0.52);
 const PRIMARY = '#dc2626';
 
-// MIN_VISIBLE_MS: long enough for the logo entrance (580ms fade + ~530ms spring)
-// and one full shimmer sweep (starts 560ms, ends ~1030ms) to complete.
-// Set to 1100 — logo is settled and shimmer has passed; any shorter feels jarring.
-// MAX_VISIBLE_MS: hard ceiling for cold-start / slow-network cases. The
-// _layout.tsx contentReady fallback fires at 600ms so in practice MAX is
-// rarely reached; it is a safety valve, not the normal exit path.
-const MIN_VISIBLE_MS = 1100;
-const MAX_VISIBLE_MS = 2800;
-const EXIT_DURATION = 260;
+// Keep the branded entrance visible long enough for the first route shell to
+// settle behind it. This does not wait on network data; Home can still render
+// cached content or skeletons when the overlay leaves.
+const COLD_START_MIN_SPLASH_MS = 3000;
+const COLD_START_MAX_SPLASH_MS = 4000;
+const EXIT_DURATION = 220;
 
 // ─── types ────────────────────────────────────────────────────────────────────
 type LaunchSplashProps = {
   onComplete: () => void;
-  // True when first home query has data (from cache or network). When this
-  // flips true, the splash still waits for MIN_VISIBLE_MS before exiting.
+  // True when the root/Home visual shell is safe to reveal. This must not wait
+  // on network data; when it flips true, the splash still waits for the minimum.
   isContentReady?: boolean;
 };
 
@@ -135,9 +132,9 @@ export function LaunchSplash({ onComplete, isContentReady = false }: LaunchSplas
 
     // 3 — fallback exit: fade entire screen to white, then notify parent.
     // The normal content-ready path lives in the second effect below and
-    // exits after MIN_VISIBLE_MS.
+    // exits after COLD_START_MIN_SPLASH_MS.
     screenOpacity.value = withDelay(
-      MAX_VISIBLE_MS,
+      Math.max(0, COLD_START_MAX_SPLASH_MS - EXIT_DURATION),
       withTiming(0, { duration: EXIT_DURATION, easing: Easing.in(Easing.quad) }, (finished) => {
         if (finished && !exitedRef.current) {
           exitedRef.current = true;
@@ -160,7 +157,7 @@ export function LaunchSplash({ onComplete, isContentReady = false }: LaunchSplas
   useEffect(() => {
     if (!isContentReady || exitedRef.current) return;
     const elapsed = Date.now() - mountedAtRef.current;
-    const wait = Math.max(0, MIN_VISIBLE_MS - elapsed);
+    const wait = Math.max(0, COLD_START_MIN_SPLASH_MS - elapsed);
     const t = setTimeout(() => {
       if (exitedRef.current) return;
       cancelAnimation(screenOpacity);

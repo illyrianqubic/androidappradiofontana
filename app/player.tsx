@@ -1,8 +1,8 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FullPlayer } from '../components/FullPlayer';
-import { colors, fonts, radius, spacing } from '../design-tokens';
+import { FullPlayer } from '../components/audio/FullPlayer';
+import { colors, fonts, radius, spacing } from '../constants/tokens';
 
 export default function PlayerModalScreen() {
   const router = useRouter();

@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { colors, fonts, radius, spacing } from '../design-tokens';
+import { colors, fonts, radius, spacing } from '../../constants/tokens';
 import { LiveDot } from './LiveDot';
 
 type LiveBadgeVariant = 'solid' | 'outlined' | 'transparent-over-image';

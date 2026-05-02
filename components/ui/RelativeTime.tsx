@@ -1,6 +1,6 @@
 import { memo, useEffect, useState } from 'react';
 import { Text, type TextStyle } from 'react-native';
-import { colors, fonts } from '../design-tokens';
+import { colors, fonts } from '../../constants/tokens';
 
 type RelativeTimeProps = {
   timestamp: string;

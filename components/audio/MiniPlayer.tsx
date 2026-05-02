@@ -14,10 +14,10 @@ import Animated, {
 } from 'react-native-reanimated';
 import { usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { appIdentity, colors, fonts } from '../design-tokens';
-import { s } from '../lib/responsive';
-import { useAudioActions, useAudioState } from '../services/audio';
-import { useDrawer } from '../context/DrawerContext';
+import { appIdentity, colors, fonts } from '../../constants/tokens';
+import { s } from '../../lib/responsive';
+import { useAudioActions, useAudioState } from '../../services/audio';
+import { useDrawer } from '../../providers/DrawerProvider';
 import { EqualizerBars } from './EqualizerBars';
 
 // MiniPlayer hides on these routes automatically — no context state update needed.
@@ -76,13 +76,23 @@ function GlowRing({ active }: { active: boolean }) {
 // changes don't re-render the audio-driven body. The gate component is the
 // only one re-rendered on navigation; the inner MiniPlayer is React.memo'd
 // and only re-renders when audio state changes. Crucially the inner
-// MiniPlayer stays MOUNTED across navigation — hidden via opacity/transform
+// MiniPlayer stays unmounted during cold start, then mounts after the existing
+// 5s first-appearance window or immediately after audio becomes active. Once
+// mounted, it stays mounted across navigation — hidden via opacity/transform
 // only — so its worklets, gradient shaders and image cache binding survive
-// every article open/close round trip. Previously a `return null` here tore
-// down 5 worklets, 3 LinearGradient shader compiles and an image binding on
-// every navigation — ~25 ms reconcile cost per article round-trip.
+// every article open/close round trip.
 export function MiniPlayerVisibilityGate({ onOpenPlayer }: { onOpenPlayer: () => void }) {
   const pathname = usePathname();
+  const { isPlaying, isBuffering, isReconnecting } = useAudioState();
+  const isAudioActive = isPlaying || isBuffering || isReconnecting;
+  const [appReady, setAppReady] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setAppReady(true), 5000);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (!appReady && !isAudioActive) return null;
+
   const forceHidden =
     pathname === '/player' ||
     HIDDEN_ROUTES.some((r) => pathname === r || pathname.startsWith(r));
@@ -99,16 +109,9 @@ function MiniPlayerInner({ onOpenPlayer, forceHidden }: MiniPlayerProps) {
   // H-B3: UIContext was dead code (hideMiniPlayer/showMiniPlayer never
   // called anywhere) and forced spurious re-renders here on every root
   // re-render. Removed entirely — visibility is now driven only by route
-  // (forceHidden) and drawer state.
-  // Delay first appearance by 5 s so the app feels settled before the
-  // mini-player slides in. Once appReady flips true it never goes back.
-  const [appReady, setAppReady] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setAppReady(true), 5000);
-    return () => clearTimeout(t);
-  }, []);
-
-  const shouldHide = !appReady || drawerOpen || forceHidden;
+  // (forceHidden) and drawer state. The outer gate delays the first mount until
+  // 5 s or active audio, so hidden gradients/images do not join cold start.
+  const shouldHide = drawerOpen || forceHidden;
 
   // Start at 1 (fully offscreen) so there is no flash before the first
   // appReady entrance animation.
@@ -134,6 +137,7 @@ function MiniPlayerInner({ onOpenPlayer, forceHidden }: MiniPlayerProps) {
     opacity: 1 - hideOffset.value,
   }));
 
+  const isVisible = !shouldHide && !layoutHidden;
   const isActive = isPlaying || isBuffering || isReconnecting;
 
   const positionStyle = useMemo(
@@ -173,7 +177,7 @@ function MiniPlayerInner({ onOpenPlayer, forceHidden }: MiniPlayerProps) {
               <Image source={appIdentity.logo} style={styles.logo} contentFit="cover" priority="high" />
               {isPlaying ? (
                 <View style={styles.eqOverlay}>
-                  <EqualizerBars variant="mini" bars={3} playing={isPlaying} color="#fff" />
+                  <EqualizerBars variant="mini" bars={3} playing={isVisible && isPlaying} color="#fff" />
                 </View>
               ) : null}
             </View>
@@ -199,7 +203,7 @@ function MiniPlayerInner({ onOpenPlayer, forceHidden }: MiniPlayerProps) {
 
           {/* ── Play / Pause ──────────────────────────────── */}
           <View style={styles.btnWrap}>
-            <GlowRing active={isPlaying} />
+            <GlowRing active={isVisible && isPlaying} />
             <Pressable
               onPress={toggle}
               style={({ pressed }) => [

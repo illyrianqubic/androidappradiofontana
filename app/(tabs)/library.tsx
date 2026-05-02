@@ -4,9 +4,12 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList } from '@shopify/flash-list';
-import { SkeletonCard } from '../../components/SkeletonCard';
-import { RelativeTime } from '../../components/RelativeTime';
-import { colors, fonts, radius, spacing } from '../../design-tokens';
+import { useQueryClient } from '@tanstack/react-query';
+import { SkeletonCard } from '../../components/news/SkeletonCard';
+import { RelativeTime } from '../../components/ui/RelativeTime';
+import { colors, fonts, radius, spacing } from '../../constants/tokens';
+import { queueImagePrefetch } from '../../lib/prefetchQueue';
+import { buildSanityImageUrl, fetchPostBySlug, sanityImageWidths, type Post } from '../../services/api';
 import {
   clearListeningHistory,
   getListeningHistory,
@@ -18,6 +21,7 @@ import {
 } from '../../services/storage';
 
 const LOADING_ROWS = [1, 2, 3];
+const ARTICLE_STALE_TIME_MS = 30 * 60 * 1000;
 
 const SavedArticleCard = memo(function SavedArticleCard({
   item,
@@ -58,12 +62,17 @@ const HistoryCard = memo(function HistoryCard({ item }: { item: ListeningHistory
 
 export default function LibraryScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const [savedArticles, setSavedArticles] = useState<SavedArticle[]>([]);
   const [history, setHistory] = useState<ListeningHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const topInsetOffset = insets.top + spacing.sm;
   const bottomInsetOffset = insets.bottom + 196;
+  const listContentStyle = useMemo(
+    () => [styles.listContent, { paddingTop: topInsetOffset, paddingBottom: bottomInsetOffset }],
+    [topInsetOffset, bottomInsetOffset],
+  );
 
   const refreshLocalData = useCallback(() => {
     setSavedArticles(getSavedArticles());
@@ -96,9 +105,22 @@ export default function LibraryScreen() {
 
   const onOpenSavedArticle = useCallback(
     (item: SavedArticle) => {
+      const cached = queryClient.getQueryData<Post | null>(['post-detail', item.slug]);
+      queueImagePrefetch(
+        buildSanityImageUrl(
+          cached?.mainImageUrl ?? item.imageUrl ?? undefined,
+          sanityImageWidths.articleHero,
+        ),
+      );
+      router.prefetch(`/news/${item.slug}` as never);
+      queryClient.prefetchQuery({
+        queryKey: ['post-detail', item.slug],
+        queryFn: ({ signal }) => fetchPostBySlug(item.slug, signal),
+        staleTime: ARTICLE_STALE_TIME_MS,
+      });
       router.push({ pathname: '/news/[slug]' as never, params: { slug: item.slug } as never });
     },
-    [router],
+    [queryClient, router],
   );
 
   const renderSavedItem = useCallback(
@@ -151,10 +173,7 @@ export default function LibraryScreen() {
         <FlashList
           data={LOADING_ROWS}
           keyExtractor={(item) => String(item)}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingTop: topInsetOffset, paddingBottom: bottomInsetOffset },
-          ]}
+          contentContainerStyle={listContentStyle}
           renderItem={() => <SkeletonCard height={160} />}
           ListHeaderComponent={
             <View>

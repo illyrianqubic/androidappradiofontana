@@ -7,7 +7,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import Svg, { Path } from 'react-native-svg';
-import { appIdentity, colors, fonts } from '../design-tokens';
+import { appIdentity, colors, fonts } from '../constants/tokens';
 
 function TikTokIcon({ size = 20, color = '#010101' }: { size?: number; color?: string }) {
   return (

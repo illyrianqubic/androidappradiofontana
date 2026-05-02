@@ -1,11 +1,10 @@
 import { StyleSheet, View } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 // A-3: deep import skips loading all other icon sets' glyph maps.
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMemo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts } from '../../design-tokens';
+import { colors, fonts } from '../../constants/tokens';
 
 const ICONS_ACTIVE: Record<string, keyof typeof Ionicons.glyphMap> = {
   index: 'home',
@@ -44,7 +43,9 @@ export default function TabsLayout() {
         // showed up as a 30–80 ms hitch on tab switches. expo-router lazily
         // mounts each tab on first focus anyway, which is fast enough.
         tabPress: () => {
-          Haptics.selectionAsync().catch(() => undefined);
+          import('expo-haptics')
+            .then((Haptics) => Haptics.selectionAsync())
+            .catch(() => undefined);
         },
       }}
       screenOptions={({ route }) => ({

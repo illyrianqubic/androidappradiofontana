@@ -16,7 +16,6 @@ import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList, type ListRenderItemInfo } from '@shopify/flash-list';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -31,10 +30,10 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useIsFocused } from '@react-navigation/native';
-import { HamburgerButton } from '../../components/HamburgerButton';
-import { RelativeTime } from '../../components/RelativeTime';
-import { RefreshStatusBanner } from '../../components/RefreshStatusBanner';
-import { SkeletonCard } from '../../components/SkeletonCard';
+import { HamburgerButton } from '../../components/ui/HamburgerButton';
+import { RelativeTime } from '../../components/ui/RelativeTime';
+import { RefreshStatusBanner } from '../../components/ui/RefreshStatusBanner';
+import { SkeletonCard } from '../../components/news/SkeletonCard';
 
 // AUDIT FIX P8.32: module-level constants — not reallocated per render.
 // Hoisted to the top of the module so every closure that references them
@@ -42,7 +41,7 @@ import { SkeletonCard } from '../../components/SkeletonCard';
 // the consuming component is declared in the file.
 const ALBANIAN_DAYS = ['e diel', 'e hënë', 'e martë', 'e mërkurë', 'e enjte', 'e premte', 'e shtunë'];
 const ALBANIAN_MONTHS = ['janar', 'shkurt', 'mars', 'prill', 'maj', 'qershor', 'korrik', 'gusht', 'shtator', 'tetor', 'nëntor', 'dhjetor'];
-import { appIdentity, colors, fonts } from '../../design-tokens';
+import { appIdentity, colors, fonts } from '../../constants/tokens';
 import { ms, s } from '../../lib/responsive';
 import { queueImagePrefetch } from '../../lib/prefetchQueue';
 import {
@@ -59,6 +58,7 @@ import {
 
 const BREAKING_H = 44;
 const CURRENT_YEAR = new Date().getFullYear();
+const DISABLE_MAINTAIN_VISIBLE_CONTENT_POSITION = { disabled: true } as const;
 
 type LatestGridItem = Post | { _skeleton: string };
 function isSkeletonItem(item: LatestGridItem): item is { _skeleton: string } {
@@ -104,11 +104,16 @@ const WeatherWidget = memo(function WeatherWidget() {
     });
     return () => sub.remove();
   }, []);
+  const [canFetchWeather, setCanFetchWeather] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setCanFetchWeather(true), 900);
+    return () => clearTimeout(t);
+  }, []);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['weather-istog'],
     queryFn: ({ signal }) => fetchWeatherIstog(signal),
-    enabled: isAppForeground,
+    enabled: isAppForeground && canFetchWeather,
     staleTime: 30 * 60 * 1000,
     // Auto-refresh every 15 minutes so users coming back to a stale home tab
     // see fresh conditions without needing a pull-to-refresh.
@@ -278,6 +283,21 @@ function BreakingTickerInner({ headlines }: { headlines: string[] }) {
   );
 }
 
+function samePreviewPost(a: Post, b: Post): boolean {
+  return (
+    a._id === b._id &&
+    a.slug === b.slug &&
+    a.title === b.title &&
+    a.excerpt === b.excerpt &&
+    a.publishedAt === b.publishedAt &&
+    a.breaking === b.breaking &&
+    a.mainImageUrl === b.mainImageUrl &&
+    a.thumbhash === b.thumbhash &&
+    a.author === b.author &&
+    (a.categories?.[0] ?? 'Lajme') === (b.categories?.[0] ?? 'Lajme')
+  );
+}
+
 // ── HeroCard ───────────────────────────────────────────────────────────────────
 const HeroCard = memo(function HeroCard({
   hero,
@@ -362,7 +382,11 @@ const HeroCard = memo(function HeroCard({
       </Pressable>
     </Animated.View>
   );
-});
+}, (prev, next) =>
+  prev.onPress === next.onPress &&
+  prev.heroImageUri === next.heroImageUri &&
+  samePreviewPost(prev.hero, next.hero),
+);
 
 // ── LocalCard (compact overlay card for horizontal rail) ──────────────────────
 const LocalCard = memo(function LocalCard({ post, onPress }: { post: Post; onPress: (p: Post) => void }) {
@@ -406,7 +430,10 @@ const LocalCard = memo(function LocalCard({ post, onPress }: { post: Post; onPre
       </Pressable>
     </Animated.View>
   );
-});
+}, (prev, next) =>
+  prev.onPress === next.onPress &&
+  samePreviewPost(prev.post, next.post),
+);
 
 // ── SectionHeader (reusable inside header/footer) ─────────────────────────────
 const SectionHeader = memo(function SectionHeader({
@@ -429,7 +456,10 @@ const SectionHeader = memo(function SectionHeader({
       ) : null}
     </View>
   );
-});
+}, (prev, next) =>
+  prev.title === next.title &&
+  prev.onSeeAll === next.onSeeAll,
+);
 
 // ── LatestNewsHeader — bespoke editorial masthead for the main feed ──────────
 // Why a separate component (not the generic SectionHeader): the "Lajmet e
@@ -511,7 +541,10 @@ const LatestNewsHeader = memo(function LatestNewsHeader({
       <View style={styles.latestRuleHair} />
     </View>
   );
-});
+}, (prev, next) =>
+  prev.count === next.count &&
+  prev.onSeeAll === next.onSeeAll,
+);
 
 // ── GridItem (memoized) ──────────────────────────────────────────────────────
 const GridItem = memo(function GridItem({
@@ -600,7 +633,11 @@ const GridItem = memo(function GridItem({
       </Animated.View>
     </View>
   );
-});
+}, (prev, next) =>
+  prev.isLeft === next.isLeft &&
+  prev.onPress === next.onPress &&
+  samePreviewPost(prev.item, next.item),
+);
 
 // ── SearchResultCard (memoized) — used by virtualized search overlay ─────────
 const SearchResultCard = memo(function SearchResultCard({
@@ -631,6 +668,7 @@ const SearchResultCard = memo(function SearchResultCard({
         placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
         recyclingKey={item._id}
         contentFit="cover"
+        transition={0}
         style={styles.searchResultImg}
       />
       <View style={styles.searchResultBody}>
@@ -647,7 +685,10 @@ const SearchResultCard = memo(function SearchResultCard({
       </Pressable>
     </Animated.View>
   );
-});
+}, (prev, next) =>
+  prev.onPress === next.onPress &&
+  samePreviewPost(prev.item, next.item),
+);
 
 // ── HomeScreen ─────────────────────────────────────────────────────────────────
 export default function HomeScreen() {
@@ -841,7 +882,7 @@ export default function HomeScreen() {
         refetchLatest(),
         refetchLocal(),
         queryClient.invalidateQueries({ queryKey: ['weather-istog'] }),
-        new Promise<void>((resolve) => setTimeout(resolve, 650)),
+        new Promise<void>((resolve) => setTimeout(resolve, 1100)),
       ]);
     } finally {
       setIsRefreshing(false);
@@ -876,9 +917,15 @@ export default function HomeScreen() {
   );
 
   // FlashList item-type discriminator — keeps the recycler from reusing a
-  // skeleton view as a real post (and vice versa) on first paint.
+  // skeleton view as a real post (and vice versa) on first paint. Split post
+  // types by visible height drivers so FlashList v2's recycler does not reuse
+  // tall breaking/excerpt cards as short cards during fast scroll.
   const getGridItemType = useCallback(
-    (item: LatestGridItem) => (isSkeletonItem(item) ? 'skeleton' : 'post'),
+    (item: LatestGridItem) => {
+      if (isSkeletonItem(item)) return 'skeleton';
+      if (item.breaking) return item.excerpt ? 'post-breaking-excerpt' : 'post-breaking';
+      return item.excerpt ? 'post-excerpt' : 'post';
+    },
     [],
   );
 
@@ -1058,6 +1105,18 @@ export default function HomeScreen() {
     [onPressSearchResult],
   );
   const searchKeyExtractor = useCallback((item: Post) => item._id, []);
+  const gridKeyExtractor = useCallback(
+    (item: LatestGridItem) => (isSkeletonItem(item) ? item._skeleton : item._id),
+    [],
+  );
+  const searchResultsHeader = useMemo(
+    () => (
+      <Text style={styles.searchCount}>
+        {filteredData.length} rezultat{filteredData.length !== 1 ? 'e' : ''}
+      </Text>
+    ),
+    [filteredData.length],
+  );
   const searchOverlayContentStyle = useMemo(
     () => ({
       paddingHorizontal: 16,
@@ -1065,6 +1124,19 @@ export default function HomeScreen() {
       paddingBottom: bottomInsetOffset,
     }),
     [bottomInsetOffset],
+  );
+  const refreshControl = useMemo(
+    () => (
+      <RefreshControl
+        refreshing={isRefreshing}
+        onRefresh={onPullToRefresh}
+        tintColor="transparent"
+        colors={['transparent']}
+        progressBackgroundColor="transparent"
+        progressViewOffset={0}
+      />
+    ),
+    [isRefreshing, onPullToRefresh],
   );
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -1146,14 +1218,11 @@ export default function HomeScreen() {
               data={filteredData}
               keyExtractor={searchKeyExtractor}
               renderItem={renderSearchResult}
-              ListHeaderComponent={
-                <Text style={styles.searchCount}>
-                  {filteredData.length} rezultat{filteredData.length !== 1 ? 'e' : ''}
-                </Text>
-              }
+              ListHeaderComponent={searchResultsHeader}
               contentContainerStyle={searchOverlayContentStyle}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
+              maintainVisibleContentPosition={DISABLE_MAINTAIN_VISIBLE_CONTENT_POSITION}
             />
           </View>
         )
@@ -1163,7 +1232,7 @@ export default function HomeScreen() {
       <FlashList
         data={gridData}
         numColumns={2}
-        keyExtractor={(item) => (isSkeletonItem(item) ? item._skeleton : item._id)}
+        keyExtractor={gridKeyExtractor}
         showsVerticalScrollIndicator={false}
         scrollEnabled
         contentContainerStyle={gridContentContainerStyle}
@@ -1171,16 +1240,8 @@ export default function HomeScreen() {
         ListFooterComponent={listFooter}
         renderItem={renderGridItem}
         getItemType={getGridItemType}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={onPullToRefresh}
-            tintColor="transparent"
-            colors={['transparent']}
-            progressBackgroundColor="transparent"
-            progressViewOffset={0}
-          />
-        }
+        refreshControl={refreshControl}
+        maintainVisibleContentPosition={DISABLE_MAINTAIN_VISIBLE_CONTENT_POSITION}
       />
     </View>
   );

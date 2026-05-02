@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 // A-3: deep import skips loading all other icon sets' glyph maps.
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, radius, spacing } from '../design-tokens';
+import { colors, fonts, radius, spacing } from '../constants/tokens';
 
 export default function AboutScreen() {
   const insets = useSafeAreaInsets();

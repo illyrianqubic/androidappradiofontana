@@ -7,14 +7,13 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import * as Haptics from 'expo-haptics';
 import {
   createAudioPlayer,
   setAudioModeAsync,
   type AudioPlayer,
   type AudioStatus,
 } from 'expo-audio';
-import { appIdentity } from '../design-tokens';
+import { appIdentity } from '../../constants/tokens';
 
 const reconnectDelaysMs = [1000, 2000, 4000, 8000, 16000, 30000];
 
@@ -89,7 +88,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const reconnectAttemptRef = useRef(0);
   const reconnectRef = useRef<() => Promise<void>>(async () => undefined);
   const doReconnectRef = useRef<() => Promise<void>>(async () => undefined);
+  const playSettlingCheckTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pauseIntentRef = useRef(false);
+  const playIntentStartedAtRef = useRef(0);
   const intentGenerationRef = useRef(0);
   const userIntentRef = useRef<'play' | 'pause' | 'idle'>('idle');
 
@@ -134,6 +135,39 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       reconnectTimeoutRef.current = null;
     }
   }, []);
+
+  const clearPlaySettlingCheck = useCallback(() => {
+    if (playSettlingCheckTimeoutRef.current) {
+      clearTimeout(playSettlingCheckTimeoutRef.current);
+      playSettlingCheckTimeoutRef.current = null;
+    }
+  }, []);
+
+  const syncPausedFromSettledPlayer = useCallback(() => {
+    const status = playerRef.current?.currentStatus;
+    if (!mountedRef.current || !status?.isLoaded || status.playing || status.isBuffering) {
+      return;
+    }
+    userIntentRef.current = 'idle';
+    pauseIntentRef.current = false;
+    clearReconnectTimeout();
+    updateState({
+      isPlaying: false,
+      isBuffering: false,
+      isReconnecting: false,
+      playbackState: PlayerState.paused,
+    });
+  }, [clearReconnectTimeout, updateState]);
+
+  const schedulePlaySettlingCheck = useCallback(() => {
+    clearPlaySettlingCheck();
+    const elapsed = Date.now() - playIntentStartedAtRef.current;
+    const wait = Math.max(80, 1250 - elapsed);
+    playSettlingCheckTimeoutRef.current = setTimeout(() => {
+      playSettlingCheckTimeoutRef.current = null;
+      syncPausedFromSettledPlayer();
+    }, wait);
+  }, [clearPlaySettlingCheck, syncPausedFromSettledPlayer]);
 
   const cancelReconnect = useCallback(() => {
     clearReconnectTimeout();
@@ -184,6 +218,21 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     const playing = status.playing;
 
     if (pauseIntentRef.current) {
+      if (playing && !buffering) {
+        pauseIntentRef.current = false;
+        userIntentRef.current = 'idle';
+        clearPlaySettlingCheck();
+        reconnectAttemptRef.current = 0;
+        updateState({
+          isPlaying: true,
+          isBuffering: false,
+          isReconnecting: false,
+          playbackState: PlayerState.playing,
+          metadata: { title: appIdentity.stationName, artist: appIdentity.location },
+        });
+        return;
+      }
+
       if (!playing && !buffering) {
         if (!generationMatches()) return;
         pauseIntentRef.current = false;
@@ -211,6 +260,8 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     if (playing) {
       reconnectAttemptRef.current = 0;
       if (!generationMatches()) return;
+      userIntentRef.current = 'idle';
+      clearPlaySettlingCheck();
       updateState({
         isPlaying: true,
         isBuffering: false,
@@ -221,7 +272,14 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (userIntentRef.current === 'play') return;
+    if (userIntentRef.current === 'play') {
+      const settling = Date.now() - playIntentStartedAtRef.current < 1200;
+      if (!stateRef.current.isPlaying && settling) {
+        schedulePlaySettlingCheck();
+        return;
+      }
+      userIntentRef.current = 'idle';
+    }
     if (!generationMatches()) return;
     clearReconnectTimeout();
     updateState({
@@ -230,14 +288,15 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       isReconnecting: false,
       playbackState: PlayerState.paused,
     });
-  }, [clearReconnectTimeout, updateState]);
+  }, [clearPlaySettlingCheck, clearReconnectTimeout, schedulePlaySettlingCheck, updateState]);
 
   const releaseCurrentPlayer = useCallback(() => {
     statusSubscriptionRef.current?.remove();
     statusSubscriptionRef.current = null;
+    clearPlaySettlingCheck();
     playerRef.current?.remove();
     playerRef.current = null;
-  }, []);
+  }, [clearPlaySettlingCheck]);
 
   const createAndAttachPlayer = useCallback(
     (autoPlay: boolean) => {
@@ -345,8 +404,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const play = useCallback(async () => {
     intentGenerationRef.current += 1;
     userIntentRef.current = 'play';
+    playIntentStartedAtRef.current = Date.now();
+    clearPlaySettlingCheck();
     pauseIntentRef.current = false;
-    await ensurePlayer();
 
     updateState({
       isReconnecting: true,
@@ -355,6 +415,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     });
 
     try {
+      await ensurePlayer();
       const player = playerRef.current;
       if (!player) {
         await reconnect();
@@ -370,11 +431,12 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     } catch {
       await reconnect();
     }
-  }, [ensurePlayer, reconnect, updateState]);
+  }, [clearPlaySettlingCheck, ensurePlayer, reconnect, updateState]);
 
   const pause = useCallback(() => {
     intentGenerationRef.current += 1;
     userIntentRef.current = 'pause';
+    clearPlaySettlingCheck();
     pauseIntentRef.current = true;
     cancelReconnect();
 
@@ -395,10 +457,12 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     } else {
       pauseIntentRef.current = false;
     }
-  }, [cancelReconnect, updateState]);
+  }, [cancelReconnect, clearPlaySettlingCheck, updateState]);
 
   const toggle = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    import('expo-haptics')
+      .then((Haptics) => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light))
+      .catch(() => undefined);
     const cur = stateRef.current;
     if (cur.isPlaying || cur.isBuffering || cur.isReconnecting) {
       pause();
@@ -409,22 +473,14 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     mountedRef.current = true;
-    const prewarmTimer = setTimeout(() => {
-      ensurePlayer().catch(() => {
-        updateState({
-          playbackState: PlayerState.error,
-          metadata: { title: 'Gabim ne stream', artist: 'Provo perseri' },
-        });
-      });
-    }, 2500);
 
     return () => {
       mountedRef.current = false;
-      clearTimeout(prewarmTimer);
+      clearPlaySettlingCheck();
       cancelReconnect();
       releaseCurrentPlayer();
     };
-  }, [cancelReconnect, ensurePlayer, releaseCurrentPlayer, updateState]);
+  }, [cancelReconnect, clearPlaySettlingCheck, releaseCurrentPlayer]);
 
   const { isReady, isPlaying, isBuffering, isReconnecting, playbackState, metadata } = state;
 

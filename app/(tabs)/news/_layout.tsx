@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router';
-import { colors } from '../../../design-tokens';
+import { colors } from '../../../constants/tokens';
 
 // Expo Router restores the last route inside a nested Stack on cold start
 // (and when the parent tab navigator first mounts the screen). Without an

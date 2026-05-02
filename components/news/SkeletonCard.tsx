@@ -6,10 +6,12 @@ import Animated, {
   interpolate,
   makeMutable,
   useAnimatedStyle,
+  useReducedMotion,
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { colors, radius } from '../design-tokens';
+import { useIsFocused } from '@react-navigation/native';
+import { colors, radius } from '../../constants/tokens';
 
 type SkeletonCardProps = {
   height?: number;
@@ -17,9 +19,10 @@ type SkeletonCardProps = {
 };
 
 // Single shared shimmer driver — one looping worklet for ALL skeleton instances.
-// Reference-counted so it only runs while at least one SkeletonCard is mounted.
+// Reference-counted so it only runs while at least one visible screen has a
+// SkeletonCard mounted.
 const sharedShimmer = makeMutable(0);
-let mountCount = 0;
+let activeCount = 0;
 
 function startShimmer() {
   sharedShimmer.value = withRepeat(
@@ -35,14 +38,19 @@ function stopShimmer() {
 }
 
 export const SkeletonCard = memo(function SkeletonCard({ height = 120, style }: SkeletonCardProps) {
+  const isFocused = useIsFocused();
+  const reducedMotion = useReducedMotion();
+  const shouldAnimate = isFocused && !reducedMotion;
+
   useEffect(() => {
-    mountCount += 1;
-    if (mountCount === 1) startShimmer();
+    if (!shouldAnimate) return undefined;
+    activeCount += 1;
+    if (activeCount === 1) startShimmer();
     return () => {
-      mountCount -= 1;
-      if (mountCount === 0) stopShimmer();
+      activeCount -= 1;
+      if (activeCount === 0) stopShimmer();
     };
-  }, []);
+  }, [shouldAnimate]);
 
   const shimmerStyle = useAnimatedStyle(() => ({
     opacity: interpolate(sharedShimmer.value, [0, 0.5, 1], [0.15, 0.45, 0.15]),

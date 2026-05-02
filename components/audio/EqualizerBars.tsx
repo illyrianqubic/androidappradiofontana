@@ -10,7 +10,7 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { colors } from '../design-tokens';
+import { colors } from '../../constants/tokens';
 
 type EqualizerBarsProps = {
   bars?: number;
