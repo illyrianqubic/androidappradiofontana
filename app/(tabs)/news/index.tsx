@@ -221,7 +221,10 @@ export default function NewsIndexScreen() {
   }, [activeCategory.slug]);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const lastRefreshRef = useRef<number>(0);
   const onPullToRefresh = useCallback(async () => {
+    if (Date.now() - lastRefreshRef.current < 10_000) return;
+    lastRefreshRef.current = Date.now();
     setIsRefreshing(true);
     try {
       await Promise.allSettled([

@@ -23,6 +23,7 @@ import Animated, {
   Easing,
   cancelAnimation,
   interpolate,
+  runOnJS,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -224,86 +225,130 @@ function BreakingTickerInner({ headlines }: { headlines: BreakingItem[] }) {
   useLayoutEffect(() => { isFocusedRef.current = isFocused; }, [isFocused]);
   useLayoutEffect(() => { reducedMotionRef.current = reducedMotion; }, [reducedMotion]);
 
-  const translateX = useSharedValue(0);
-  const trackWidthRef = useRef(0);
+  // currentIndex: which headline is currently scrolling.
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const currentIndexRef = useRef(0);
   const headlinesRef = useRef(headlines);
   headlinesRef.current = headlines;
 
-  // All headlines joined with bullet separators — trailing sep makes the loop join seamless
-  const tickerText = useMemo(
-    () => headlines.map((h) => h.title).join('   ·   ') + '   ·   ',
-    [headlines],
-  );
+  const translateX = useSharedValue(0);
+  const viewportWidthRef = useRef(0);
+  const textWidthRef = useRef(0);
+
+  // Reset to index 0 when the breaking-headlines set changes (e.g. after a refresh).
+  const prevHeadlineIdsRef = useRef('');
+  useEffect(() => {
+    const ids = headlines.map((h) => h.slug).join(',');
+    if (ids === prevHeadlineIdsRef.current) return;
+    prevHeadlineIdsRef.current = ids;
+    currentIndexRef.current = 0;
+    setCurrentIndex(0);
+  }, [headlines]);
+
+  const currentHeadline = headlines[Math.min(currentIndex, headlines.length - 1)];
 
   const onPressTicker = useCallback(() => {
-    const slug = headlinesRef.current[0]?.slug;
+    const slug = currentHeadline?.slug;
     if (!slug) return;
     (navigation as never as { navigate: (s: string, p: object) => void })
       .navigate('news', { screen: '[slug]', params: { slug } });
-  }, [navigation]);
+  }, [navigation, currentHeadline]);
+
+  // Forward-declare startAnim ref so advanceToNext can call it for the single-headline loop.
+  const startAnimRef = useRef<() => void>(() => undefined);
+
+  const advanceToNext = useCallback(() => {
+    const count = headlinesRef.current.length;
+    if (count === 0) return;
+    const current = Math.min(currentIndexRef.current, count - 1);
+    const next = (current + 1) % count;
+    currentIndexRef.current = next;
+    if (next === current) {
+      // Only one headline — restart animation directly without a state change
+      // (setCurrentIndex(same) would be a no-op and the effect would not re-run).
+      startAnimRef.current();
+    } else {
+      setCurrentIndex(next);
+    }
+  }, []);
 
   const startAnim = useCallback(() => {
-    const tw = trackWidthRef.current;
-    if (!tw || !isFocusedRef.current || reducedMotionRef.current) return;
+    const vw = viewportWidthRef.current;
+    const tw = textWidthRef.current;
+    if (!vw || !tw || !isFocusedRef.current || reducedMotionRef.current) return;
     cancelAnimation(translateX);
-    translateX.value = 0;
-    // Two-copy trick: animate one full copy width. withRepeat snaps back to 0
-    // between reps — invisible because both copies are identical at that boundary.
-    translateX.value = withRepeat(
-      withTiming(-tw, { duration: (tw / 50) * 1000, easing: Easing.linear }),
-      -1,
-      false,
-    );
-  }, [translateX]);
+    translateX.value = vw;
+    const duration = ((vw + tw) / 50) * 1000;
+    translateX.value = withTiming(-tw, { duration, easing: Easing.linear }, (finished) => {
+      if (finished) runOnJS(advanceToNext)();
+    });
+  }, [translateX, advanceToNext]);
 
-  // Pause / resume when tab focus or reduced-motion changes.
+  // Keep the ref in sync so advanceToNext can always call the latest startAnim.
+  startAnimRef.current = startAnim;
+
+  // When the displayed headline changes: reset text measurement and park text
+  // off-screen right. Animation begins once onTextLayout fires with the new width.
+  useEffect(() => {
+    cancelAnimation(translateX);
+    textWidthRef.current = 0;
+    if (viewportWidthRef.current) translateX.value = viewportWidthRef.current;
+  }, [currentIndex, translateX]);
+
+  // Pause / resume on tab-focus or reduced-motion changes.
   useEffect(() => {
     if (!isFocused || reducedMotion) {
       cancelAnimation(translateX);
       return;
     }
-    if (trackWidthRef.current) startAnim();
+    if (viewportWidthRef.current && textWidthRef.current) startAnim();
   }, [isFocused, reducedMotion, translateX, startAnim]);
 
-  // When headline text changes, cancel and restart immediately if already measured.
-  // Do NOT zero trackWidthRef — that causes a visible pause while waiting for re-measurement.
-  useEffect(() => {
-    cancelAnimation(translateX);
-    translateX.value = 0;
-    if (trackWidthRef.current) startAnim();
-  }, [tickerText, translateX, startAnim]);
-
-  // Off-screen hidden Text measures the natural width of one copy.
-  const onMeasureLayout = useCallback(
-    (e: LayoutChangeEvent) => {
-      const w = e.nativeEvent.layout.width;
-      if (w === trackWidthRef.current) return;
-      trackWidthRef.current = w;
+  const onViewportLayout = useCallback((e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    if (w === viewportWidthRef.current) return;
+    viewportWidthRef.current = w;
+    if (textWidthRef.current) {
       startAnim();
-    },
-    [startAnim],
-  );
+    } else {
+      // Park text off-screen right while waiting for text measurement.
+      translateX.value = w;
+    }
+  }, [startAnim, translateX]);
+
+  const onTextLayout = useCallback((e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    if (w === textWidthRef.current) return;
+    textWidthRef.current = w;
+    if (viewportWidthRef.current) startAnim();
+  }, [startAnim]);
 
   const animStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
   }));
+
+  if (!currentHeadline) return null;
 
   return (
     <View style={styles.breakingStrip}>
       <View style={styles.breakingLabel}>
         <Text style={styles.breakingLabelText}>LAJM I FUNDIT</Text>
       </View>
-      <Pressable onPress={onPressTicker} hitSlop={4} style={styles.breakingViewport}>
-        {/* Two identical copies side-by-side for seamless looping */}
-        <Animated.View style={[styles.breakingMarqueeTrack, animStyle]}>
-          <Text style={styles.breakingTickerText}>{tickerText}</Text>
-          <Text style={styles.breakingTickerText}>{tickerText}</Text>
+      <Pressable
+        onPress={onPressTicker}
+        hitSlop={4}
+        style={styles.breakingViewport}
+        onLayout={onViewportLayout}
+      >
+        {/* Single headline — slides in from right, exits left, then next headline starts */}
+        <Animated.View style={[styles.breakingTickerRow, animStyle]}>
+          <Text style={styles.breakingTickerText}>{currentHeadline.title}</Text>
         </Animated.View>
       </Pressable>
-      {/* Off-screen measurement — OUTSIDE overflow:hidden so text renders at natural width */}
+      {/* Off-screen measurement — outside overflow:hidden so text renders at natural width */}
       <View style={styles.breakingMeasure}>
-        <Text onLayout={onMeasureLayout} style={styles.breakingTickerText}>
-          {tickerText}
+        <Text onLayout={onTextLayout} style={styles.breakingTickerText}>
+          {currentHeadline.title}
         </Text>
       </View>
     </View>
@@ -874,7 +919,10 @@ export default function HomeScreen() {
   }, [latestData, router, queryClient]);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const lastRefreshRef = useRef<number>(0);
   const onPullToRefresh = useCallback(async () => {
+    if (Date.now() - lastRefreshRef.current < 10_000) return;
+    lastRefreshRef.current = Date.now();
     setIsRefreshing(true);
     try {
       await Promise.allSettled([
@@ -1390,6 +1438,10 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 9999,
+  },
+  breakingTickerRow: {
+    flexDirection: 'row',
+    alignSelf: 'flex-start',
   },
   breakingTickerText: {
     color: 'rgba(255,255,255,0.88)',
