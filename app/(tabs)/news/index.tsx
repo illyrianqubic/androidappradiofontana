@@ -221,18 +221,26 @@ export default function NewsIndexScreen() {
   }, [activeCategory.slug]);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [bannerVisible, setBannerVisible] = useState(false);
   const lastRefreshRef = useRef<number>(0);
   const onPullToRefresh = useCallback(async () => {
-    if (Date.now() - lastRefreshRef.current < 10_000) return;
-    lastRefreshRef.current = Date.now();
+    const now = Date.now();
+    const throttled = now - lastRefreshRef.current < 10_000;
+    if (!throttled) lastRefreshRef.current = now;
     setIsRefreshing(true);
+    if (!throttled) setBannerVisible(true);
     try {
+      if (throttled) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+        return;
+      }
       await Promise.allSettled([
         refetchPosts(),
         new Promise<void>((resolve) => setTimeout(resolve, 1100)),
       ]);
     } finally {
       setIsRefreshing(false);
+      setBannerVisible(false);
     }
   }, [refetchPosts]);
 
@@ -359,12 +367,12 @@ export default function NewsIndexScreen() {
   const refreshHeader = useMemo(
     () => (
       <RefreshStatusBanner
-        visible={isRefreshing}
+        visible={bannerVisible}
         title="Duke përditësuar lajmet"
         subtitle="Po kontrollohen artikujt më të fundit nga redaksia."
       />
     ),
-    [isRefreshing],
+    [bannerVisible],
   );
   const postKeyExtractor = useCallback((item: Post) => item._id, []);
   const loadingKeyExtractor = useCallback((item: number) => String(item), []);

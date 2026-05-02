@@ -920,12 +920,24 @@ export default function HomeScreen() {
   }, [latestData, router, queryClient]);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [bannerVisible, setBannerVisible] = useState(false);
   const lastRefreshRef = useRef<number>(0);
   const onPullToRefresh = useCallback(async () => {
-    if (Date.now() - lastRefreshRef.current < 10_000) return;
-    lastRefreshRef.current = Date.now();
+    const now = Date.now();
+    const throttled = now - lastRefreshRef.current < 10_000;
+    if (!throttled) lastRefreshRef.current = now;
+    // Always cycle isRefreshing true→false so the native SwipeRefreshLayout /
+    // UIRefreshControl receives the proper dismiss signal. Returning early without
+    // doing this leaves the control stuck and unable to trigger onRefresh again.
     setIsRefreshing(true);
+    if (!throttled) setBannerVisible(true);
     try {
+      if (throttled) {
+        // 50 ms macrotask gap ensures React flushes isRefreshing=true before
+        // the finally block sets it back to false (React 18 batches same-tick updates).
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+        return;
+      }
       await Promise.allSettled([
         refetchHero(),
         refetchBreaking(),
@@ -936,6 +948,7 @@ export default function HomeScreen() {
       ]);
     } finally {
       setIsRefreshing(false);
+      setBannerVisible(false);
     }
   }, [queryClient, refetchBreaking, refetchHero, refetchLatest, refetchLocal]);
 
@@ -993,7 +1006,7 @@ export default function HomeScreen() {
       return (
       <View>
         <RefreshStatusBanner
-          visible={isRefreshing}
+          visible={bannerVisible}
           title="Duke përditësuar kryefaqen"
           subtitle="Po rifreskohen lajmet, moti dhe postimet kryesore."
         />
@@ -1022,7 +1035,7 @@ export default function HomeScreen() {
       </View>
       );
     },
-    [hero, heroImageUri, heroQuery.isLoading, isRefreshing, onPressPost, onHeaderSearch, onPressLive, latestData.length],
+    [hero, heroImageUri, heroQuery.isLoading, bannerVisible, onPressPost, onHeaderSearch, onPressLive, latestData.length],
   );
 
   // ── List footer: Lokale → Popular → Footer cards ──────────────────────────
