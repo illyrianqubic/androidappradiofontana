@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   StyleSheet,
@@ -33,13 +33,18 @@ export const RefreshStatusBanner = memo(function RefreshStatusBanner({
   style,
 }: RefreshStatusBannerProps) {
   const [shouldRender, setShouldRender] = useState(visible);
+  // Track shouldRender in a ref so the effect doesn't re-run (and cancel animations)
+  // when setShouldRender triggers a re-render. Without this, the exit animation's
+  // `finished` callback fires as false (cancelled) and setShouldRender(false) is never called.
+  const shouldRenderRef = useRef(visible);
   const opacity = useSharedValue(visible ? 1 : 0);
   const translateY = useSharedValue(visible ? 0 : -8);
   const scale = useSharedValue(visible ? 1 : 0.985);
 
   useEffect(() => {
     if (visible) {
-      if (!shouldRender) {
+      if (!shouldRenderRef.current) {
+        shouldRenderRef.current = true;
         opacity.value = 0;
         translateY.value = -8;
         scale.value = 0.985;
@@ -60,12 +65,13 @@ export const RefreshStatusBanner = memo(function RefreshStatusBanner({
       return;
     }
 
-    if (!shouldRender) return;
+    if (!shouldRenderRef.current) return;
     opacity.value = withTiming(0, {
       duration: EXIT_MS,
       easing: Easing.in(Easing.quad),
     }, (finished) => {
       if (finished) {
+        shouldRenderRef.current = false;
         runOnJS(setShouldRender)(false);
       }
     });
@@ -77,7 +83,10 @@ export const RefreshStatusBanner = memo(function RefreshStatusBanner({
       duration: EXIT_MS,
       easing: Easing.in(Easing.quad),
     });
-  }, [opacity, scale, shouldRender, translateY, visible]);
+  // shouldRender intentionally excluded — use shouldRenderRef to avoid
+  // re-running this effect (and cancelling in-flight animations) on state changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, opacity, scale, translateY]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,

@@ -265,12 +265,13 @@ function BreakingTickerInner({ headlines }: { headlines: BreakingItem[] }) {
     if (trackWidthRef.current) startAnim();
   }, [isFocused, reducedMotion, translateX, startAnim]);
 
-  // Reset measurement and restart when headline content changes.
+  // When headline text changes, cancel and restart immediately if already measured.
+  // Do NOT zero trackWidthRef — that causes a visible pause while waiting for re-measurement.
   useEffect(() => {
     cancelAnimation(translateX);
     translateX.value = 0;
-    trackWidthRef.current = 0;
-  }, [tickerText, translateX]);
+    if (trackWidthRef.current) startAnim();
+  }, [tickerText, translateX, startAnim]);
 
   // Off-screen hidden Text measures the natural width of one copy.
   const onMeasureLayout = useCallback(
@@ -293,18 +294,18 @@ function BreakingTickerInner({ headlines }: { headlines: BreakingItem[] }) {
         <Text style={styles.breakingLabelText}>LAJM I FUNDIT</Text>
       </View>
       <Pressable onPress={onPressTicker} hitSlop={4} style={styles.breakingViewport}>
-        {/* Hidden off-screen Text — measures natural width of one ticker copy */}
-        <View style={styles.breakingMeasure}>
-          <Text onLayout={onMeasureLayout} style={styles.breakingTickerText}>
-            {tickerText}
-          </Text>
-        </View>
         {/* Two identical copies side-by-side for seamless looping */}
         <Animated.View style={[styles.breakingMarqueeTrack, animStyle]}>
           <Text style={styles.breakingTickerText}>{tickerText}</Text>
           <Text style={styles.breakingTickerText}>{tickerText}</Text>
         </Animated.View>
       </Pressable>
+      {/* Off-screen measurement — OUTSIDE overflow:hidden so text renders at natural width */}
+      <View style={styles.breakingMeasure}>
+        <Text onLayout={onMeasureLayout} style={styles.breakingTickerText}>
+          {tickerText}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -1380,6 +1381,7 @@ const styles = StyleSheet.create({
     left: -10000,
     top: 0,
     opacity: 0,
+    width: 9999,
   },
   breakingMarqueeTrack: {
     position: 'absolute',
@@ -1387,6 +1389,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     top: 0,
     bottom: 0,
+    width: 9999,
   },
   breakingTickerText: {
     color: 'rgba(255,255,255,0.88)',
