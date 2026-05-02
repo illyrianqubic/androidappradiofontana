@@ -276,7 +276,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       },
       capabilities: playbackCapabilities,
       notificationCapabilities: playbackCapabilities,
-      compactCapabilities: playbackCapabilities,
       progressUpdateEventInterval: 5,
     });
   }, []);
