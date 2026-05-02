@@ -511,7 +511,7 @@ export default function ArticleDetailScreen() {
     [articleNavStyle, onBack, progressBarStyle],
   );
   const scrollContentStyle = useMemo(
-    () => [styles.scrollContent, { paddingTop: navBarHeight, paddingBottom: insets.bottom + 120 }],
+    () => [styles.scrollContent, { paddingTop: navBarHeight, paddingBottom: insets.bottom + 24 }],
     [navBarHeight, insets.bottom],
   );
 
@@ -678,12 +678,12 @@ export default function ArticleDetailScreen() {
               <Text style={styles.relatedHeadline}>Artikuj të ngjashëm</Text>
               <View style={styles.relatedHeaderRule} />
             </View>
-            {relatedPosts.slice(0, 6).map((item, i) => (
+            {relatedPosts.slice(0, 2).map((item, i) => (
               <RelatedItem
                 key={item._id}
                 post={item}
                 index={i}
-                isLast={i === Math.min(relatedPosts.length, 6) - 1}
+                isLast={i === Math.min(relatedPosts.length, 2) - 1}
                 onPress={onOpenRelatedPost}
               />
             ))}
@@ -1159,8 +1159,8 @@ const styles = StyleSheet.create({
   relatedSection: {
     backgroundColor: '#FFFFFF',
     paddingHorizontal: BODY_PADDING_H,
-    paddingTop: 32,
-    paddingBottom: 8,
+    paddingTop: 24,
+    paddingBottom: 0,
   },
   relatedHeaderWrap: {
     marginBottom: 8,
@@ -1247,8 +1247,8 @@ const styles = StyleSheet.create({
   // ── Footer credit ─────────────────────────────────────────────────────
   footerCredit: {
     alignItems: 'center',
-    paddingTop: 32,
-    paddingBottom: 16,
+    paddingTop: 20,
+    paddingBottom: 8,
     paddingHorizontal: BODY_PADDING_H,
   },
   footerCreditText: {
