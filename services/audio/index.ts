@@ -9,7 +9,6 @@ import React, {
 } from 'react';
 import {
   AppState,
-  Image,
   type AppStateStatus,
 } from 'react-native';
 import {
@@ -46,11 +45,10 @@ const stationMetadata = {
   album: appIdentity.albumTitle,
 };
 
-// Resolve the local asset to a file:// URI so Android can use it as the
-// media notification largeIcon (square thumbnail on the left). Passing a raw
-// require() number works for React Native views but Android's MediaSession
-// needs an actual URI string to render the thumbnail correctly.
-const logoUri = Image.resolveAssetSource(appIdentity.logo).uri;
+// RNTP v5 uses the track's artwork field (HTTPS URL) as the notification
+// largeIcon — local assets and file:// URIs are not fetched by Android's
+// MediaSession. Use the publicly hosted logo so it renders on the lock screen.
+const LOGO_URL = 'https://radiofontana.org/logo.png';
 
 const radioTrack: RadioTrack = {
   id: RADIO_TRACK_ID,
@@ -61,7 +59,7 @@ const radioTrack: RadioTrack = {
   title: stationMetadata.title,
   artist: stationMetadata.artist,
   album: stationMetadata.album,
-  artwork: logoUri,
+  artwork: LOGO_URL,
   isLiveStream: true,
 };
 
@@ -272,7 +270,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         appKilledPlaybackBehavior: AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
         alwaysPauseOnInterruption: true,
         stopForegroundGracePeriod: 30,
-        largeIcon: logoUri,
       },
       capabilities: playbackCapabilities,
       notificationCapabilities: playbackCapabilities,
