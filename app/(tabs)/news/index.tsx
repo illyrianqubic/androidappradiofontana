@@ -228,7 +228,7 @@ export default function NewsIndexScreen() {
         // PROFILING FIX (round 2): see comment in (tabs)/index.tsx.
         staleTime: Infinity,
       });
-      router.push({ pathname: '/news/[slug]' as never, params: { slug: post.slug } as never });
+      router.replace({ pathname: '/news/[slug]' as never, params: { slug: post.slug } as never });
     },
     [router, queryClient],
   );

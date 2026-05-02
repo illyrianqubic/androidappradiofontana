@@ -8,7 +8,6 @@ import {
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useNavigation } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import Animated, {
   useAnimatedScrollHandler,
@@ -410,7 +409,7 @@ export default function ArticleDetailScreen() {
         queryFn: ({ signal }) => fetchPostBySlug(nextPost.slug, signal),
         staleTime: ARTICLE_STALE_TIME_MS,
       });
-      router.push({ pathname: '/news/[slug]' as never, params: { slug: nextPost.slug } as never });
+      router.replace({ pathname: '/news/[slug]' as never, params: { slug: nextPost.slug } as never });
     },
     [queryClient, router],
   );
@@ -446,29 +445,11 @@ export default function ArticleDetailScreen() {
   }, []);
 
   // ── Back navigation ─────────────────────────────────────────────────────
-  // BUGFIX: router.canGoBack() returns true even when the only back entry
-  // is the root Stack's (tabs) screen (i.e. the article was opened via
-  // router.push from the Home tab, which pushes to the root Stack rather
-  // than into the news nested Stack). In that case router.back() goes to the
-  // Home tab instead of the news listing.
-  //
-  // Fix: inspect the actual previous route name. If it's '(tabs)' we are
-  // the root of the root Stack — navigate to the news index explicitly.
-  // Otherwise (prev is 'index' = normal flow, or '[slug]' = related post
-  // chain) it's safe to router.back() within the current Stack.
-  const navRef = useNavigation();
+  // Always navigate to the Lajme (news index) regardless of how the article
+  // was opened — from home, from the news list, or from a related article.
   const onBack = useCallback(() => {
-    const state = navRef.getState();
-    const prevName =
-      state && state.index > 0
-        ? (state.routes as Array<{ name: string }>)[state.index - 1]?.name
-        : undefined;
-    if (prevName && prevName !== '(tabs)') {
-      router.back();
-    } else {
-      router.navigate('/(tabs)/news' as never);
-    }
-  }, [router, navRef]);
+    router.navigate('/(tabs)/news' as never);
+  }, [router]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
