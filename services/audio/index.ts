@@ -592,6 +592,14 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       if (userIntentRef.current === 'pause') return;
       void reconnectRef.current();
     });
+    const remotePlaySub = TrackPlayer.addEventListener(TrackPlayerEvent.RemotePlay, () => {
+      audioLog('remote-play (lock screen)');
+      void play();
+    });
+    const remotePauseSub = TrackPlayer.addEventListener(TrackPlayerEvent.RemotePause, () => {
+      audioLog('remote-pause (lock screen)');
+      pause();
+    });
 
     void syncFromTrackPlayer();
 
@@ -600,6 +608,8 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       stateSub.remove();
       errorSub.remove();
       queueEndedSub.remove();
+      remotePlaySub.remove();
+      remotePauseSub.remove();
       if (historyWriteTimeoutRef.current) {
         clearTimeout(historyWriteTimeoutRef.current);
         historyWriteTimeoutRef.current = null;
@@ -610,7 +620,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         reconnectDebounceRef.current = null;
       }
     };
-  }, [clearReconnectTimeout, syncFromTrackPlayer, updateState]);
+  }, [clearReconnectTimeout, pause, play, syncFromTrackPlayer, updateState]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
