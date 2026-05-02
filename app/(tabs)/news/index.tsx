@@ -209,7 +209,8 @@ export default function NewsIndexScreen() {
     // category within 5 min still hits cache; longer than that just refetches.
     gcTime: 5 * 60 * 1000,
   });
-  const refetchPosts = postsQuery.refetch;
+  const refetchPostsRef = useRef(postsQuery.refetch);
+  refetchPostsRef.current = postsQuery.refetch;
 
   const queryClient = useQueryClient();
 
@@ -254,14 +255,14 @@ export default function NewsIndexScreen() {
         return;
       }
       await Promise.allSettled([
-        refetchPosts(),
+        refetchPostsRef.current(),
         new Promise<void>((resolve) => setTimeout(resolve, 1100)),
       ]);
     } finally {
       setIsRefreshing(false);
       setBannerVisible(false);
     }
-  }, [refetchPosts]);
+  }, []);
 
   // AUDIT FIX P2.6: idle-prefetch the first 3 visible posts after 2 s of
   // dwell time so the most likely next taps are near-instant. Declared
