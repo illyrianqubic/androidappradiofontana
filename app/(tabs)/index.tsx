@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AppState,
   InteractionManager,
@@ -11,7 +11,7 @@ import {
   View,
   type LayoutChangeEvent,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 // A-3: deep import skips loading all other icon sets' glyph maps.
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
@@ -22,6 +22,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, {
   Easing,
   cancelAnimation,
+  interpolate,
+  runOnJS,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -33,6 +35,7 @@ import { useIsFocused } from '@react-navigation/native';
 import { HamburgerButton } from '../../components/ui/HamburgerButton';
 import { RelativeTime } from '../../components/ui/RelativeTime';
 import { RefreshStatusBanner } from '../../components/ui/RefreshStatusBanner';
+import { isBreakingBadgeVisible } from '../../lib/breakingBadge';
 import { SkeletonCard } from '../../components/news/SkeletonCard';
 
 // AUDIT FIX P8.32: module-level constants — not reallocated per render.
@@ -106,7 +109,7 @@ const WeatherWidget = memo(function WeatherWidget() {
   }, []);
   const [canFetchWeather, setCanFetchWeather] = useState(false);
   useEffect(() => {
-    const t = setTimeout(() => setCanFetchWeather(true), 900);
+    const t = setTimeout(() => setCanFetchWeather(true), 300);
     return () => clearTimeout(t);
   }, []);
 
@@ -214,68 +217,102 @@ const BreakingTicker = memo(function BreakingTicker({ headlines }: { headlines: 
 }, headlinesEqual);
 
 function BreakingTickerInner({ headlines }: { headlines: BreakingItem[] }) {
-  const router = useRouter();
-  const [segmentWidth, setSegmentWidth] = useState(0);
-  const translateX = useSharedValue(0);
-  // AUDIT FIX P3.11 + P8.28: pause when Home tab is not focused, and respect
-  // prefers-reduced-motion. Without these, the worklet ran 60 fps for the
-  // entire app session even on Library/Live/Article screens.
+  const navigation = useNavigation();
   const isFocused = useIsFocused();
   const reducedMotion = useReducedMotion();
 
+  // Stable refs — callbacks read current values without being re-created each render.
+  const isFocusedRef = useRef(isFocused);
+  const reducedMotionRef = useRef(reducedMotion);
+  useLayoutEffect(() => { isFocusedRef.current = isFocused; }, [isFocused]);
+  useLayoutEffect(() => { reducedMotionRef.current = reducedMotion; }, [reducedMotion]);
+
+  const activeIndexRef = useRef(0);
+  const [activeIndex, setActiveIndex] = useState(0);
+  // Start far off-screen so the first render never flashes at x=0.
+  const translateX = useSharedValue(9999);
+  const vpWidthRef = useRef(0);
+  const textWidthRef = useRef(0);
+  const headlinesRef = useRef(headlines);
+  headlinesRef.current = headlines;
+
+  const onPressTicker = useCallback(() => {
+    const slug = headlinesRef.current[activeIndexRef.current % headlinesRef.current.length]?.slug;
+    if (!slug) return;
+    (navigation as never as { navigate: (s: string, p: object) => void })
+      .navigate('news', { screen: '[slug]', params: { slug } });
+  }, [navigation]);
+
+  const advanceIndex = useCallback(() => {
+    const next = (activeIndexRef.current + 1) % headlinesRef.current.length;
+    activeIndexRef.current = next;
+    setActiveIndex(next);
+  }, []);
+
+  const startAnim = useCallback((tw: number) => {
+    const vw = vpWidthRef.current;
+    if (!vw || !tw || !isFocusedRef.current || reducedMotionRef.current) return;
+    cancelAnimation(translateX);
+    translateX.value = vw;
+    // Travel: vw (enter from right) + tw (exit fully left). Speed ~90px/s.
+    const duration = ((vw + tw) / 90) * 1000;
+    translateX.value = withTiming(-tw, { duration, easing: Easing.linear }, (finished) => {
+      if (finished) runOnJS(advanceIndex)();
+    });
+  }, [translateX, advanceIndex]);
+
+  // Pause / resume when tab focus or reduced-motion changes.
   useEffect(() => {
-    if (!segmentWidth || !isFocused || reducedMotion) {
+    if (!isFocused || reducedMotion) {
       cancelAnimation(translateX);
-      translateX.value = 0;
       return;
     }
-    cancelAnimation(translateX);
-    translateX.value = 0;
-    const duration = Math.max(6000, segmentWidth * 12);
-    translateX.value = withRepeat(
-      withTiming(-segmentWidth, { duration, easing: Easing.linear }),
-      -1,
-      false,
-    );
-    return () => { cancelAnimation(translateX); };
-  }, [segmentWidth, headlines, translateX, isFocused, reducedMotion]);
+    if (textWidthRef.current) startAnim(textWidthRef.current);
+  }, [isFocused, reducedMotion, translateX, startAnim]);
 
-  const tickerStyle = useAnimatedStyle(() => ({
+  // When the active headline changes, reset off-screen right immediately so
+  // the new text never renders at the old position.
+  useLayoutEffect(() => {
+    cancelAnimation(translateX);
+    translateX.value = vpWidthRef.current > 0 ? vpWidthRef.current : 9999;
+    textWidthRef.current = 0;
+  }, [activeIndex, translateX]);
+
+  const onViewportLayout = useCallback((e: LayoutChangeEvent) => {
+    vpWidthRef.current = e.nativeEvent.layout.width;
+  }, []);
+
+  const onTextLayout = useCallback((e: LayoutChangeEvent) => {
+    const tw = e.nativeEvent.layout.width;
+    textWidthRef.current = tw;
+    startAnim(tw);
+  }, [startAnim]);
+
+  const animStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
   }));
 
-  const onMeasure = useCallback((e: LayoutChangeEvent) => {
-    setSegmentWidth(e.nativeEvent.layout.width);
-  }, []);
-
-  const renderSegment = (withMeasure: boolean) => (
-    <View
-      style={styles.tickerSegment}
-      onLayout={withMeasure ? onMeasure : undefined}
-    >
-      {headlines.map((item, i) => (
-        <Pressable
-          key={item.slug}
-          onPress={() => router.push(`/news/${item.slug}` as never)}
-          hitSlop={4}
-        >
-          <Text style={styles.breakingTickerText}>
-            {i === 0 ? `  ${item.title}  ` : `   •   ${item.title}  `}
-          </Text>
-        </Pressable>
-      ))}
-    </View>
-  );
+  const item = headlines[activeIndex % headlines.length];
 
   return (
     <View style={styles.breakingStrip}>
       <View style={styles.breakingLabel}>
         <Text style={styles.breakingLabelText}>LAJM I FUNDIT</Text>
       </View>
-      <View style={styles.breakingViewport}>
-        <Animated.View style={[styles.breakingTrack, tickerStyle]}>
-          {renderSegment(true)}
-          {renderSegment(false)}
+      <View style={styles.breakingViewport} onLayout={onViewportLayout}>
+        <Animated.View style={[styles.breakingTrackSingle, animStyle]}>
+          <Pressable
+            onPress={onPressTicker}
+            hitSlop={4}
+          >
+            <Text
+              numberOfLines={1}
+              onLayout={onTextLayout}
+              style={styles.breakingTickerText}
+            >
+              {item.title}
+            </Text>
+          </Pressable>
         </Animated.View>
       </View>
     </View>
@@ -334,9 +371,9 @@ const HeroCard = memo(function HeroCard({
           <View style={styles.heroImageDivider} />
         </View>
 
-        {/* White editorial content */}
+        {/* White editorial content — red left border is the premium signature */}
         <View style={styles.heroContent}>
-          {hero.breaking ? (
+          {isBreakingBadgeVisible(hero.breaking, hero.publishedAt) ? (
             <View style={styles.heroBadge}>
               <Text style={styles.heroBadgeText}>LAJM I FUNDIT</Text>
             </View>
@@ -346,7 +383,9 @@ const HeroCard = memo(function HeroCard({
           {hero.excerpt ? (
             <Text numberOfLines={2} style={styles.heroDeck}>{hero.excerpt}</Text>
           ) : null}
-          <RelativeTime timestamp={hero.publishedAt} style={styles.heroMetaText} />
+          <View style={styles.heroMetaRow}>
+            <RelativeTime timestamp={hero.publishedAt} style={styles.heroMetaText} />
+          </View>
         </View>
       </Pressable>
     </Animated.View>
@@ -481,11 +520,6 @@ const LatestNewsHeader = memo(function LatestNewsHeader({
       {/* Title + serif underline rule */}
       <View style={styles.latestTitleRow}>
         <Text style={styles.latestTitle}>Lajmet e Fundit</Text>
-        {count > 0 ? (
-          <View style={styles.latestCountChip}>
-            <Text style={styles.latestCountText}>{count}</Text>
-          </View>
-        ) : null}
       </View>
 
       {/* Subhead with see-all on the same line */}
@@ -555,7 +589,7 @@ const GridItem = memo(function GridItem({
             />
           </View>
           <View style={styles.gridBody}>
-            {item.breaking ? (
+            {isBreakingBadgeVisible(item.breaking, item.publishedAt) ? (
               <View style={styles.gridBadge}>
                 <Text style={styles.gridBadgeText}>LAJM I FUNDIT</Text>
               </View>
@@ -670,6 +704,7 @@ const RadioLiveBanner = memo(function RadioLiveBanner({ onPress }: { onPress: ()
 // ── HomeScreen ─────────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const [isSearchActive, setIsSearchActive] = useState(false);
@@ -690,7 +725,6 @@ export default function HomeScreen() {
   const searchInputRef = useRef<TextInput>(null);
 
   const headerHeight = insets.top + 66;
-  const topInsetOffset = headerHeight + BREAKING_H + 14;
   const bottomInsetOffset = insets.bottom + 208;
 
   const latestSkeleton = useMemo(
@@ -747,7 +781,7 @@ export default function HomeScreen() {
     queryFn: ({ signal }) => fetchBreakingPosts(signal),
     enabled: enableBreaking,
     refetchOnWindowFocus: true,
-    // PROFILING FIX (round 2): see hero comment.
+    refetchInterval: 60_000,
     staleTime: 5 * 60 * 1000,
   });
   const latestQuery   = useQuery({ queryKey: ['home-latest'],   queryFn: ({ signal }) => fetchLatestPosts('', '', 18, signal), enabled: enableLatest, staleTime: 2 * 60 * 1000 });
@@ -786,12 +820,28 @@ export default function HomeScreen() {
     );
   }, [debouncedSearchQuery, latestData]);
 
-  // Stable headlines array — recomputed only when breakingData changes, so the
-  // memoized BreakingTicker doesn't bust on every parent re-render.
+  // Stable headlines array — only posts published within 24h. Recomputed only
+  // when breakingData changes so memoized BreakingTicker doesn't re-render.
   const breakingHeadlines = useMemo(
-    () => breakingData.map((p) => ({ title: p.title, slug: p.slug })),
+    () => breakingData
+      .filter((p) => isBreakingBadgeVisible(true, p.publishedAt))
+      .map((p) => ({ title: p.title, slug: p.slug })),
     [breakingData],
   );
+  const hasBreaking = breakingHeadlines.length > 0;
+  const topInsetOffset = headerHeight + (hasBreaking ? BREAKING_H : 0) + 14;
+
+  // Slide the breaking band in/out. 0 = hidden (above header), 1 = visible.
+  const bandVisible = useSharedValue(0);
+  useEffect(() => {
+    bandVisible.value = withTiming(hasBreaking ? 1 : 0, {
+      duration: 340,
+      easing: hasBreaking ? Easing.out(Easing.cubic) : Easing.in(Easing.cubic),
+    });
+  }, [hasBreaking, bandVisible]);
+  const bandAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: interpolate(bandVisible.value, [0, 1], [-BREAKING_H, 0]) }],
+  }));
   const onPressPost = useCallback(
     (post: Post) => {
       // Prefetch the same URL the article hero will request so the image bind
@@ -815,9 +865,15 @@ export default function HomeScreen() {
         queryFn: ({ signal }) => fetchPostBySlug(post.slug, signal),
         staleTime: Infinity,
       });
-      router.push({ pathname: '/news/[slug]' as never, params: { slug: post.slug } as never });
+      // Navigate to the news tab with [slug] as the active screen.
+      // React Navigation initialises the news stack with news/index as the base
+      // route (per initialRouteName) so back from the article lands on Lajme,
+      // not home. Using navigate() instead of push() avoids the flash of
+      // news/index that push() causes when the tab switches.
+      (navigation as never as { navigate: (name: string, params: object) => void })
+        .navigate('news', { screen: '[slug]', params: { slug: post.slug } });
     },
-    [router, queryClient],
+    [navigation, router, queryClient],
   );
 
   // AUDIT FIX P2.6: after the home screen has been idle for 2 s, warm up
@@ -904,7 +960,7 @@ export default function HomeScreen() {
   const getGridItemType = useCallback(
     (item: LatestGridItem) => {
       if (isSkeletonItem(item)) return 'skeleton';
-      if (item.breaking) return item.excerpt ? 'post-breaking-excerpt' : 'post-breaking';
+      if (isBreakingBadgeVisible(item.breaking, item.publishedAt)) return item.excerpt ? 'post-breaking-excerpt' : 'post-breaking';
       return item.excerpt ? 'post-excerpt' : 'post';
     },
     [],
@@ -1159,11 +1215,11 @@ export default function HomeScreen() {
         )}
       </View>
 
-      {/* Breaking band */}
+      {/* Breaking band — slides down from behind the header when breaking news arrives */}
       {!isSearchActive && (
-        <View style={[styles.breakingBand, { top: headerHeight }]}>
+        <Animated.View style={[styles.breakingBand, { top: headerHeight }, bandAnimStyle]}>
           <BreakingTicker headlines={breakingHeadlines} />
-        </View>
+        </Animated.View>
       )}
 
 
@@ -1217,6 +1273,7 @@ export default function HomeScreen() {
         data={gridData}
         numColumns={2}
         keyExtractor={gridKeyExtractor}
+        drawDistance={500}
         showsVerticalScrollIndicator={false}
         scrollEnabled
         contentContainerStyle={gridContentContainerStyle}
@@ -1339,6 +1396,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     height: '100%',
     justifyContent: 'center',
+  },
+  breakingTrackSingle: {
+    position: 'absolute',
   },
   breakingTrack: {
     flexDirection: 'row',
@@ -1505,18 +1565,14 @@ const styles = StyleSheet.create({
     textTransform: 'lowercase',
   },
   latestTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 10,
     marginBottom: 6,
   },
   latestTitle: {
     color: '#0A0F1C',
-    fontFamily: fonts.articleBold, // AUDIT FIX P6.22: Black weight no longer loaded
+    fontFamily: fonts.articleBold,
     fontSize: 30,
     lineHeight: 34,
     letterSpacing: -1.2,
-    flexShrink: 1,
   },
   latestCountChip: {
     minWidth: 28,
@@ -1636,21 +1692,21 @@ const styles = StyleSheet.create({
 
   // ── Hero card ───────────────────────────────────────────────────────────────
   heroOuter: {
-    borderRadius: 14,
+    borderRadius: 18,
     backgroundColor: '#FFFFFF',
     shadowColor: '#0F172A',
-    shadowOpacity: 0.07,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 3,
+    shadowOpacity: 0.10,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
   },
   heroCard: {
-    borderRadius: 14,
+    borderRadius: 18,
     overflow: 'hidden',
   },
   heroImageWrap: {
     width: '100%',
-    aspectRatio: 16 / 9,
+    aspectRatio: 3 / 2,
     backgroundColor: '#E2E8F0',
   },
   heroImage: {
@@ -1663,24 +1719,29 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(10,15,28,0.06)',
+    backgroundColor: 'rgba(10,15,28,0.07)',
   },
   heroSkeleton: {
-    borderRadius: 14,
+    borderRadius: 18,
   },
   heroContent: {
-    paddingHorizontal: 14,
-    paddingTop: 12,
-    paddingBottom: 13,
-    gap: 5,
+    borderLeftWidth: 3,
+    borderLeftColor: '#DC2626',
+    paddingLeft: 15,
+    paddingRight: 14,
+    paddingTop: 15,
+    paddingBottom: 16,
+    gap: 6,
   },
   heroBadge: {
-    alignSelf: 'flex-start',
+    position: 'absolute',
+    top: 10,
+    right: 14,
+    zIndex: 1,
     backgroundColor: '#DC2626',
-    paddingHorizontal: 6,
+    paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 3,
-    marginBottom: 1,
   },
   heroBadgeText: {
     color: '#FFFFFF',
@@ -1691,21 +1752,26 @@ const styles = StyleSheet.create({
   heroKicker: {
     color: '#DC2626',
     fontFamily: fonts.uiBold,
-    fontSize: 10,
-    letterSpacing: 2.0,
+    fontSize: 10.5,
+    letterSpacing: 2.2,
   },
   heroHeadline: {
     color: '#0F172A',
     fontFamily: fonts.uiBold,
-    fontSize: 19,
-    lineHeight: 26,
-    letterSpacing: -0.4,
+    fontSize: 23,
+    lineHeight: 30,
+    letterSpacing: -0.5,
   },
   heroDeck: {
     color: '#475569',
     fontFamily: fonts.uiRegular,
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  heroMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
   },
   heroMetaText: {
     color: '#64748B',
@@ -1919,17 +1985,17 @@ const styles = StyleSheet.create({
     paddingLeft: 5,
   },
   gridSkeleton: {
-    borderRadius: 10,
+    borderRadius: 12,
   },
   gridCard: {
-    borderRadius: 10,
+    borderRadius: 12,
     backgroundColor: '#FFFFFF',
     overflow: 'hidden',
     shadowColor: '#0F172A',
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    shadowOpacity: 0.065,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   gridImgWrap: {
     width: '100%',
@@ -1941,18 +2007,23 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   gridBody: {
-    paddingHorizontal: 10,
-    paddingTop: 9,
-    paddingBottom: 10,
+    borderLeftWidth: 2,
+    borderLeftColor: '#DC2626',
+    paddingLeft: 11,
+    paddingRight: 10,
+    paddingTop: 10,
+    paddingBottom: 11,
     gap: 4,
   },
   gridBadge: {
-    alignSelf: 'flex-start',
+    position: 'absolute',
+    top: 8,
+    right: 10,
+    zIndex: 1,
     backgroundColor: '#DC2626',
     paddingHorizontal: 5,
     paddingVertical: 2,
     borderRadius: 3,
-    marginBottom: 1,
   },
   gridBadgeText: {
     color: '#FFFFFF',

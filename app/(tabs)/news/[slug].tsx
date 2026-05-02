@@ -1,7 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BackHandler,
-  InteractionManager,
   Pressable,
   Share,
   StyleSheet,
@@ -35,6 +34,7 @@ import { SkeletonCard } from '../../../components/news/SkeletonCard';
 import { appIdentity, colors, fonts, spacing } from '../../../constants/tokens';
 import { ms, s, vs } from '../../../lib/responsive';
 import { queueImagePrefetch } from '../../../lib/prefetchQueue';
+import { isBreakingBadgeVisible } from '../../../lib/breakingBadge';
 import {
   buildSanityImageUrl,
   defaultThumbhash,
@@ -47,18 +47,23 @@ import {
 
 // AUDIT FIX P1.2: Merriweather is loaded lazily on the article screen
 // only — saves the cold-start cost of fetching/parsing 3 serif weights for
-// users who never open an article. Module-scoped guard so the load only
-// happens once per app session even across multiple article opens.
+// users who never open an article. Module-scoped guards so the load only
+// happens once per app session even across multiple article opens, and
+// subsequent opens skip the re-render that waits for the promise.
+let _merriweatherLoaded = false;
 let _merriweatherLoadPromise: Promise<void> | null = null;
 function loadMerriweather(): Promise<void> {
+  if (_merriweatherLoaded) return Promise.resolve();
   if (_merriweatherLoadPromise) return _merriweatherLoadPromise;
   _merriweatherLoadPromise = Font.loadAsync({
     MerriweatherVariable: Merriweather_400Regular,
     MerriweatherVariableItalic: Merriweather_400Regular_Italic,
     MerriweatherVariableBold: Merriweather_700Bold,
+  }).then(() => {
+    _merriweatherLoaded = true;
   }).catch(() => {
-    // Font load failure: caller falls back to system serif. Reset the
-    // promise so a future open can retry.
+    // Font load failure: falls back to system serif. Reset so a future open
+    // can retry.
     _merriweatherLoadPromise = null;
   }) as Promise<void>;
   return _merriweatherLoadPromise;
@@ -336,10 +341,11 @@ export default function ArticleDetailScreen() {
     refetchOnWindowFocus: false,
   });
 
-  // AUDIT FIX P1.2: lazy-load Merriweather on mount. Until it resolves we
-  // render the body anyway — the system serif fallback is acceptable.
-  const [, setSerifReady] = useState(false);
+  // AUDIT FIX P1.2: lazy-load Merriweather on mount. Initial state reads the
+  // module-level flag so 2nd+ article opens skip the re-render entirely.
+  const [, setSerifReady] = useState(_merriweatherLoaded);
   useEffect(() => {
+    if (_merriweatherLoaded) return;
     let cancelled = false;
     loadMerriweather().then(() => {
       if (!cancelled) setSerifReady(true);
@@ -347,17 +353,10 @@ export default function ArticleDetailScreen() {
     return () => { cancelled = true; };
   }, []);
 
-  // AUDIT FIX P2.8: defer body rendering until after the navigation
-  // animation completes. Without this, ~50 portable-text blocks parse and
-  // mount during the slide animation, dropping 1–3 frames.
-  const [bodyReady, setBodyReady] = useState(false);
-  useEffect(() => {
-    setBodyReady(false);
-    const handle = InteractionManager.runAfterInteractions(() => {
-      setBodyReady(true);
-    });
-    return () => handle.cancel();
-  }, [slug]);
+  // All stack transitions use animation:'none' so InteractionManager fires
+  // instantly — the bodyReady gate just added a frame of latency with no
+  // benefit. ArticleBody's own incremental renderer (ARTICLE_BODY_INITIAL +
+  // ARTICLE_BODY_CHUNK via rAF) already keeps the first render under budget.
 
   const navBarHeight = insets.top + ARTICLE_NAV_H;
 
@@ -428,8 +427,11 @@ export default function ArticleDetailScreen() {
     [post?.categories],
   );
   const isBreaking = useMemo(
-    () => Boolean(post?.breaking) || /^lajm i fundit$/i.test(heroCategory),
-    [post?.breaking, heroCategory],
+    () => {
+      const flag = Boolean(post?.breaking) || /^lajm i fundit$/i.test(heroCategory);
+      return flag && isBreakingBadgeVisible(true, post?.publishedAt);
+    },
+    [post?.breaking, post?.publishedAt, heroCategory],
   );
   const pubDate = useMemo(() => formatPubDate(post?.publishedAt), [post?.publishedAt]);
   const readMinutes = useMemo(() => {
@@ -618,12 +620,9 @@ export default function ArticleDetailScreen() {
         {/* ── Body (white reading surface) ────────────────────────────── */}
         <View style={styles.bodySection}>
           <View style={styles.bodyColumn}>
-            {/* AUDIT FIX P2.8: defer body until after nav animation. */}
-            {bodyReady ? (
-              <ArticleBody blocks={articleBody} excerpt={post.excerpt} />
-            ) : post.excerpt ? (
-              <Text style={styles.firstParagraph}>{renderEditorialLead(post.excerpt)}</Text>
-            ) : null}
+            {/* Body renders immediately — ArticleBody's rAF chunking keeps
+                the first frame under budget without an animation gate. */}
+            <ArticleBody blocks={articleBody} excerpt={post.excerpt} />
 
             {/* End-of-article ornament */}
             <View style={styles.endOrnament}>

@@ -192,10 +192,7 @@ export default function LibraryScreen() {
         data={savedArticles}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.listContent,
-          { paddingTop: topInsetOffset, paddingBottom: bottomInsetOffset },
-        ]}
+        contentContainerStyle={listContentStyle}
         renderItem={renderSavedItem}
         ListHeaderComponent={listHeader}
       />

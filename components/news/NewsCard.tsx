@@ -5,6 +5,7 @@ import { Image } from 'expo-image';
 import { buildSanityImageUrl, defaultThumbhash, sanityImageWidths, type Post } from '../../services/api';
 import { colors, fonts } from '../../constants/tokens';
 import { RelativeTime } from '../ui/RelativeTime';
+import { isBreakingBadgeVisible } from '../../lib/breakingBadge';
 
 type NewsCardProps = {
   post: Post;
@@ -78,7 +79,7 @@ function NewsCardComponent({ post, compact = false, onPress }: NewsCardProps) {
 
         {/* Content panel — always below image */}
         <View style={S.body}>
-          {post.breaking ? (
+          {isBreakingBadgeVisible(post.breaking, post.publishedAt) ? (
             <View style={S.badge}>
               <Text style={S.badgeText}>LAJM I FUNDIT</Text>
             </View>
@@ -124,17 +125,17 @@ const PAPER   = '#FFFFFF';
 const S = StyleSheet.create({
   // ── Standard card ──────────────────────────────────────────────────────────
   outer: {
-    borderRadius: 12,
-    marginBottom: 10,
+    borderRadius: 8,
+    marginBottom: 8,
     backgroundColor: PAPER,
     shadowColor: INK,
-    shadowOpacity: 0.055,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+    shadowOpacity: 0.04,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
   },
   inner: {
-    borderRadius: 12,
+    borderRadius: 8,
     overflow: 'hidden',
   },
 
@@ -149,26 +150,25 @@ const S = StyleSheet.create({
   },
 
   body: {
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 11,
-    gap: 4,
+    paddingHorizontal: 11,
+    paddingTop: 9,
+    paddingBottom: 10,
+    gap: 3,
   },
 
-  // Breaking badge — shown above category only on breaking posts
   badge: {
     alignSelf: 'flex-start',
     backgroundColor: CRIMSON,
     paddingHorizontal: 6,
-    paddingVertical: 3,
+    paddingVertical: 2,
     borderRadius: 3,
-    marginBottom: 2,
+    marginBottom: 1,
   },
   badgeText: {
     color: PAPER,
     fontFamily: fonts.uiBold,
-    fontSize: 9,
-    letterSpacing: 1.5,
+    fontSize: 8.5,
+    letterSpacing: 1.4,
   },
 
   cat: {
@@ -180,31 +180,31 @@ const S = StyleSheet.create({
   headline: {
     color: INK,
     fontFamily: fonts.uiBold,
-    fontSize: 15,
-    lineHeight: 21,
-    letterSpacing: -0.25,
+    fontSize: 14.5,
+    lineHeight: 20,
+    letterSpacing: -0.2,
   },
   time: {
     color: DUST,
     fontFamily: fonts.uiRegular,
-    fontSize: 10,
+    fontSize: 9.5,
     marginTop: 1,
   },
 
   // ── Compact card (horizontal rail) ─────────────────────────────────────────
   cOuter: {
-    width: 190,
-    borderRadius: 10,
-    marginRight: 10,
+    width: 185,
+    borderRadius: 8,
+    marginRight: 9,
     backgroundColor: PAPER,
     shadowColor: INK,
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    elevation: 1,
   },
   cInner: {
-    borderRadius: 10,
+    borderRadius: 8,
     overflow: 'hidden',
   },
   cImgWrap: {
@@ -218,9 +218,9 @@ const S = StyleSheet.create({
   },
   cBody: {
     paddingHorizontal: 10,
-    paddingTop: 8,
-    paddingBottom: 9,
-    gap: 4,
+    paddingTop: 7,
+    paddingBottom: 8,
+    gap: 3,
   },
   cCat: {
     color: CRIMSON,

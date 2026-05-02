@@ -19,6 +19,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { RelativeTime } from '../../components/ui/RelativeTime';
 import { SkeletonCard } from '../../components/news/SkeletonCard';
+import { isBreakingBadgeVisible } from '../../lib/breakingBadge';
 import { appIdentity, colors, elevation, fonts, radius } from '../../constants/tokens';
 import {
   buildSanityImageUrl,
@@ -307,7 +308,7 @@ export default function HomeScreen() {
                   </View>
 
                   <View style={styles.heroTagBadge}>
-                    <Text style={styles.heroTagBadgeText}>{hero.breaking ? 'BREAKING' : 'E SPIKATUR'}</Text>
+                    <Text style={styles.heroTagBadgeText}>{isBreakingBadgeVisible(hero.breaking, hero.publishedAt) ? 'BREAKING' : 'E SPIKATUR'}</Text>
                   </View>
                 </View>
 

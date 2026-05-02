@@ -21,6 +21,7 @@ import { NewsCard } from '../../../components/news/NewsCard';
 import { RelativeTime } from '../../../components/ui/RelativeTime';
 import { RefreshStatusBanner } from '../../../components/ui/RefreshStatusBanner';
 import { SkeletonCard } from '../../../components/news/SkeletonCard';
+import { isBreakingBadgeVisible } from '../../../lib/breakingBadge';
 import { HamburgerButton } from '../../../components/ui/HamburgerButton';
 import { appIdentity, colors, fonts } from '../../../constants/tokens';
 import { queueImagePrefetch } from '../../../lib/prefetchQueue';
@@ -83,7 +84,7 @@ const FeaturedCard = memo(function FeaturedCard({ post, onPress }: { post: Post;
 
         {/* White editorial panel */}
         <View style={SF.content}>
-          {post.breaking ? (
+          {isBreakingBadgeVisible(post.breaking, post.publishedAt) ? (
             <View style={SF.breakingBadge}>
               <Text style={SF.breakingText}>LAJM I FUNDIT</Text>
             </View>
@@ -288,7 +289,7 @@ export default function NewsIndexScreen() {
   const getPostItemType = useCallback(
     (item: Post, index: number) => {
       if (index === 0 && showFeatured) return 'featured';
-      return item.breaking ? 'card-breaking' : 'card';
+      return isBreakingBadgeVisible(item.breaking, item.publishedAt) ? 'card-breaking' : 'card';
     },
     [showFeatured],
   );
@@ -407,6 +408,7 @@ export default function NewsIndexScreen() {
         ref={listRef}
         data={posts}
         keyExtractor={postKeyExtractor}
+        drawDistance={500}
         showsVerticalScrollIndicator={false}
         scrollEnabled
         contentContainerStyle={listContentContainerStyle}
@@ -424,17 +426,17 @@ export default function NewsIndexScreen() {
 // ── Styles — featured card ────────────────────────────────────────────────────
 const SF = StyleSheet.create({
   outer: {
-    borderRadius: 14,
-    marginBottom: 16,
+    borderRadius: 12,
+    marginBottom: 10,
     backgroundColor: '#FFFFFF',
     shadowColor: '#0A0F1C',
-    shadowOpacity: 0.07,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 4,
+    shadowOpacity: 0.055,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
   },
   inner: {
-    borderRadius: 14,
+    borderRadius: 12,
     overflow: 'hidden',
   },
   imageZone: {
@@ -455,15 +457,15 @@ const SF = StyleSheet.create({
     backgroundColor: 'rgba(10,15,28,0.06)',
   },
   content: {
-    paddingHorizontal: 14,
-    paddingTop: 13,
-    paddingBottom: 14,
+    paddingHorizontal: 13,
+    paddingTop: 12,
+    paddingBottom: 13,
     gap: 5,
   },
   breakingBadge: {
     alignSelf: 'flex-start',
     backgroundColor: '#DC2626',
-    paddingHorizontal: 7,
+    paddingHorizontal: 6,
     paddingVertical: 3,
     borderRadius: 3,
   },
@@ -471,7 +473,7 @@ const SF = StyleSheet.create({
     color: '#FFFFFF',
     fontFamily: fonts.uiBold,
     fontSize: 9,
-    letterSpacing: 1.6,
+    letterSpacing: 1.5,
   },
   kicker: {
     color: '#DC2626',
@@ -482,15 +484,15 @@ const SF = StyleSheet.create({
   headline: {
     color: '#0A0F1C',
     fontFamily: fonts.uiBold,
-    fontSize: 21,
-    lineHeight: 27,
-    letterSpacing: -0.45,
+    fontSize: 19,
+    lineHeight: 26,
+    letterSpacing: -0.35,
   },
   deck: {
-    color: '#3C4358',
+    color: '#475569',
     fontFamily: fonts.uiRegular,
-    fontSize: 13.5,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 19,
   },
   time: {
     color: '#64748B',
