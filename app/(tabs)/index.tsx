@@ -22,6 +22,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, {
   Easing,
   cancelAnimation,
+  interpolate,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -690,6 +691,82 @@ const SearchResultCard = memo(function SearchResultCard({
   samePreviewPost(prev.item, next.item),
 );
 
+// ── RadioLiveBanner ────────────────────────────────────────────────────────────
+const RadioLiveBanner = memo(function RadioLiveBanner({ onPress }: { onPress: () => void }) {
+  const isFocused = useIsFocused();
+  const reducedMotion = useReducedMotion();
+  const cardScale = useSharedValue(1);
+  const ringScale = useSharedValue(1);
+  const ringOpacity = useSharedValue(0.7);
+
+  useEffect(() => {
+    if (!isFocused || reducedMotion) {
+      cancelAnimation(ringScale);
+      cancelAnimation(ringOpacity);
+      ringScale.value = 1;
+      ringOpacity.value = 0.7;
+      return;
+    }
+    ringScale.value = withRepeat(
+      withTiming(2.4, { duration: 1500, easing: Easing.out(Easing.ease) }),
+      -1,
+      false,
+    );
+    ringOpacity.value = withRepeat(
+      withTiming(0, { duration: 1500, easing: Easing.out(Easing.ease) }),
+      -1,
+      false,
+    );
+    return () => {
+      cancelAnimation(ringScale);
+      cancelAnimation(ringOpacity);
+    };
+  }, [isFocused, reducedMotion, ringScale, ringOpacity]);
+
+  const ringStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: ringScale.value }],
+    opacity: ringOpacity.value,
+  }));
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: cardScale.value }],
+  }));
+
+  return (
+    <Animated.View style={[styles.radioCard, cardStyle]}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={() => {
+          cardScale.value = withSpring(0.98, { damping: 22, stiffness: 460 });
+        }}
+        onPressOut={() => {
+          cardScale.value = withSpring(1, { damping: 20, stiffness: 300 });
+        }}
+        style={styles.radioCardInner}
+      >
+        {/* Red accent border on the left edge */}
+        <View style={styles.radioAccentBar} />
+
+        {/* Pulsing live dot */}
+        <View style={styles.radioDotWrap}>
+          <Animated.View style={[styles.radioPulseRing, ringStyle]} />
+          <View style={styles.radioDot} />
+        </View>
+
+        {/* Text */}
+        <View style={styles.radioTextWrap}>
+          <Text style={styles.radioTitle}>🎙 RTV Fontana 98.8 FM — Live 24/7</Text>
+          <Text style={styles.radioSubtitle}>Dëgjo radion live tani</Text>
+        </View>
+
+        {/* Chevron */}
+        <View style={styles.radioChevronWrap}>
+          <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
+});
+
 // ── HomeScreen ─────────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const router = useRouter();
@@ -900,6 +977,10 @@ export default function HomeScreen() {
     searchInputRef.current?.blur();
   }, []);
 
+  const onPressLive = useCallback(() => {
+    router.navigate('/(tabs)/live' as never);
+  }, [router]);
+
   // ── Render helpers ──────────────────────────────────────────────────────────
   const renderGridItem = useCallback(
     ({ item, index }: ListRenderItemInfo<LatestGridItem>) => {
@@ -944,6 +1025,9 @@ export default function HomeScreen() {
           subtitle="Po rifreskohen lajmet, moti dhe postimet kryesore."
         />
 
+        {/* ── RADIO LIVE BANNER ─────────────────────────────── */}
+        <RadioLiveBanner onPress={onPressLive} />
+
         {/* ── HERO — only rendered when a featured or breaking post exists ── */}
         {(heroQuery.isLoading || hero) && (
           <View style={styles.sectionBlock}>
@@ -965,7 +1049,7 @@ export default function HomeScreen() {
       </View>
       );
     },
-    [hero, heroImageUri, heroQuery.isLoading, isRefreshing, onPressPost, onHeaderSearch, latestData.length],
+    [hero, heroImageUri, heroQuery.isLoading, isRefreshing, onPressPost, onHeaderSearch, onPressLive, latestData.length],
   );
 
   // ── List footer: Lokale → Popular → Footer cards ──────────────────────────
@@ -1372,6 +1456,70 @@ const styles = StyleSheet.create({
     fontFamily: fonts.uiMedium,
     fontSize: 13,
     lineHeight: BREAKING_H,
+  },
+
+  // ── Radio Live Banner ───────────────────────────────────────────────────────
+  radioCard: {
+    marginHorizontal: 16,
+    marginBottom: 14,
+    borderRadius: s(16),
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#dc2626',
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+    overflow: 'hidden',
+  },
+  radioCardInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: s(15),
+    paddingRight: s(16),
+  },
+  radioAccentBar: {
+    width: s(4),
+    alignSelf: 'stretch',
+    backgroundColor: '#dc2626',
+    marginRight: s(14),
+  },
+  radioDotWrap: {
+    width: s(20),
+    height: s(20),
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: s(12),
+  },
+  radioPulseRing: {
+    position: 'absolute',
+    width: s(20),
+    height: s(20),
+    borderRadius: s(10),
+    backgroundColor: '#dc2626',
+  },
+  radioDot: {
+    width: s(10),
+    height: s(10),
+    borderRadius: s(5),
+    backgroundColor: '#dc2626',
+  },
+  radioTextWrap: {
+    flex: 1,
+    gap: s(3),
+  },
+  radioTitle: {
+    fontFamily: fonts.uiBold,
+    fontSize: ms(14.5),
+    color: '#111827',
+    letterSpacing: -0.2,
+  },
+  radioSubtitle: {
+    fontFamily: fonts.uiRegular,
+    fontSize: ms(12),
+    color: '#6B7280',
+  },
+  radioChevronWrap: {
+    marginLeft: s(6),
   },
 
   // ── Section layout ──────────────────────────────────────────────────────────
