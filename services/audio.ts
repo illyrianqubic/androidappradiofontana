@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import {
   AppState,
+  Image,
   type AppStateStatus,
 } from 'react-native';
 import {
@@ -45,6 +46,12 @@ const stationMetadata = {
   album: appIdentity.albumTitle,
 };
 
+// Resolve the local asset to a file:// URI so Android can use it as the
+// media notification largeIcon (square thumbnail on the left). Passing a raw
+// require() number works for React Native views but Android's MediaSession
+// needs an actual URI string to render the thumbnail correctly.
+const logoUri = Image.resolveAssetSource(appIdentity.logo).uri;
+
 const radioTrack: RadioTrack = {
   id: RADIO_TRACK_ID,
   url: appIdentity.streamUrl,
@@ -54,7 +61,7 @@ const radioTrack: RadioTrack = {
   title: stationMetadata.title,
   artist: stationMetadata.artist,
   album: stationMetadata.album,
-  artwork: appIdentity.logo,
+  artwork: logoUri,
   isLiveStream: true,
 };
 
@@ -262,13 +269,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     audioLog('updateOptions', { capabilities: playbackCapabilities });
     await TrackPlayer.updateOptions({
       android: {
-        appKilledPlaybackBehavior: AppKilledPlaybackBehavior.ContinuePlayback,
+        appKilledPlaybackBehavior: AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
         alwaysPauseOnInterruption: true,
         stopForegroundGracePeriod: 30,
-        // largeIcon sets the small square thumbnail on the left of the Android
-        // media notification. Must be a local asset — remote URLs render as
-        // a full-bleed background instead of a thumbnail.
-        largeIcon: appIdentity.logo,
+        largeIcon: logoUri,
       },
       capabilities: playbackCapabilities,
       notificationCapabilities: playbackCapabilities,

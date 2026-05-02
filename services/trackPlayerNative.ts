@@ -62,6 +62,7 @@ export const AndroidAudioContentType = {
 
 export const AppKilledPlaybackBehavior = {
   ContinuePlayback: 'continue-playback',
+  StopPlaybackAndRemoveNotification: 'stop-playback-and-remove-notification',
 } as const;
 
 const noopSubscription: EmitterSubscription = {
