@@ -1,6 +1,5 @@
 import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { buildSanityImageUrl, defaultThumbhash, sanityImageWidths, type Post } from '../../services/api';
 import { colors, fonts } from '../../constants/tokens';
@@ -24,17 +23,13 @@ function NewsCardComponent({ post, compact = false, onPress }: NewsCardProps) {
     [compact, post.mainImageUrl],
   );
 
-  const scale = useSharedValue(1);
-  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const onCardPress = useCallback(() => { onPress?.(post); }, [onPress, post]);
 
   if (compact) {
     return (
-      <Animated.View style={[S.cOuter, animStyle]}>
+      <View style={S.cOuter}>
         <Pressable
           onPress={onCardPress}
-          onPressIn={() => { scale.value = withSpring(0.97, { damping: 22, stiffness: 440 }); }}
-          onPressOut={() => { scale.value = withSpring(1, { damping: 20, stiffness: 300 }); }}
           style={S.cInner}
         >
           <View style={S.cImgWrap}>
@@ -53,16 +48,14 @@ function NewsCardComponent({ post, compact = false, onPress }: NewsCardProps) {
             <RelativeTime timestamp={post.publishedAt} style={S.cTime} />
           </View>
         </Pressable>
-      </Animated.View>
+      </View>
     );
   }
 
   return (
-    <Animated.View style={[S.outer, animStyle]}>
+    <View style={S.outer}>
       <Pressable
         onPress={onCardPress}
-        onPressIn={() => { scale.value = withSpring(0.985, { damping: 24, stiffness: 460 }); }}
-        onPressOut={() => { scale.value = withSpring(1, { damping: 20, stiffness: 300 }); }}
         style={S.inner}
       >
         {/* Full-bleed 16:9 image — no text overlay */}
@@ -89,7 +82,7 @@ function NewsCardComponent({ post, compact = false, onPress }: NewsCardProps) {
           <RelativeTime timestamp={post.publishedAt} style={S.time} />
         </View>
       </Pressable>
-    </Animated.View>
+    </View>
   );
 }
 

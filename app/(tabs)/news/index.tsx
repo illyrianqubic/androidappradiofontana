@@ -9,7 +9,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 // A-3: deep import skips loading all other icon sets' glyph maps.
@@ -52,8 +51,6 @@ const DISABLE_MAINTAIN_VISIBLE_CONTENT_POSITION = { disabled: true } as const;
 
 // ── Featured card (first item, large editorial) ───────────────────────────────
 const FeaturedCard = memo(function FeaturedCard({ post, onPress }: { post: Post; onPress: (p: Post) => void }) {
-  const scale = useSharedValue(1);
-  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const imageUri = useMemo(
     () => buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.newsFeatured),
     [post.mainImageUrl],
@@ -62,11 +59,9 @@ const FeaturedCard = memo(function FeaturedCard({ post, onPress }: { post: Post;
   const onCardPress = useCallback(() => onPress(post), [onPress, post]);
 
   return (
-    <Animated.View style={[SF.outer, animStyle]}>
+    <View style={SF.outer}>
       <Pressable
         onPress={onCardPress}
-        onPressIn={() => { scale.value = withTiming(0.985, { duration: 100 }); }}
-        onPressOut={() => { scale.value = withTiming(1, { duration: 180 }); }}
         style={SF.inner}
       >
         {/* Image — cinematic 16:10, no overlays */}
@@ -101,7 +96,7 @@ const FeaturedCard = memo(function FeaturedCard({ post, onPress }: { post: Post;
           <RelativeTime timestamp={post.publishedAt} style={SF.time} />
         </View>
       </Pressable>
-    </Animated.View>
+    </View>
   );
 });
 

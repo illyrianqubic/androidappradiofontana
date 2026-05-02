@@ -28,7 +28,6 @@ import Animated, {
   useReducedMotion,
   useSharedValue,
   withRepeat,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { useIsFocused } from '@react-navigation/native';
@@ -344,16 +343,12 @@ const HeroCard = memo(function HeroCard({
   heroImageUri: string | null;
   onPress: (post: Post) => void;
 }) {
-  const scale = useSharedValue(1);
-  const scaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const cat = hero.categories?.[0] ?? 'Lajme';
 
   return (
-    <Animated.View style={[styles.heroOuter, scaleStyle]}>
+    <View style={styles.heroOuter}>
       <Pressable
         onPress={() => onPress(hero)}
-        onPressIn={() => { scale.value = withSpring(0.985, { damping: 24, stiffness: 460 }); }}
-        onPressOut={() => { scale.value = withSpring(1, { damping: 20, stiffness: 300 }); }}
         style={styles.heroCard}
       >
         {/* Image — cinematic 16:10, no overlays */}
@@ -388,7 +383,7 @@ const HeroCard = memo(function HeroCard({
           </View>
         </View>
       </Pressable>
-    </Animated.View>
+    </View>
   );
 }, (prev, next) =>
   prev.onPress === next.onPress &&
@@ -398,19 +393,15 @@ const HeroCard = memo(function HeroCard({
 
 // ── LocalCard (compact overlay card for horizontal rail) ──────────────────────
 const LocalCard = memo(function LocalCard({ post, onPress }: { post: Post; onPress: (p: Post) => void }) {
-  const scale = useSharedValue(1);
-  const scaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const imageUri = useMemo(
     () => buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.feedThumb),
     [post.mainImageUrl],
   );
 
   return (
-    <Animated.View style={[styles.localOuter, scaleStyle]}>
+    <View style={styles.localOuter}>
       <Pressable
         onPress={() => onPress(post)}
-        onPressIn={() => { scale.value = withSpring(0.97, { damping: 22, stiffness: 460 }); }}
-        onPressOut={() => { scale.value = withSpring(1, { damping: 20, stiffness: 300 }); }}
         style={styles.localCard}
       >
         <View style={styles.localImageWrap}>
@@ -432,7 +423,7 @@ const LocalCard = memo(function LocalCard({ post, onPress }: { post: Post; onPre
           <RelativeTime timestamp={post.publishedAt} style={styles.localTime} />
         </View>
       </Pressable>
-    </Animated.View>
+    </View>
   );
 }, (prev, next) =>
   prev.onPress === next.onPress &&
@@ -559,10 +550,6 @@ const GridItem = memo(function GridItem({
     () => buildSanityImageUrl(item.mainImageUrl, sanityImageWidths.feedCard),
     [item.mainImageUrl],
   );
-  const scale = useSharedValue(1);
-  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  // "Fresh" indicator if published within the last 60 minutes — surfaces the
-  // editorial heartbeat without an extra network call.
   const isFresh = useMemo(() => {
     if (!item.publishedAt) return false;
     const ageMin = (Date.now() - new Date(item.publishedAt).getTime()) / 60000;
@@ -570,13 +557,10 @@ const GridItem = memo(function GridItem({
   }, [item.publishedAt]);
   return (
     <View style={[styles.gridColumn, isLeft ? styles.gridColLeft : styles.gridColRight]}>
-      <Animated.View style={animStyle}>
-        <Pressable
-          onPress={() => onPress(item)}
-          onPressIn={() => { scale.value = withSpring(0.97, { damping: 22, stiffness: 460 }); }}
-          onPressOut={() => { scale.value = withSpring(1, { damping: 20, stiffness: 300 }); }}
-          style={styles.gridCard}
-        >
+      <Pressable
+        onPress={() => onPress(item)}
+        style={styles.gridCard}
+      >
           {/* 16:9 image — text never overlaid */}
           <View style={styles.gridImgWrap}>
             <Image
@@ -604,7 +588,6 @@ const GridItem = memo(function GridItem({
             <RelativeTime timestamp={item.publishedAt} style={styles.gridTime} />
           </View>
         </Pressable>
-      </Animated.View>
     </View>
   );
 }, (prev, next) =>
@@ -626,17 +609,11 @@ const SearchResultCard = memo(function SearchResultCard({
     () => (item.mainImageUrl ? buildSanityImageUrl(item.mainImageUrl, sanityImageWidths.feedThumb) : undefined),
     [item.mainImageUrl],
   );
-  // M26: shared-value driven press feedback (no per-press style array allocation).
-  const scale = useSharedValue(1);
-  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   return (
-    <Animated.View style={animStyle}>
-      <Pressable
-        style={styles.searchResultCard}
-        onPressIn={() => { scale.value = withSpring(0.97, { damping: 22, stiffness: 440 }); }}
-        onPressOut={() => { scale.value = withSpring(1, { damping: 20, stiffness: 300 }); }}
-        onPress={() => onPress(item)}
-      >
+    <Pressable
+      style={styles.searchResultCard}
+      onPress={() => onPress(item)}
+    >
       <Image
         source={imageUri ? { uri: imageUri } : undefined}
         placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
@@ -657,7 +634,6 @@ const SearchResultCard = memo(function SearchResultCard({
         ) : null}
       </View>
       </Pressable>
-    </Animated.View>
   );
 }, (prev, next) =>
   prev.onPress === next.onPress &&
