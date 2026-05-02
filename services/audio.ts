@@ -29,7 +29,7 @@ import { addListeningHistory } from './storage';
 
 const reconnectDelaysMs = [1000, 2000, 4000, 8000, 16000, 30000];
 const RADIO_TRACK_ID = 'rtv-fontana-live';
-const AUDIO_DEBUG = true;
+const AUDIO_DEBUG = __DEV__;
 
 const PlayerState = {
   none: 0,
@@ -464,7 +464,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
   const play = useCallback(async () => {
     if (!isTrackPlayerAvailable()) {
-      console.error('[Audio] TrackPlayer TurboModule is not available — rebuild the native app');
+      audioLog('TrackPlayer TurboModule is not available — rebuild the native app');
       return;
     }
     audioLog('play action');
@@ -496,7 +496,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         if (userIntentRef.current === 'pause') return;
         const cur = stateRef.current;
         if (!cur.isPlaying && !cur.isBuffering) {
-          console.error('[Audio] play() timeout — state did not transition to playing after 3 s', {
+          audioLog('play() timeout — state did not transition to playing after 3 s', {
             playbackState: cur.playbackState,
             isPlaying: cur.isPlaying,
             isBuffering: cur.isBuffering,
@@ -556,7 +556,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         audioError('eager setup error', error);
       });
     } else {
-      console.error('[Audio] TrackPlayer TurboModule is not available — rebuild the native app');
+      audioLog('TrackPlayer TurboModule is not available — rebuild the native app');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
