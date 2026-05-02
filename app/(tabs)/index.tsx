@@ -712,7 +712,7 @@ const RadioLiveBanner = memo(function RadioLiveBanner({ onPress }: { onPress: ()
 
           {/* Icon block */}
           <View style={styles.radioIconBlock}>
-            <Ionicons name="mic" size={s(26)} color="#FFFFFF" />
+            <Ionicons name="radio-outline" size={s(28)} color="#FFFFFF" />
           </View>
         </View>
 
@@ -1420,37 +1420,37 @@ const styles = StyleSheet.create({
 
   // ── Radio Live Banner ───────────────────────────────────────────────────────
   radioCard: {
-    marginHorizontal: 16,
+    marginHorizontal: 12,
     marginBottom: 14,
     borderRadius: s(18),
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     shadowColor: '#0f172a',
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    shadowOpacity: 0.13,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
     overflow: 'hidden',
   },
   radioCardPressed: {
     opacity: 0.86,
   },
   radioAccentBar: {
-    width: s(3),
+    width: s(5),
     alignSelf: 'stretch',
     backgroundColor: '#dc2626',
   },
   radioBody: {
     flex: 1,
-    paddingTop: s(16),
-    paddingBottom: s(15),
+    paddingTop: s(18),
+    paddingBottom: s(17),
     paddingHorizontal: s(16),
   },
   radioEyebrow: {
     fontFamily: fonts.uiBold,
-    fontSize: ms(9),
+    fontSize: ms(10),
     color: '#dc2626',
-    letterSpacing: 2.2,
+    letterSpacing: 2.5,
     textTransform: 'uppercase',
     marginBottom: s(10),
   },
@@ -1465,10 +1465,10 @@ const styles = StyleSheet.create({
   },
   radioName: {
     fontFamily: fonts.uiBold,
-    fontSize: ms(22),
+    fontSize: ms(25),
     color: colors.navy,
-    letterSpacing: -0.6,
-    lineHeight: ms(27),
+    letterSpacing: -0.8,
+    lineHeight: ms(30),
   },
   radioMeta: {
     fontFamily: fonts.uiRegular,
@@ -1477,9 +1477,9 @@ const styles = StyleSheet.create({
     marginTop: s(4),
   },
   radioIconBlock: {
-    width: s(54),
-    height: s(54),
-    borderRadius: s(14),
+    width: s(60),
+    height: s(60),
+    borderRadius: s(15),
     backgroundColor: '#dc2626',
     alignItems: 'center',
     justifyContent: 'center',
