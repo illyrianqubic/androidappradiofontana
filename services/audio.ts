@@ -54,6 +54,7 @@ const radioTrack: RadioTrack = {
   title: stationMetadata.title,
   artist: stationMetadata.artist,
   album: stationMetadata.album,
+  artwork: appIdentity.lockScreenArtwork,
   isLiveStream: true,
 };
 
@@ -302,7 +303,12 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       }
 
       await configurePlayer();
-      audioLog('setup done');
+
+      // Pre-load the track so play() is instant — queue is ready before first tap.
+      await TrackPlayer.reset();
+      await TrackPlayer.load(radioTrack);
+      queueReadyRef.current = true;
+      audioLog('setup done + track pre-loaded');
       updateState({
         isReady: true,
         playbackState: PlayerState.paused,
@@ -324,7 +330,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     await setupPlayer();
 
     if (queueReadyRef.current && !options?.forceReset) {
-      await safeUpdateStationMetadata();
       return;
     }
 
@@ -338,7 +343,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     await TrackPlayer.reset();
     await TrackPlayer.load(radioTrack);
     queueReadyRef.current = true;
-    await safeUpdateStationMetadata();
     audioLog('track ready');
   }, [setupPlayer]);
 
@@ -413,7 +417,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
             await ensureRadioTrack({ forceReset: true });
             audioLog('play called from reconnect');
             await TrackPlayer.play();
-            await safeUpdateStationMetadata();
+            void safeUpdateStationMetadata();
             audioLog('play success from reconnect');
             updateState({
               isReady: true,
@@ -466,12 +470,16 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     });
 
     try {
-      await ensureRadioTrack();
-      await safeUpdateStationMetadata();
+      if (!queueReadyRef.current) {
+        // Setup not yet complete (rare on slow devices) — wait for pre-load.
+        audioLog('play: waiting for track pre-load');
+        await ensureRadioTrack();
+      }
       audioLog('play called');
       await TrackPlayer.play();
-      await safeUpdateStationMetadata();
       audioLog('play success');
+      // Update metadata after play starts — non-blocking for the user.
+      void safeUpdateStationMetadata();
 
       // Fallback: if playback state hasn't transitioned to playing after 3 s,
       // something is silently stuck — log and trigger a reconnect.

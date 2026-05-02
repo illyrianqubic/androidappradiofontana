@@ -24,6 +24,7 @@ export type RadioTrack = StationMetadata & {
   contentType: string;
   userAgent?: string;
   isLiveStream: boolean;
+  artwork?: string | number;
 };
 
 export const TrackPlayerState = {
