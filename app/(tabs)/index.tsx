@@ -250,7 +250,7 @@ function BreakingTickerInner({ headlines }: { headlines: BreakingItem[] }) {
     // Two-copy trick: animate one full copy width. withRepeat snaps back to 0
     // between reps — invisible because both copies are identical at that boundary.
     translateX.value = withRepeat(
-      withTiming(-tw, { duration: (tw / 90) * 1000, easing: Easing.linear }),
+      withTiming(-tw, { duration: (tw / 50) * 1000, easing: Easing.linear }),
       -1,
       false,
     );
