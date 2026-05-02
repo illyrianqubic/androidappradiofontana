@@ -54,7 +54,7 @@ const radioTrack: RadioTrack = {
   title: stationMetadata.title,
   artist: stationMetadata.artist,
   album: stationMetadata.album,
-  artwork: appIdentity.lockScreenArtwork,
+  artwork: appIdentity.logo,
   isLiveStream: true,
 };
 
@@ -265,6 +265,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         appKilledPlaybackBehavior: AppKilledPlaybackBehavior.ContinuePlayback,
         alwaysPauseOnInterruption: true,
         stopForegroundGracePeriod: 30,
+        // largeIcon sets the small square thumbnail on the left of the Android
+        // media notification. Must be a local asset — remote URLs render as
+        // a full-bleed background instead of a thumbnail.
+        largeIcon: appIdentity.logo,
       },
       capabilities: playbackCapabilities,
       notificationCapabilities: playbackCapabilities,
