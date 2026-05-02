@@ -23,7 +23,6 @@ import Animated, {
   Easing,
   cancelAnimation,
   interpolate,
-  runOnJS,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -220,45 +219,42 @@ function BreakingTickerInner({ headlines }: { headlines: BreakingItem[] }) {
   const isFocused = useIsFocused();
   const reducedMotion = useReducedMotion();
 
-  // Stable refs — callbacks read current values without being re-created each render.
   const isFocusedRef = useRef(isFocused);
   const reducedMotionRef = useRef(reducedMotion);
   useLayoutEffect(() => { isFocusedRef.current = isFocused; }, [isFocused]);
   useLayoutEffect(() => { reducedMotionRef.current = reducedMotion; }, [reducedMotion]);
 
-  const activeIndexRef = useRef(0);
-  const [activeIndex, setActiveIndex] = useState(0);
-  // Start far off-screen so the first render never flashes at x=0.
-  const translateX = useSharedValue(9999);
-  const vpWidthRef = useRef(0);
-  const textWidthRef = useRef(0);
+  const translateX = useSharedValue(0);
+  const trackWidthRef = useRef(0);
   const headlinesRef = useRef(headlines);
   headlinesRef.current = headlines;
 
+  // All headlines joined with bullet separators — trailing sep makes the loop join seamless
+  const tickerText = useMemo(
+    () => headlines.map((h) => h.title).join('   ·   ') + '   ·   ',
+    [headlines],
+  );
+
   const onPressTicker = useCallback(() => {
-    const slug = headlinesRef.current[activeIndexRef.current % headlinesRef.current.length]?.slug;
+    const slug = headlinesRef.current[0]?.slug;
     if (!slug) return;
     (navigation as never as { navigate: (s: string, p: object) => void })
       .navigate('news', { screen: '[slug]', params: { slug } });
   }, [navigation]);
 
-  const advanceIndex = useCallback(() => {
-    const next = (activeIndexRef.current + 1) % headlinesRef.current.length;
-    activeIndexRef.current = next;
-    setActiveIndex(next);
-  }, []);
-
-  const startAnim = useCallback((tw: number) => {
-    const vw = vpWidthRef.current;
-    if (!vw || !tw || !isFocusedRef.current || reducedMotionRef.current) return;
+  const startAnim = useCallback(() => {
+    const tw = trackWidthRef.current;
+    if (!tw || !isFocusedRef.current || reducedMotionRef.current) return;
     cancelAnimation(translateX);
-    translateX.value = vw;
-    // Travel: vw (enter from right) + tw (exit fully left). Speed ~90px/s.
-    const duration = ((vw + tw) / 90) * 1000;
-    translateX.value = withTiming(-tw, { duration, easing: Easing.linear }, (finished) => {
-      if (finished) runOnJS(advanceIndex)();
-    });
-  }, [translateX, advanceIndex]);
+    translateX.value = 0;
+    // Two-copy trick: animate one full copy width. withRepeat snaps back to 0
+    // between reps — invisible because both copies are identical at that boundary.
+    translateX.value = withRepeat(
+      withTiming(-tw, { duration: (tw / 90) * 1000, easing: Easing.linear }),
+      -1,
+      false,
+    );
+  }, [translateX]);
 
   // Pause / resume when tab focus or reduced-motion changes.
   useEffect(() => {
@@ -266,54 +262,49 @@ function BreakingTickerInner({ headlines }: { headlines: BreakingItem[] }) {
       cancelAnimation(translateX);
       return;
     }
-    if (textWidthRef.current) startAnim(textWidthRef.current);
+    if (trackWidthRef.current) startAnim();
   }, [isFocused, reducedMotion, translateX, startAnim]);
 
-  // When the active headline changes, reset off-screen right immediately so
-  // the new text never renders at the old position.
-  useLayoutEffect(() => {
+  // Reset measurement and restart when headline content changes.
+  useEffect(() => {
     cancelAnimation(translateX);
-    translateX.value = vpWidthRef.current > 0 ? vpWidthRef.current : 9999;
-    textWidthRef.current = 0;
-  }, [activeIndex, translateX]);
+    translateX.value = 0;
+    trackWidthRef.current = 0;
+  }, [tickerText, translateX]);
 
-  const onViewportLayout = useCallback((e: LayoutChangeEvent) => {
-    vpWidthRef.current = e.nativeEvent.layout.width;
-  }, []);
-
-  const onTextLayout = useCallback((e: LayoutChangeEvent) => {
-    const tw = e.nativeEvent.layout.width;
-    textWidthRef.current = tw;
-    startAnim(tw);
-  }, [startAnim]);
+  // Off-screen hidden Text measures the natural width of one copy.
+  const onMeasureLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      const w = e.nativeEvent.layout.width;
+      if (w === trackWidthRef.current) return;
+      trackWidthRef.current = w;
+      startAnim();
+    },
+    [startAnim],
+  );
 
   const animStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
   }));
-
-  const item = headlines[activeIndex % headlines.length];
 
   return (
     <View style={styles.breakingStrip}>
       <View style={styles.breakingLabel}>
         <Text style={styles.breakingLabelText}>LAJM I FUNDIT</Text>
       </View>
-      <View style={styles.breakingViewport} onLayout={onViewportLayout}>
-        <Animated.View style={[styles.breakingTrackSingle, animStyle]}>
-          <Pressable
-            onPress={onPressTicker}
-            hitSlop={4}
-          >
-            <Text
-              numberOfLines={1}
-              onLayout={onTextLayout}
-              style={styles.breakingTickerText}
-            >
-              {item.title}
-            </Text>
-          </Pressable>
+      <Pressable onPress={onPressTicker} hitSlop={4} style={styles.breakingViewport}>
+        {/* Hidden off-screen Text — measures natural width of one ticker copy */}
+        <View style={styles.breakingMeasure}>
+          <Text onLayout={onMeasureLayout} style={styles.breakingTickerText}>
+            {tickerText}
+          </Text>
+        </View>
+        {/* Two identical copies side-by-side for seamless looping */}
+        <Animated.View style={[styles.breakingMarqueeTrack, animStyle]}>
+          <Text style={styles.breakingTickerText}>{tickerText}</Text>
+          <Text style={styles.breakingTickerText}>{tickerText}</Text>
         </Animated.View>
-      </View>
+      </Pressable>
     </View>
   );
 }
@@ -1384,11 +1375,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  breakingMeasure: {
+    position: 'absolute',
+    left: -10000,
+    top: 0,
+    opacity: 0,
+  },
+  breakingMarqueeTrack: {
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+    top: 0,
+    bottom: 0,
+  },
   breakingTickerText: {
     color: 'rgba(255,255,255,0.88)',
     fontFamily: fonts.uiMedium,
     fontSize: 13,
     lineHeight: BREAKING_H,
+    flexShrink: 0,
   },
 
   // ── Radio Live Banner ───────────────────────────────────────────────────────
