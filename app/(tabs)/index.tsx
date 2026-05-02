@@ -22,7 +22,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, {
   Easing,
   cancelAnimation,
-  interpolate,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -693,77 +692,33 @@ const SearchResultCard = memo(function SearchResultCard({
 
 // ── RadioLiveBanner ────────────────────────────────────────────────────────────
 const RadioLiveBanner = memo(function RadioLiveBanner({ onPress }: { onPress: () => void }) {
-  const isFocused = useIsFocused();
-  const reducedMotion = useReducedMotion();
-  const cardScale = useSharedValue(1);
-  const ringScale = useSharedValue(1);
-  const ringOpacity = useSharedValue(0.7);
-
-  useEffect(() => {
-    if (!isFocused || reducedMotion) {
-      cancelAnimation(ringScale);
-      cancelAnimation(ringOpacity);
-      ringScale.value = 1;
-      ringOpacity.value = 0.7;
-      return;
-    }
-    ringScale.value = withRepeat(
-      withTiming(2.4, { duration: 1500, easing: Easing.out(Easing.ease) }),
-      -1,
-      false,
-    );
-    ringOpacity.value = withRepeat(
-      withTiming(0, { duration: 1500, easing: Easing.out(Easing.ease) }),
-      -1,
-      false,
-    );
-    return () => {
-      cancelAnimation(ringScale);
-      cancelAnimation(ringOpacity);
-    };
-  }, [isFocused, reducedMotion, ringScale, ringOpacity]);
-
-  const ringStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: ringScale.value }],
-    opacity: ringOpacity.value,
-  }));
-  const cardStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: cardScale.value }],
-  }));
-
   return (
-    <Animated.View style={[styles.radioCard, cardStyle]}>
-      <Pressable
-        onPress={onPress}
-        onPressIn={() => {
-          cardScale.value = withSpring(0.98, { damping: 22, stiffness: 460 });
-        }}
-        onPressOut={() => {
-          cardScale.value = withSpring(1, { damping: 20, stiffness: 300 });
-        }}
-        style={styles.radioCardInner}
-      >
-        {/* Red accent border on the left edge */}
-        <View style={styles.radioAccentBar} />
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.radioCard, pressed && styles.radioCardPressed]}
+    >
+      {/* Left red accent bar */}
+      <View style={styles.radioAccentBar} />
 
-        {/* Pulsing live dot */}
-        <View style={styles.radioDotWrap}>
-          <Animated.View style={[styles.radioPulseRing, ringStyle]} />
-          <View style={styles.radioDot} />
-        </View>
+      {/* Icon */}
+      <View style={styles.radioIconWrap}>
+        <Ionicons name="radio-outline" size={s(22)} color="#dc2626" />
+      </View>
 
-        {/* Text */}
-        <View style={styles.radioTextWrap}>
-          <Text style={styles.radioTitle}>🎙 RTV Fontana 98.8 FM — Live 24/7</Text>
-          <Text style={styles.radioSubtitle}>Dëgjo radion live tani</Text>
-        </View>
+      {/* Text */}
+      <View style={styles.radioTextWrap}>
+        <Text style={styles.radioTitle}>RTV Fontana 98.8 FM</Text>
+        <Text style={styles.radioSubtitle}>Dëgjo radion live tani</Text>
+      </View>
 
-        {/* Chevron */}
-        <View style={styles.radioChevronWrap}>
-          <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-        </View>
-      </Pressable>
-    </Animated.View>
+      {/* Chevron */}
+      <Ionicons name="chevron-forward" size={s(17)} color="#C4C9D4" />
+
+      {/* LIVE badge — floats top-right */}
+      <View style={styles.radioLiveBadge}>
+        <Text style={styles.radioLiveBadgeText}>LIVE</Text>
+      </View>
+    </Pressable>
   );
 });
 
@@ -1462,64 +1417,68 @@ const styles = StyleSheet.create({
   radioCard: {
     marginHorizontal: 16,
     marginBottom: 14,
-    borderRadius: s(16),
+    borderRadius: s(14),
     backgroundColor: '#FFFFFF',
-    shadowColor: '#dc2626',
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-    overflow: 'hidden',
-  },
-  radioCardInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: s(15),
-    paddingRight: s(16),
+    paddingVertical: s(14),
+    paddingRight: s(14),
+    shadowColor: '#000',
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+    overflow: 'hidden',
+  },
+  radioCardPressed: {
+    backgroundColor: '#FAFAFA',
   },
   radioAccentBar: {
-    width: s(4),
+    width: s(3),
     alignSelf: 'stretch',
     backgroundColor: '#dc2626',
     marginRight: s(14),
   },
-  radioDotWrap: {
-    width: s(20),
-    height: s(20),
+  radioIconWrap: {
+    width: s(42),
+    height: s(42),
+    borderRadius: s(11),
+    backgroundColor: 'rgba(220,38,38,0.07)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: s(12),
-  },
-  radioPulseRing: {
-    position: 'absolute',
-    width: s(20),
-    height: s(20),
-    borderRadius: s(10),
-    backgroundColor: '#dc2626',
-  },
-  radioDot: {
-    width: s(10),
-    height: s(10),
-    borderRadius: s(5),
-    backgroundColor: '#dc2626',
+    marginRight: s(13),
   },
   radioTextWrap: {
     flex: 1,
     gap: s(3),
+    paddingRight: s(44),
   },
   radioTitle: {
     fontFamily: fonts.uiBold,
-    fontSize: ms(14.5),
+    fontSize: ms(15),
     color: '#111827',
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
   },
   radioSubtitle: {
     fontFamily: fonts.uiRegular,
-    fontSize: ms(12),
+    fontSize: ms(12.5),
     color: '#6B7280',
   },
-  radioChevronWrap: {
-    marginLeft: s(6),
+  radioLiveBadge: {
+    position: 'absolute',
+    top: s(10),
+    right: s(12),
+    backgroundColor: '#dc2626',
+    borderRadius: 999,
+    paddingHorizontal: s(8),
+    paddingVertical: s(3),
+  },
+  radioLiveBadgeText: {
+    color: '#FFFFFF',
+    fontFamily: fonts.uiBold,
+    fontSize: ms(9),
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
   },
 
   // ── Section layout ──────────────────────────────────────────────────────────
