@@ -50,6 +50,20 @@ const NEWS_CATEGORY_TABS: NewsCategoryTab[] = [
 const DISABLE_MAINTAIN_VISIBLE_CONTENT_POSITION = { disabled: true } as const;
 
 // ── Featured card (first item, large editorial) ───────────────────────────────
+function samePost(a: Post, b: Post): boolean {
+  return (
+    a._id === b._id &&
+    a.slug === b.slug &&
+    a.title === b.title &&
+    a.excerpt === b.excerpt &&
+    a.publishedAt === b.publishedAt &&
+    a.breaking === b.breaking &&
+    a.mainImageUrl === b.mainImageUrl &&
+    a.thumbhash === b.thumbhash &&
+    (a.categories?.[0] ?? 'Lajme') === (b.categories?.[0] ?? 'Lajme')
+  );
+}
+
 const FeaturedCard = memo(function FeaturedCard({ post, onPress }: { post: Post; onPress: (p: Post) => void }) {
   const imageUri = useMemo(
     () => buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.newsFeatured),
@@ -98,7 +112,10 @@ const FeaturedCard = memo(function FeaturedCard({ post, onPress }: { post: Post;
       </Pressable>
     </View>
   );
-});
+}, (prev, next) =>
+  prev.onPress === next.onPress &&
+  samePost(prev.post, next.post),
+);
 
 // ── Tiny relative-time helper (avoids extra component in this context) ─────────
 

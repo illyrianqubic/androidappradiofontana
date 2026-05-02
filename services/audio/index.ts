@@ -29,7 +29,7 @@ import { addListeningHistory } from '../storage';
 
 const reconnectDelaysMs = [1000, 2000, 4000, 8000, 16000, 30000];
 const RADIO_TRACK_ID = 'rtv-fontana-live';
-const AUDIO_DEBUG = true;
+const AUDIO_DEBUG = __DEV__;
 
 const PlayerState = {
   none: 0,
