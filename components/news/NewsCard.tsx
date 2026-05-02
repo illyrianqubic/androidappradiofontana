@@ -12,22 +12,6 @@ type NewsCardProps = {
   onPress?: (post: Post) => void;
 };
 
-// Estimate reading time from excerpt (≈220 words/min). Falls back to 2 min
-// when no excerpt is available so the metadata row stays visually balanced.
-function estimateReadingTime(excerpt: string | null | undefined, title: string): number {
-  const text = `${title ?? ''} ${excerpt ?? ''}`.trim();
-  if (!text) return 2;
-  const words = text.split(/\s+/).length;
-  // Multiply by 4 because excerpt + title is a small fraction of the article.
-  return Math.max(2, Math.ceil((words * 4) / 220));
-}
-
-// Pull the first letter of the author name for the avatar fallback.
-function authorInitial(author: string | null | undefined): string {
-  const name = (author ?? 'Redaksia Fontana').trim();
-  return name.charAt(0).toUpperCase() || 'R';
-}
-
 function NewsCardComponent({ post, compact = false, onPress }: NewsCardProps) {
   const cat = post.categories?.[0] ?? 'Lajme';
 
@@ -38,13 +22,6 @@ function NewsCardComponent({ post, compact = false, onPress }: NewsCardProps) {
     ),
     [compact, post.mainImageUrl],
   );
-
-  const readingMin = useMemo(
-    () => estimateReadingTime(post.excerpt, post.title),
-    [post.excerpt, post.title],
-  );
-
-  const initial = useMemo(() => authorInitial(post.author), [post.author]);
 
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
@@ -130,26 +107,6 @@ function NewsCardComponent({ post, compact = false, onPress }: NewsCardProps) {
           <Text numberOfLines={2} style={S.headline}>
             {post.title}
           </Text>
-
-          {/* Hairline rule above byline for editorial structure */}
-          <View style={S.bylineRule} />
-
-          {/* Byline — avatar + author + reading time + relative time */}
-          <View style={S.byline}>
-            <View style={S.avatar}>
-              <Text style={S.avatarText}>{initial}</Text>
-            </View>
-            <View style={S.bylineCol}>
-              <Text numberOfLines={1} style={S.author}>
-                {post.author ?? 'Redaksia Fontana'}
-              </Text>
-              <View style={S.metaRow}>
-                <Text style={S.metaText}>{readingMin} min lexim</Text>
-                <View style={S.metaSep} />
-                <RelativeTime timestamp={post.publishedAt} style={S.metaText} />
-              </View>
-            </View>
-          </View>
         </View>
       </Pressable>
     </Animated.View>
@@ -283,63 +240,6 @@ const S = StyleSheet.create({
     fontSize: 17,
     lineHeight: 23,
     letterSpacing: -0.3,
-  },
-
-  // ── Byline structure ───────────────────────────────────────────────────────
-  bylineRule: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: HAIRLINE,
-    marginTop: 10,
-    marginBottom: 9,
-  },
-  byline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  avatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  avatarText: {
-    color: ACCENT,
-    fontFamily: fonts.uiBold,
-    fontSize: 13,
-    letterSpacing: -0.2,
-  },
-  bylineCol: {
-    flex: 1,
-    flexShrink: 1,
-    gap: 2,
-  },
-  author: {
-    color: INK,
-    fontFamily: fonts.uiBold,
-    fontSize: 12.5,
-    letterSpacing: -0.1,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  metaText: {
-    color: INK_MUTED,
-    fontFamily: fonts.uiRegular,
-    fontSize: 11.5,
-  },
-  metaSep: {
-    width: 2,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: INK_FAINT,
   },
 
   // ── Compact (kept for future use) ──────────────────────────────────────────

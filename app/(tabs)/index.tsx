@@ -188,37 +188,37 @@ const WeatherWidget = memo(function WeatherWidget() {
 // array reference but with the same titles. Without this, every refetch
 // (focus / interval / pull-to-refresh) busted memo and re-mounted the
 // marquee worklets even though nothing visible changed.
+type BreakingItem = { title: string; slug: string };
+
 function headlinesEqual(
-  prev: { headlines: string[] },
-  next: { headlines: string[] },
+  prev: { headlines: BreakingItem[] },
+  next: { headlines: BreakingItem[] },
 ): boolean {
   const a = prev.headlines;
   const b = next.headlines;
   if (a === b) return true;
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false;
+    if (a[i].title !== b[i].title || a[i].slug !== b[i].slug) return false;
   }
   return true;
 }
 
-const BreakingTicker = memo(function BreakingTicker({ headlines }: { headlines: string[] }) {
+const BreakingTicker = memo(function BreakingTicker({ headlines }: { headlines: BreakingItem[] }) {
   // Early-return when there are no headlines: skip mounting the inner ticker
-  // entirely so the infinite marquee + dot worklets never run on cold home.
+  // entirely so the infinite marquee worklets never run on cold home.
   if (headlines.length === 0) {
     return null;
   }
   return <BreakingTickerInner headlines={headlines} />;
 }, headlinesEqual);
 
-function BreakingTickerInner({ headlines }: { headlines: string[] }) {
-  const marqueeText = useMemo(() => headlines.join('   •   '), [headlines]);
-
+function BreakingTickerInner({ headlines }: { headlines: BreakingItem[] }) {
+  const router = useRouter();
   const [segmentWidth, setSegmentWidth] = useState(0);
   const translateX = useSharedValue(0);
-  const dotOpacity = useSharedValue(1);
   // AUDIT FIX P3.11 + P8.28: pause when Home tab is not focused, and respect
-  // prefers-reduced-motion. Without these, both worklets ran 60 fps for the
+  // prefers-reduced-motion. Without these, the worklet ran 60 fps for the
   // entire app session even on Library/Live/Article screens.
   const isFocused = useIsFocused();
   const reducedMotion = useReducedMotion();
@@ -231,52 +231,51 @@ function BreakingTickerInner({ headlines }: { headlines: string[] }) {
     }
     cancelAnimation(translateX);
     translateX.value = 0;
-    const duration = Math.max(18000, segmentWidth * 30);
+    const duration = Math.max(6000, segmentWidth * 12);
     translateX.value = withRepeat(
       withTiming(-segmentWidth, { duration, easing: Easing.linear }),
       -1,
       false,
     );
     return () => { cancelAnimation(translateX); };
-  }, [segmentWidth, marqueeText, translateX, isFocused, reducedMotion]);
-
-  useEffect(() => {
-    if (!isFocused || reducedMotion) {
-      cancelAnimation(dotOpacity);
-      dotOpacity.value = 1;
-      return;
-    }
-    dotOpacity.value = withRepeat(
-      withTiming(0.18, { duration: 800, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true,
-    );
-    return () => { cancelAnimation(dotOpacity); };
-  }, [dotOpacity, isFocused, reducedMotion]);
+  }, [segmentWidth, headlines, translateX, isFocused, reducedMotion]);
 
   const tickerStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
   }));
-  const dotStyle = useAnimatedStyle(() => ({ opacity: dotOpacity.value }));
 
   const onMeasure = useCallback((e: LayoutChangeEvent) => {
     setSegmentWidth(e.nativeEvent.layout.width);
   }, []);
 
+  const renderSegment = (withMeasure: boolean) => (
+    <View
+      style={styles.tickerSegment}
+      onLayout={withMeasure ? onMeasure : undefined}
+    >
+      {headlines.map((item, i) => (
+        <Pressable
+          key={item.slug}
+          onPress={() => router.push(`/news/${item.slug}` as never)}
+          hitSlop={4}
+        >
+          <Text style={styles.breakingTickerText}>
+            {i === 0 ? `  ${item.title}  ` : `   •   ${item.title}  `}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+
   return (
     <View style={styles.breakingStrip}>
       <View style={styles.breakingLabel}>
-        <Animated.View style={[styles.breakingDot, dotStyle]} />
         <Text style={styles.breakingLabelText}>LAJM I FUNDIT</Text>
       </View>
       <View style={styles.breakingViewport}>
         <Animated.View style={[styles.breakingTrack, tickerStyle]}>
-          <Text onLayout={onMeasure} numberOfLines={1} style={styles.breakingTickerText}>
-            {`  ${marqueeText}     `}
-          </Text>
-          <Text numberOfLines={1} style={styles.breakingTickerText}>
-            {`  ${marqueeText}     `}
-          </Text>
+          {renderSegment(true)}
+          {renderSegment(false)}
         </Animated.View>
       </View>
     </View>
@@ -849,7 +848,7 @@ export default function HomeScreen() {
   // Stable headlines array — recomputed only when breakingData changes, so the
   // memoized BreakingTicker doesn't bust on every parent re-render.
   const breakingHeadlines = useMemo(
-    () => breakingData.map((p) => p.title),
+    () => breakingData.map((p) => ({ title: p.title, slug: p.slug })),
     [breakingData],
   );
   const onPressPost = useCallback(
@@ -1383,16 +1382,9 @@ const styles = StyleSheet.create({
     height: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
     backgroundColor: '#DC2626',
     borderRightWidth: 1,
     borderRightColor: 'rgba(255,255,255,0.18)',
-  },
-  breakingDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: '#FFFFFF',
   },
   breakingLabelText: {
     color: 'rgba(255,255,255,0.92)',
@@ -1408,6 +1400,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   breakingTrack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  tickerSegment: {
     flexDirection: 'row',
     alignItems: 'center',
   },

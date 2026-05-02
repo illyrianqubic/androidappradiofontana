@@ -57,13 +57,6 @@ const FeaturedCard = memo(function FeaturedCard({ post, onPress }: { post: Post;
     [post.mainImageUrl],
   );
   const cat = post.categories?.[0] ?? 'Lajme';
-  const initial = ((post.author ?? 'Redaksia Fontana').trim().charAt(0) || 'R').toUpperCase();
-  // Reading time estimate — 4× (excerpt + title) at 220 wpm.
-  const readingMin = useMemo(() => {
-    const text = `${post.title ?? ''} ${post.excerpt ?? ''}`.trim();
-    if (!text) return 3;
-    return Math.max(2, Math.ceil((text.split(/\s+/).length * 4) / 220));
-  }, [post.excerpt, post.title]);
   const onCardPress = useCallback(() => onPress(post), [onPress, post]);
 
   return (
@@ -106,24 +99,6 @@ const FeaturedCard = memo(function FeaturedCard({ post, onPress }: { post: Post;
           {post.excerpt ? (
             <Text numberOfLines={3} style={SF.deck}>{post.excerpt}</Text>
           ) : null}
-
-          <View style={SF.bylineRule} />
-
-          <View style={SF.byline}>
-            <View style={SF.avatar}>
-              <Text style={SF.avatarText}>{initial}</Text>
-            </View>
-            <View style={SF.bylineCol}>
-              <Text numberOfLines={1} style={SF.author}>
-                {post.author ?? 'Redaksia Fontana'}
-              </Text>
-              <View style={SF.metaRow}>
-                <Text style={SF.metaText}>{readingMin} min lexim</Text>
-                <View style={SF.metaSep} />
-                <Text style={SF.metaText}>{relativeLabel(post.publishedAt)}</Text>
-              </View>
-            </View>
-          </View>
         </View>
       </Pressable>
     </Animated.View>
@@ -131,17 +106,6 @@ const FeaturedCard = memo(function FeaturedCard({ post, onPress }: { post: Post;
 });
 
 // ── Tiny relative-time helper (avoids extra component in this context) ─────────
-function relativeLabel(ts: string | undefined): string {
-  if (!ts) return '';
-  const diff = Date.now() - new Date(ts).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'Tani';
-  if (mins < 60) return `${mins} min`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs} orë`;
-  const days = Math.floor(hrs / 24);
-  return `${days} ditë`;
-}
 
 // ── Category pill ─────────────────────────────────────────────────────────────
 const CategoryPill = memo(function CategoryPill({
@@ -550,61 +514,6 @@ const SF = StyleSheet.create({
     fontSize: 14.5,
     lineHeight: 22,
     marginTop: 10,
-  },
-  bylineRule: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: '#EEF0F4',
-    marginTop: 16,
-    marginBottom: 14,
-  },
-  byline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-  },
-  avatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  avatarText: {
-    color: '#DC2626',
-    fontFamily: fonts.uiBold,
-    fontSize: 14,
-    letterSpacing: -0.2,
-  },
-  bylineCol: {
-    flex: 1,
-    flexShrink: 1,
-    gap: 2,
-  },
-  author: {
-    color: '#0A0F1C',
-    fontFamily: fonts.uiBold,
-    fontSize: 13,
-    letterSpacing: -0.1,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-  },
-  metaText: {
-    color: '#7A8294',
-    fontFamily: fonts.uiRegular,
-    fontSize: 12,
-  },
-  metaSep: {
-    width: 2,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: '#B5BAC8',
   },
 });
 
