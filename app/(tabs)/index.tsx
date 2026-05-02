@@ -287,13 +287,16 @@ function BreakingTickerInner({ headlines }: { headlines: BreakingItem[] }) {
   // Keep the ref in sync so advanceToNext can always call the latest startAnim.
   startAnimRef.current = startAnim;
 
-  // When the displayed headline changes: reset text measurement and park text
-  // off-screen right. Animation begins once onTextLayout fires with the new width.
+  // When the displayed headline changes: park text off-screen right and restart.
+  // Do NOT reset textWidthRef — if width is already known start immediately;
+  // onTextLayout will fire and correct it if the new headline has a different width.
   useEffect(() => {
     cancelAnimation(translateX);
-    textWidthRef.current = 0;
-    if (viewportWidthRef.current) translateX.value = viewportWidthRef.current;
-  }, [currentIndex, translateX]);
+    if (viewportWidthRef.current) {
+      translateX.value = viewportWidthRef.current;
+      if (textWidthRef.current) startAnim();
+    }
+  }, [currentIndex, translateX, startAnim]);
 
   // Pause / resume on tab-focus or reduced-motion changes.
   useEffect(() => {
@@ -316,6 +319,8 @@ function BreakingTickerInner({ headlines }: { headlines: BreakingItem[] }) {
     }
   }, [startAnim, translateX]);
 
+  // Measured directly on the animated Text so the width is always consistent
+  // with the element being translated — no separate off-screen clone needed.
   const onTextLayout = useCallback((e: LayoutChangeEvent) => {
     const w = e.nativeEvent.layout.width;
     if (w === textWidthRef.current) return;
@@ -340,17 +345,13 @@ function BreakingTickerInner({ headlines }: { headlines: BreakingItem[] }) {
         style={styles.breakingViewport}
         onLayout={onViewportLayout}
       >
-        {/* Single headline — slides in from right, exits left, then next headline starts */}
+        {/* Single headline — width measured here directly so animation uses the exact same value */}
         <Animated.View style={[styles.breakingTickerRow, animStyle]}>
-          <Text style={styles.breakingTickerText}>{currentHeadline.title}</Text>
+          <Text onLayout={onTextLayout} style={styles.breakingTickerText}>
+            {currentHeadline.title}
+          </Text>
         </Animated.View>
       </Pressable>
-      {/* Off-screen measurement — outside overflow:hidden so text renders at natural width */}
-      <View style={styles.breakingMeasure}>
-        <Text onLayout={onTextLayout} style={styles.breakingTickerText}>
-          {currentHeadline.title}
-        </Text>
-      </View>
     </View>
   );
 }
