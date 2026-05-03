@@ -751,7 +751,7 @@ export default function NewsIndexScreen() {
         renderItem={renderPostItem}
         getItemType={getPostItemType}
         ListHeaderComponent={refreshHeader}
-        ListFooterComponent={NewsFooter}
+        ListFooterComponent={activeCategory.slug === '' ? NewsFooter : null}
         ListEmptyComponent={emptyState}
         refreshing={isRefreshing}
         onRefresh={onPullToRefresh}
