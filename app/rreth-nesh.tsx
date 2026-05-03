@@ -5,32 +5,44 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, radius, spacing } from '../constants/tokens';
 
+const HOME_HEADER_ROW_HEIGHT = 66;
+const HOME_TAB_BAR_BASE_HEIGHT = 64;
+const MIN_BOTTOM_SAFE_AREA = 10;
+const CONTENT_BOTTOM_GAP = spacing.lg;
+
 export default function AboutScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const headerHeight = insets.top + 52;
-  const bottomInsetOffset = insets.bottom + 196;
+  const safeBottom = Math.max(insets.bottom, MIN_BOTTOM_SAFE_AREA);
+  const headerHeight = insets.top + HOME_HEADER_ROW_HEIGHT;
+  const bottomBarHeight = HOME_TAB_BAR_BASE_HEIGHT + safeBottom;
 
   return (
     <View style={styles.screen}>
       {/* ── Custom header with back arrow ── */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
-        <Pressable
-          onPress={() => router.back()}
-          style={({ pressed }) => [styles.backBtn, pressed && styles.backBtnPressed]}
-          hitSlop={10}
-        >
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Rreth Nesh</Text>
-        <View style={styles.backBtnPlaceholder} />
+        <View style={styles.headerRow}>
+          <Pressable
+            onPress={() => router.back()}
+            style={({ pressed }) => [styles.backBtn, pressed && styles.backBtnPressed]}
+            hitSlop={10}
+          >
+            <Ionicons name="arrow-back" size={22} color={colors.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Rreth Nesh</Text>
+          <View style={styles.backBtnPlaceholder} />
+        </View>
       </View>
 
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingTop: headerHeight + 12, paddingBottom: bottomInsetOffset },
+          {
+            paddingTop: headerHeight + 12,
+            paddingBottom: bottomBarHeight + CONTENT_BOTTOM_GAP,
+          },
         ]}
+        scrollIndicatorInsets={{ top: headerHeight, bottom: bottomBarHeight }}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.heroCard}>
@@ -83,6 +95,11 @@ export default function AboutScreen() {
           </Pressable>
         </View>
       </ScrollView>
+
+      <View
+        pointerEvents="none"
+        style={[styles.bottomBar, { height: bottomBarHeight, paddingBottom: safeBottom }]}
+      />
     </View>
   );
 }
@@ -98,15 +115,21 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 40,
-    height: undefined,
-    paddingBottom: 10,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    elevation: 4,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+  },
+  headerRow: {
+    height: HOME_HEADER_ROW_HEIGHT,
     paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
   backBtn: {
     width: 40,
@@ -225,5 +248,20 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.border,
     marginHorizontal: 10,
+  },
+  bottomBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 35,
+    backgroundColor: colors.surface,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(15,23,42,0.10)',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: -2 },
+    elevation: 0,
   },
 });

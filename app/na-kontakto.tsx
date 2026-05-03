@@ -9,6 +9,11 @@ import { Image } from 'expo-image';
 import Svg, { Path } from 'react-native-svg';
 import { appIdentity, colors, fonts } from '../constants/tokens';
 
+const HOME_HEADER_ROW_HEIGHT = 66;
+const HOME_TAB_BAR_BASE_HEIGHT = 64;
+const MIN_BOTTOM_SAFE_AREA = 10;
+const CONTENT_BOTTOM_GAP = 24;
+
 function TikTokIcon({ size = 20, color = '#010101' }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
@@ -23,8 +28,9 @@ const openURL = (url: string) =>
 export default function ContactScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const topBarH = insets.top + 58;
-  const bottomInsetOffset = insets.bottom + 196;
+  const safeBottom = Math.max(insets.bottom, MIN_BOTTOM_SAFE_AREA);
+  const topBarH = insets.top + HOME_HEADER_ROW_HEIGHT;
+  const bottomBarH = HOME_TAB_BAR_BASE_HEIGHT + safeBottom;
 
   const goBack = useCallback(() => {
     if (router.canGoBack()) router.back();
@@ -34,15 +40,24 @@ export default function ContactScreen() {
     <View style={S.screen}>
       {/* ── Top bar ─────────────────────────────────────────────────── */}
       <View style={[S.topBar, { paddingTop: insets.top }]}>
-        <Pressable onPress={goBack} style={S.backBtn} hitSlop={10}>
-          <Ionicons name="chevron-back" size={24} color={colors.text} />
-        </Pressable>
-        <Image source={appIdentity.logo} contentFit="cover" style={S.topBarLogo} />
-        <Text style={S.topBarTitle}>Na Kontakto</Text>
+        <View style={S.topBarRow}>
+          <Pressable onPress={goBack} style={S.backBtn} hitSlop={10}>
+            <Ionicons name="chevron-back" size={24} color={colors.text} />
+          </Pressable>
+          <Image source={appIdentity.logo} contentFit="cover" style={S.topBarLogo} />
+          <Text style={S.topBarTitle}>Na Kontakto</Text>
+        </View>
       </View>
 
       <ScrollView
-        contentContainerStyle={[S.scroll, { paddingTop: topBarH + 20, paddingBottom: bottomInsetOffset }]}
+        contentContainerStyle={[
+          S.scroll,
+          {
+            paddingTop: topBarH + 20,
+            paddingBottom: bottomBarH + CONTENT_BOTTOM_GAP,
+          },
+        ]}
+        scrollIndicatorInsets={{ top: topBarH, bottom: bottomBarH }}
         showsVerticalScrollIndicator={false}
       >
         {/* ── Hero ────────────────────────────────────────────────────── */}
@@ -178,6 +193,11 @@ export default function ContactScreen() {
 
         <Text style={S.copyright}>© 2026 RTV Fontana · Të gjitha të drejtat e rezervuara</Text>
       </ScrollView>
+
+      <View
+        pointerEvents="none"
+        style={[S.bottomBar, { height: bottomBarH, paddingBottom: safeBottom }]}
+      />
     </View>
   );
 }
@@ -195,14 +215,15 @@ const S = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 40,
-    height: undefined,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 2,
     borderBottomColor: colors.primary,
+  },
+  topBarRow: {
+    height: HOME_HEADER_ROW_HEIGHT,
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     paddingHorizontal: 16,
-    paddingBottom: 10,
     gap: 10,
   },
   backBtn: {
@@ -386,5 +407,20 @@ const S = StyleSheet.create({
     color: colors.textTertiary,
     marginTop: 8,
     marginBottom: 8,
+  },
+  bottomBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 35,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(15,23,42,0.10)',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: -2 },
+    elevation: 0,
   },
 });
