@@ -1,8 +1,8 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   InteractionManager,
+  Linking,
   Pressable,
-  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +13,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 // A-3: deep import skips loading all other icon sets' glyph maps.
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList, type FlashListRef, type ListRenderItemInfo } from '@shopify/flash-list';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -23,6 +24,7 @@ import { SkeletonCard } from '../../../components/news/SkeletonCard';
 import { isBreakingBadgeVisible } from '../../../lib/breakingBadge';
 import { HamburgerButton } from '../../../components/ui/HamburgerButton';
 import { appIdentity, colors, fonts } from '../../../constants/tokens';
+import { s } from '../../../lib/responsive';
 import { queueImagePrefetch } from '../../../lib/prefetchQueue';
 import {
   buildSanityImageUrl,
@@ -32,6 +34,323 @@ import {
   sanityImageWidths,
   type Post,
 } from '../../../services/api';
+
+// ── NewsFooter ─────────────────────────────────────────────────────────────────
+const CURRENT_YEAR = new Date().getFullYear();
+const NEWS_SOCIAL_LINKS = [
+  { label: 'Facebook', url: 'https://www.facebook.com/rtvfontanalive' },
+  { label: 'Instagram', url: 'https://www.instagram.com/rtvfontana/' },
+  { label: 'YouTube', url: 'https://www.youtube.com/@RTVFontana' },
+  { label: 'TikTok', url: 'https://www.tiktok.com/@rtvfontanalive' },
+] as const;
+
+const NewsFooter = memo(function NewsFooter() {
+  const router = useRouter();
+  return (
+    <View style={SFoot.wrap}>
+      <View style={SFoot.card}>
+        <LinearGradient
+          colors={['#0f172a', '#1a2540', '#0f172a']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <View style={SFoot.glow1} pointerEvents="none" />
+        <View style={SFoot.glow2} pointerEvents="none" />
+        <View style={SFoot.accentLine} />
+
+        <View style={SFoot.brand}>
+          <View style={SFoot.logoWrap}>
+            <Image source={appIdentity.logo} contentFit="cover" style={SFoot.logo} />
+          </View>
+          <View style={SFoot.brandText}>
+            <Text style={SFoot.stationLabel}>RTV FONTANA</Text>
+            <Text style={SFoot.freqLine}>98.8 FM · Istog, Kosovë</Text>
+            <Text style={SFoot.tagline}>Lajmi lokal, zëri i qytetit.</Text>
+          </View>
+          <View style={SFoot.livePill}>
+            <View style={SFoot.liveDot} />
+            <Text style={SFoot.liveText}>LIVE</Text>
+          </View>
+        </View>
+
+        <View style={SFoot.divider} />
+
+        <View style={SFoot.actionRow}>
+          <Pressable
+            style={({ pressed }) => [SFoot.actionBtn, pressed && SFoot.actionBtnPressed]}
+            onPress={() => Linking.openURL('tel:+38344150027').catch(() => undefined)}
+          >
+            <View style={SFoot.actionIcon}>
+              <Ionicons name="call" size={15} color="#FFFFFF" />
+            </View>
+            <Text style={SFoot.actionLabel}>Telefono</Text>
+          </Pressable>
+          <View style={SFoot.actionSep} />
+          <Pressable
+            style={({ pressed }) => [SFoot.actionBtn, pressed && SFoot.actionBtnPressed]}
+            onPress={() => Linking.openURL('mailto:rtvfontana@gmail.com').catch(() => undefined)}
+          >
+            <View style={SFoot.actionIcon}>
+              <Ionicons name="mail" size={15} color="#FFFFFF" />
+            </View>
+            <Text style={SFoot.actionLabel}>Email</Text>
+          </Pressable>
+          <View style={SFoot.actionSep} />
+          <Pressable
+            style={({ pressed }) => [SFoot.actionBtn, SFoot.actionBtnAccent, pressed && SFoot.actionBtnPressed]}
+            onPress={() => router.push('/(tabs)/live' as never)}
+          >
+            <View style={[SFoot.actionIcon, SFoot.actionIconRed]}>
+              <Ionicons name="radio" size={15} color="#FFFFFF" />
+            </View>
+            <Text style={SFoot.actionLabel}>Radio Live</Text>
+          </Pressable>
+        </View>
+
+        <View style={SFoot.divider} />
+
+        <View style={SFoot.socialGrid}>
+          {NEWS_SOCIAL_LINKS.map((link) => (
+            <Pressable
+              key={link.label}
+              style={({ pressed }) => [SFoot.socialChip, pressed && SFoot.socialChipPressed]}
+              onPress={() => Linking.openURL(link.url).catch(() => undefined)}
+            >
+              <Text style={SFoot.socialLabel}>{link.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
+      <View style={SFoot.legal}>
+        <Pressable
+          onPress={() => Linking.openURL('https://radiofontana.org/privacy').catch(() => undefined)}
+          style={({ pressed }) => pressed && { opacity: 0.6 }}
+        >
+          <Text style={SFoot.legalLink}>Privatësia</Text>
+        </Pressable>
+        <Text style={SFoot.legalDot}>·</Text>
+        <Pressable
+          onPress={() => Linking.openURL('https://radiofontana.org/terms').catch(() => undefined)}
+          style={({ pressed }) => pressed && { opacity: 0.6 }}
+        >
+          <Text style={SFoot.legalLink}>Kushtet</Text>
+        </Pressable>
+        <View style={{ flex: 1 }} />
+        <Text style={SFoot.copy}>© {CURRENT_YEAR} RTV Fontana</Text>
+      </View>
+    </View>
+  );
+});
+
+const SFoot = StyleSheet.create({
+  wrap: {
+    marginTop: 24,
+    paddingBottom: 8,
+  },
+  card: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    padding: 20,
+    marginBottom: 14,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.28,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 14 },
+    elevation: 12,
+  },
+  glow1: {
+    position: 'absolute',
+    right: -s(40),
+    top: -s(40),
+    width: s(180),
+    height: s(180),
+    borderRadius: s(90),
+    backgroundColor: 'rgba(220,38,38,0.12)',
+  },
+  glow2: {
+    position: 'absolute',
+    left: -s(30),
+    bottom: -s(30),
+    width: s(140),
+    height: s(140),
+    borderRadius: s(70),
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  accentLine: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: '#DC2626',
+  },
+  brand: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 13,
+    marginTop: 6,
+    marginBottom: 18,
+  },
+  logoWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  logo: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+  },
+  brandText: {
+    flex: 1,
+    gap: 2,
+  },
+  stationLabel: {
+    color: 'rgba(255,255,255,0.5)',
+    fontFamily: fonts.uiBold,
+    fontSize: 9.5,
+    letterSpacing: 2.0,
+  },
+  freqLine: {
+    color: '#FFFFFF',
+    fontFamily: fonts.uiBold,
+    fontSize: 17,
+    letterSpacing: -0.3,
+    lineHeight: 22,
+  },
+  tagline: {
+    color: 'rgba(255,255,255,0.55)',
+    fontFamily: fonts.uiRegular,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  livePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(220,38,38,0.22)',
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(220,38,38,0.4)',
+    alignSelf: 'flex-start',
+    flexShrink: 0,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#DC2626',
+  },
+  liveText: {
+    color: '#ff6b6b',
+    fontFamily: fonts.uiBold,
+    fontSize: 10,
+    letterSpacing: 1.2,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    marginVertical: 14,
+    marginHorizontal: -4,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionSep: {
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.10)',
+  },
+  actionBtnAccent: {
+    backgroundColor: 'rgba(220,38,38,0.22)',
+    borderColor: 'rgba(220,38,38,0.35)',
+  },
+  actionBtnPressed: {
+    opacity: 0.75,
+  },
+  actionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionIconRed: {
+    backgroundColor: 'rgba(220,38,38,0.30)',
+  },
+  actionLabel: {
+    color: 'rgba(255,255,255,0.82)',
+    fontFamily: fonts.uiBold,
+    fontSize: 11,
+    letterSpacing: 0.1,
+  },
+  socialGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  socialChip: {
+    flex: 1,
+    minWidth: '46%',
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.10)',
+  },
+  socialChipPressed: {
+    backgroundColor: 'rgba(255,255,255,0.14)',
+  },
+  socialLabel: {
+    color: 'rgba(255,255,255,0.78)',
+    fontFamily: fonts.uiMedium,
+    fontSize: 12,
+    letterSpacing: 0.1,
+  },
+  legal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 4,
+    paddingBottom: 4,
+  },
+  legalLink: {
+    color: colors.textMuted,
+    fontFamily: fonts.uiMedium,
+    fontSize: 11.5,
+    textDecorationLine: 'underline',
+  },
+  legalDot: {
+    color: colors.textFaint,
+    fontSize: 11,
+  },
+  copy: {
+    color: colors.textMuted,
+    fontFamily: fonts.uiRegular,
+    fontSize: 11.5,
+  },
+});
 
 // ── Category tabs ─────────────────────────────────────────────────────────────
 type NewsCategoryTab = { label: string; slug: string };
@@ -185,6 +504,8 @@ const SearchInput = memo(function SearchInput({
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const LOADING_ROWS = [1, 2, 3];
+const REFRESH_MIN_VISIBLE_MS = 600;
+const REFRESH_MAX_WAIT_MS = 3500;
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function NewsIndexScreen() {
@@ -242,25 +563,27 @@ export default function NewsIndexScreen() {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [bannerVisible, setBannerVisible] = useState(false);
-  const lastRefreshRef = useRef<number>(0);
+  const refreshRunRef = useRef(0);
+  const [refreshResetKey, setRefreshResetKey] = useState(0);
   const onPullToRefresh = useCallback(async () => {
-    const now = Date.now();
-    const throttled = now - lastRefreshRef.current < 10_000;
-    if (!throttled) lastRefreshRef.current = now;
+    const runId = refreshRunRef.current + 1;
+    refreshRunRef.current = runId;
     setIsRefreshing(true);
-    if (!throttled) setBannerVisible(true);
+    setBannerVisible(true);
     try {
-      if (throttled) {
-        await new Promise<void>((resolve) => setTimeout(resolve, 50));
-        return;
-      }
-      await Promise.allSettled([
-        refetchPostsRef.current(),
-        new Promise<void>((resolve) => setTimeout(resolve, 1100)),
+      await Promise.race([
+        Promise.allSettled([
+          refetchPostsRef.current(),
+          new Promise<void>((resolve) => setTimeout(resolve, REFRESH_MIN_VISIBLE_MS)),
+        ]),
+        new Promise<void>((resolve) => setTimeout(resolve, REFRESH_MAX_WAIT_MS)),
       ]);
     } finally {
-      setIsRefreshing(false);
-      setBannerVisible(false);
+      if (refreshRunRef.current === runId) {
+        setIsRefreshing(false);
+        setBannerVisible(false);
+        setRefreshResetKey((key) => key + 1);
+      }
     }
   }, []);
 
@@ -396,20 +719,6 @@ export default function NewsIndexScreen() {
   );
   const postKeyExtractor = useCallback((item: Post) => item._id, []);
   const loadingKeyExtractor = useCallback((item: number) => String(item), []);
-  const refreshControl = useMemo(
-    () => (
-      <RefreshControl
-        refreshing={isRefreshing}
-        onRefresh={onPullToRefresh}
-        tintColor="transparent"
-        colors={['transparent']}
-        progressBackgroundColor="transparent"
-        progressViewOffset={0}
-      />
-    ),
-    [isRefreshing, onPullToRefresh],
-  );
-
   // ── Loading state ──────────────────────────────────────────────────────────
   if (initialLoading) {
     return (
@@ -431,6 +740,7 @@ export default function NewsIndexScreen() {
     <View style={S.screen}>
       {stickyHeader}
       <FlashList
+        key={`news-refresh-${refreshResetKey}`}
         ref={listRef}
         data={posts}
         keyExtractor={postKeyExtractor}
@@ -441,8 +751,11 @@ export default function NewsIndexScreen() {
         renderItem={renderPostItem}
         getItemType={getPostItemType}
         ListHeaderComponent={refreshHeader}
+        ListFooterComponent={NewsFooter}
         ListEmptyComponent={emptyState}
-        refreshControl={refreshControl}
+        refreshing={isRefreshing}
+        onRefresh={onPullToRefresh}
+        progressViewOffset={0}
         maintainVisibleContentPosition={DISABLE_MAINTAIN_VISIBLE_CONTENT_POSITION}
       />
     </View>

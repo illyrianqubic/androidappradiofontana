@@ -1,203 +1,134 @@
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useCallback } from 'react';
-import { useRouter } from 'expo-router';
-// A-3: deep imports skip loading the full glyph maps for every icon set.
-import Ionicons from '@expo/vector-icons/Ionicons';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Image } from 'expo-image';
-import Svg, { Path } from 'react-native-svg';
-import { appIdentity, colors, fonts } from '../constants/tokens';
+import { colors, fonts, radius, spacing } from '../constants/tokens';
+import {
+  STATIC_PAGE_BOTTOM_BAR_BASE_HEIGHT,
+  STATIC_PAGE_HEADER_ROW_HEIGHT,
+  STATIC_PAGE_MIN_BOTTOM_SAFE_AREA,
+  StaticPageBottomBar,
+  StaticPageHeader,
+} from '../components/ui/StaticPageChrome';
 
-const HOME_HEADER_ROW_HEIGHT = 66;
-const HOME_TAB_BAR_BASE_HEIGHT = 64;
-const MIN_BOTTOM_SAFE_AREA = 10;
-const CONTENT_BOTTOM_GAP = 24;
+const CONTACT_ITEMS = [
+  {
+    label: 'Telefon',
+    value: '+383 44 150 027',
+    helper: 'Redaksia dhe studio',
+    action: 'Telefono',
+    url: 'tel:+38344150027',
+  },
+  {
+    label: 'Telefon alternativ',
+    value: '+383 44 141 294',
+    helper: 'Bashkëpunime dhe reklama',
+    action: 'Telefono',
+    url: 'tel:+38344141294',
+  },
+  {
+    label: 'Email',
+    value: 'rtvfontana@gmail.com',
+    helper: 'Lajme, njoftime dhe pyetje',
+    action: 'Shkruaj',
+    url: 'mailto:rtvfontana@gmail.com',
+  },
+  {
+    label: 'Vendndodhja',
+    value: 'Istog, Kosovë',
+    helper: 'Shiko në hartë',
+    action: 'Hartë',
+    url: 'https://maps.google.com/?q=Istog,Kosovo',
+  },
+] as const;
 
-function TikTokIcon({ size = 20, color = '#010101' }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <Path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z" />
-    </Svg>
-  );
-}
+const SOCIAL_ITEMS = [
+  { label: 'Facebook', url: 'https://www.facebook.com/rtvfontanalive' },
+  { label: 'Instagram', url: 'https://www.instagram.com/rtvfontana/' },
+  { label: 'YouTube', url: 'https://www.youtube.com/@RTVFontana' },
+  { label: 'TikTok', url: 'https://www.tiktok.com/@rtvfontanalive' },
+] as const;
 
-const openURL = (url: string) =>
-  Linking.openURL(url).catch(() => undefined);
+const openURL = (url: string) => Linking.openURL(url).catch(() => undefined);
 
 export default function ContactScreen() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const safeBottom = Math.max(insets.bottom, MIN_BOTTOM_SAFE_AREA);
-  const topBarH = insets.top + HOME_HEADER_ROW_HEIGHT;
-  const bottomBarH = HOME_TAB_BAR_BASE_HEIGHT + safeBottom;
-
-  const goBack = useCallback(() => {
-    if (router.canGoBack()) router.back();
-  }, [router]);
+  const safeBottom = Math.max(insets.bottom, STATIC_PAGE_MIN_BOTTOM_SAFE_AREA);
+  const topBarH = insets.top + STATIC_PAGE_HEADER_ROW_HEIGHT;
+  const bottomBarH = STATIC_PAGE_BOTTOM_BAR_BASE_HEIGHT + safeBottom;
 
   return (
     <View style={S.screen}>
-      {/* ── Top bar ─────────────────────────────────────────────────── */}
-      <View style={[S.topBar, { paddingTop: insets.top }]}>
-        <View style={S.topBarRow}>
-          <Pressable onPress={goBack} style={S.backBtn} hitSlop={10}>
-            <Ionicons name="chevron-back" size={24} color={colors.text} />
-          </Pressable>
-          <Image source={appIdentity.logo} contentFit="cover" style={S.topBarLogo} />
-          <Text style={S.topBarTitle}>Na Kontakto</Text>
-        </View>
-      </View>
+      <StaticPageHeader title="Na Kontakto" topInset={insets.top} />
 
       <ScrollView
         contentContainerStyle={[
           S.scroll,
           {
-            paddingTop: topBarH + 20,
-            paddingBottom: bottomBarH + CONTENT_BOTTOM_GAP,
+            paddingTop: topBarH + spacing.md,
+            paddingBottom: bottomBarH + spacing.xl,
           },
         ]}
         scrollIndicatorInsets={{ top: topBarH, bottom: bottomBarH }}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Hero ────────────────────────────────────────────────────── */}
         <View style={S.hero}>
-          <View style={S.heroBadge}>
-            <View style={S.heroBadgeDot} />
-            <Text style={S.heroBadgeText}>RTV FONTANA</Text>
-          </View>
-          <Text style={S.heroTitle}>Na Kontakto</Text>
+          <View style={S.heroRule} />
+          <Text style={S.heroKicker}>RTV FONTANA · KONTAKT</Text>
+          <Text style={S.heroTitle}>Kanale zyrtare për publikun.</Text>
           <Text style={S.heroSub}>
-            Jemi gjithmonë të gatshëm t'ju ndihmojmë. Kontaktoni redaksinë tonë
-            për lajme, reklama ose bashkëpunime.
+            Për lajme, reklama, bashkëpunime ose pyetje rreth radios, ekipi ynë
+            mund të arrihet direkt nga kanalet zyrtare.
           </Text>
         </View>
 
-        {/* ── Contact info ─────────────────────────────────────────────── */}
-        <View style={S.section}>
-          <Text style={S.sectionTitle}>Informacioni i Kontaktit</Text>
-
-          {/* Phone 1 */}
-          <Pressable
-            style={({ pressed }) => [S.card, pressed && S.cardPressed]}
-            onPress={() => openURL('tel:+38344150027')}
-          >
-            <View style={[S.cardIcon, { backgroundColor: '#EEF2FF' }]}>
-              <Ionicons name="call-outline" size={20} color="#4338CA" />
-            </View>
-            <View style={S.cardBody}>
-              <Text style={S.cardLabel}>Telefon 1</Text>
-              <Text style={S.cardValue}>+383 44 150 027</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />
-          </Pressable>
-
-          {/* Phone 2 */}
-          <Pressable
-            style={({ pressed }) => [S.card, pressed && S.cardPressed]}
-            onPress={() => openURL('tel:+38344141294')}
-          >
-            <View style={[S.cardIcon, { backgroundColor: '#EEF2FF' }]}>
-              <Ionicons name="call-outline" size={20} color="#4338CA" />
-            </View>
-            <View style={S.cardBody}>
-              <Text style={S.cardLabel}>Telefon 2</Text>
-              <Text style={S.cardValue}>+383 44 141 294</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />
-          </Pressable>
-
-          {/* Email */}
-          <Pressable
-            style={({ pressed }) => [S.card, pressed && S.cardPressed]}
-            onPress={() => openURL('mailto:rtvfontana@gmail.com')}
-          >
-            <View style={[S.cardIcon, { backgroundColor: '#FEF9C3' }]}>
-              <Ionicons name="mail-outline" size={20} color="#854D0E" />
-            </View>
-            <View style={S.cardBody}>
-              <Text style={S.cardLabel}>Email</Text>
-              <Text style={S.cardValue}>rtvfontana@gmail.com</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />
-          </Pressable>
-
-          {/* Location */}
-          <Pressable
-            style={({ pressed }) => [S.card, pressed && S.cardPressed]}
-            onPress={() => openURL('https://maps.google.com/?q=Istog,Kosovo')}
-          >
-            <View style={[S.cardIcon, { backgroundColor: '#F0FDF4' }]}>
-              <Ionicons name="location-outline" size={20} color="#15803D" />
-            </View>
-            <View style={S.cardBody}>
-              <Text style={S.cardLabel}>Vendndodhja</Text>
-              <Text style={S.cardValue}>Istog, Kosovë</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />
-          </Pressable>
-
-          {/* Hours */}
-          <View style={S.card}>
-            <View style={[S.cardIcon, { backgroundColor: '#FFF7ED' }]}>
-              <Ionicons name="time-outline" size={20} color="#C2410C" />
-            </View>
-            <View style={S.cardBody}>
-              <Text style={S.cardLabel}>Orari i Punës</Text>
-              <Text style={S.cardValue}>08:00 – 20:00</Text>
-            </View>
-            <View style={S.openBadge}>
-              <Text style={S.openBadgeText}>HAPUR</Text>
-            </View>
+        <View style={S.availabilityCard}>
+          <View style={S.availabilityText}>
+            <Text style={S.availabilityTitle}>Orari i punës</Text>
+            <Text style={S.availabilitySub}>08:00 - 20:00 · E hënë - e shtunë</Text>
+          </View>
+          <View style={S.openBadge}>
+            <Text style={S.openBadgeText}>AKTIV</Text>
           </View>
         </View>
 
-        {/* ── Social media ─────────────────────────────────────────────── */}
         <View style={S.section}>
-          <Text style={S.sectionTitle}>Na Ndiqni</Text>
+          <Text style={S.sectionKicker}>Kontakt i shpejtë</Text>
+          <View style={S.contactList}>
+            {CONTACT_ITEMS.map((item) => (
+              <Pressable
+                key={item.value}
+                style={({ pressed }) => [S.contactCard, pressed && S.cardPressed]}
+                onPress={() => openURL(item.url)}
+              >
+                <View style={S.contactBody}>
+                  <Text style={S.contactLabel}>{item.label}</Text>
+                  <Text style={S.contactValue}>{item.value}</Text>
+                  <Text style={S.contactHelper}>{item.helper}</Text>
+                </View>
+                <Text style={S.contactAction}>{item.action}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
 
+        <View style={S.section}>
+          <Text style={S.sectionKicker}>Na ndiqni</Text>
           <View style={S.socialGrid}>
-            <Pressable
-              style={({ pressed }) => [S.socialBtn, { backgroundColor: '#1877F2' }, pressed && S.socialBtnPressed]}
-              onPress={() => openURL('https://www.facebook.com/rtvfontanalive')}
-            >
-              <MaterialCommunityIcons name="facebook" size={22} color="#FFFFFF" />
-              <Text style={S.socialLabel}>Facebook</Text>
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [S.socialBtn, { backgroundColor: '#E4405F' }, pressed && S.socialBtnPressed]}
-              onPress={() => openURL('https://www.instagram.com/rtvfontana/')}
-            >
-              <MaterialCommunityIcons name="instagram" size={22} color="#FFFFFF" />
-              <Text style={S.socialLabel}>Instagram</Text>
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [S.socialBtn, { backgroundColor: '#FF0000' }, pressed && S.socialBtnPressed]}
-              onPress={() => openURL('https://www.youtube.com/@RTVFontana')}
-            >
-              <MaterialCommunityIcons name="youtube" size={22} color="#FFFFFF" />
-              <Text style={S.socialLabel}>YouTube</Text>
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [S.socialBtn, { backgroundColor: '#010101' }, pressed && S.socialBtnPressed]}
-              onPress={() => openURL('https://www.tiktok.com/@rtvfontanalive')}
-            >
-              <TikTokIcon size={22} color="#FFFFFF" />
-              <Text style={S.socialLabel}>TikTok</Text>
-            </Pressable>
+            {SOCIAL_ITEMS.map((item) => (
+              <Pressable
+                key={item.label}
+                style={({ pressed }) => [S.socialButton, pressed && S.socialPressed]}
+                onPress={() => openURL(item.url)}
+              >
+                <Text style={S.socialLabel}>{item.label}</Text>
+              </Pressable>
+            ))}
           </View>
         </View>
 
         <Text style={S.copyright}>© 2026 RTV Fontana · Të gjitha të drejtat e rezervuara</Text>
       </ScrollView>
 
-      <View
-        pointerEvents="none"
-        style={[S.bottomBar, { height: bottomBarH, paddingBottom: safeBottom }]}
-      />
+      <StaticPageBottomBar bottomInset={insets.bottom} />
     </View>
   );
 }
@@ -205,222 +136,182 @@ export default function ContactScreen() {
 const S = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F2F3F5',
+    backgroundColor: '#F6F7F9',
   },
-
-  // ── Top bar ─────────────────────────────────────────────────────────────────
-  topBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 40,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 2,
-    borderBottomColor: colors.primary,
-  },
-  topBarRow: {
-    height: HOME_HEADER_ROW_HEIGHT,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    gap: 10,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F3F4F6',
-  },
-  topBarLogo: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
-  },
-  topBarTitle: {
-    flex: 1,
-    fontFamily: fonts.uiBold,
-    fontSize: 17,
-    color: colors.text,
-    letterSpacing: -0.2,
-  },
-
-  // ── Scroll ──────────────────────────────────────────────────────────────────
   scroll: {
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.md,
   },
-
-  // ── Hero ────────────────────────────────────────────────────────────────────
   hero: {
-    backgroundColor: colors.primary,
-    borderRadius: 20,
-    paddingHorizontal: 24,
-    paddingVertical: 28,
-    marginBottom: 24,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
-  },
-  heroBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 12,
-  },
-  heroBadgeDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.7)',
-  },
-  heroBadgeText: {
-    color: 'rgba(255,255,255,0.7)',
-    fontFamily: fonts.uiBold,
-    fontSize: 10,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-  },
-  heroTitle: {
-    color: '#FFFFFF',
-    fontFamily: fonts.uiBold,
-    fontSize: 32,
-    lineHeight: 38,
-    letterSpacing: -0.5,
-  },
-  heroSub: {
-    marginTop: 10,
-    color: 'rgba(255,255,255,0.82)',
-    fontFamily: fonts.uiRegular,
-    fontSize: 14,
-    lineHeight: 21,
-  },
-
-  // ── Section ─────────────────────────────────────────────────────────────────
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontFamily: fonts.uiBold,
-    fontSize: 13,
-    color: colors.textMuted,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    marginBottom: 12,
-    marginLeft: 4,
-  },
-
-  // ── Cards ───────────────────────────────────────────────────────────────────
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: 10,
-    gap: 14,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
+    borderRadius: 24,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xl,
+    marginBottom: spacing.xl,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
-  cardPressed: {
-    backgroundColor: colors.redTint,
+  heroRule: {
+    width: 52,
+    height: 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+    marginBottom: spacing.lg,
   },
-  cardIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+  heroKicker: {
+    color: colors.primary,
+    fontFamily: fonts.uiBold,
+    fontSize: 12,
+    letterSpacing: 1.2,
+    marginBottom: spacing.sm,
+  },
+  heroTitle: {
+    color: colors.text,
+    fontFamily: fonts.uiBold,
+    fontSize: 31,
+    lineHeight: 38,
+    letterSpacing: 0,
+  },
+  heroSub: {
+    marginTop: spacing.md,
+    color: colors.textMuted,
+    fontFamily: fonts.uiMedium,
+    fontSize: 15,
+    lineHeight: 23,
+  },
+  availabilityCard: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: spacing.md,
+    padding: spacing.lg,
+    marginBottom: spacing.xl,
+    borderRadius: 22,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  cardBody: {
+  availabilityText: {
     flex: 1,
   },
-  cardLabel: {
-    fontFamily: fonts.uiRegular,
-    fontSize: 12,
-    color: colors.textMuted,
-    marginBottom: 3,
-  },
-  cardValue: {
+  availabilityTitle: {
+    color: colors.text,
     fontFamily: fonts.uiBold,
     fontSize: 16,
-    color: colors.text,
-    letterSpacing: -0.1,
+  },
+  availabilitySub: {
+    marginTop: 3,
+    color: colors.textMuted,
+    fontFamily: fonts.uiRegular,
+    fontSize: 13,
+    lineHeight: 18,
   },
   openBadge: {
-    backgroundColor: '#D1FAE5',
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+    backgroundColor: colors.redTint,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.redBorder,
   },
   openBadgeText: {
+    color: colors.primary,
     fontFamily: fonts.uiBold,
     fontSize: 11,
-    color: '#065F46',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
-
-  // ── Social grid ─────────────────────────────────────────────────────────────
+  section: {
+    marginBottom: spacing.xl,
+  },
+  sectionKicker: {
+    color: colors.primary,
+    fontFamily: fonts.uiBold,
+    fontSize: 12,
+    letterSpacing: 1.3,
+    textTransform: 'uppercase',
+    marginBottom: spacing.sm,
+    marginLeft: 2,
+  },
+  contactList: {
+    gap: spacing.sm,
+  },
+  contactCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.md,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+  },
+  cardPressed: {
+    backgroundColor: colors.surfaceSubtle,
+  },
+  contactBody: {
+    flex: 1,
+  },
+  contactLabel: {
+    color: colors.textMuted,
+    fontFamily: fonts.uiMedium,
+    fontSize: 12,
+  },
+  contactValue: {
+    marginTop: 2,
+    color: colors.text,
+    fontFamily: fonts.uiBold,
+    fontSize: 16,
+    lineHeight: 21,
+  },
+  contactHelper: {
+    marginTop: 2,
+    color: colors.textTertiary,
+    fontFamily: fonts.uiRegular,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  contactAction: {
+    minWidth: 66,
+    textAlign: 'right',
+    color: colors.primary,
+    fontFamily: fonts.uiBold,
+    fontSize: 13,
+  },
   socialGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: spacing.sm,
   },
-  socialBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 18,
-    paddingVertical: 13,
-    borderRadius: 14,
+  socialButton: {
     minWidth: '46%',
     flex: 1,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
+    minHeight: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  socialBtnPressed: {
-    opacity: 0.82,
-    transform: [{ scale: 0.97 }],
+  socialPressed: {
+    backgroundColor: colors.surfaceSubtle,
   },
   socialLabel: {
+    color: colors.text,
     fontFamily: fonts.uiBold,
     fontSize: 14,
-    color: '#FFFFFF',
   },
-
-  // ── Footer ──────────────────────────────────────────────────────────────────
   copyright: {
-    textAlign: 'center',
+    color: colors.textTertiary,
     fontFamily: fonts.uiRegular,
     fontSize: 12,
-    color: colors.textTertiary,
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  bottomBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 35,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(15,23,42,0.10)',
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: -2 },
-    elevation: 0,
+    lineHeight: 18,
+    textAlign: 'center',
   },
 });
