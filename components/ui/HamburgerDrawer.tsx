@@ -183,6 +183,17 @@ function HamburgerDrawerInner() {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [isOpen]);
 
+  // Pending router.push timer from navigate(). Tracked so we can cancel it
+  // on unmount (prevents stray push to a now-detached navigator).
+  const pendingNavTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isNavigatingRef = useRef(false);
+  useEffect(() => () => {
+    if (pendingNavTimerRef.current) {
+      clearTimeout(pendingNavTimerRef.current);
+      pendingNavTimerRef.current = null;
+    }
+  }, []);
+
   const backdropStyle = useAnimatedStyle(() => ({
     opacity: progress.value,
   }));
@@ -192,6 +203,10 @@ function HamburgerDrawerInner() {
   }));
 
   const navigate = (path: string) => {
+    // Reentry guard: rapid double-taps on a NavItem could otherwise queue
+    // multiple router.push timers and stack the same screen twice.
+    if (isNavigatingRef.current) return;
+    isNavigatingRef.current = true;
     // Skip the slide-out: the page fade is the only motion the user sees.
     cancelAnimation(progress);
     progress.value = 0;
@@ -202,14 +217,24 @@ function HamburgerDrawerInner() {
     // freezes for navigation. Without this, the source screen sometimes
     // freezes mid-render and the hamburger icon stays as a red X until
     // the user navigates back.
-    setTimeout(() => router.push(path as never), 0);
+    if (pendingNavTimerRef.current) clearTimeout(pendingNavTimerRef.current);
+    pendingNavTimerRef.current = setTimeout(() => {
+      pendingNavTimerRef.current = null;
+      router.push(path as never);
+      // Release the reentry lock after the navigator commits.
+      setTimeout(() => { isNavigatingRef.current = false; }, 200);
+    }, 0);
   };
 
   const isHomeActive = pathname === '/' || pathname === '/(tabs)' || pathname === '/(tabs)/';
-  const isLiveActive = pathname.includes('/live');
-  const isNewsActive = pathname.includes('/news');
-  const isAboutActive = pathname.includes('/rreth-nesh');
-  const isContactActive = pathname.includes('/na-kontakto');
+  // Use exact-segment matching so pathname='/live-blog' (a hypothetical future
+  // route) does not falsely highlight the radio-Live entry, etc.
+  const matchesSegment = (segment: string) =>
+    pathname === segment || pathname.startsWith(`${segment}/`) || pathname.startsWith(`${segment}?`);
+  const isLiveActive = matchesSegment('/live') || matchesSegment('/(tabs)/live');
+  const isNewsActive = matchesSegment('/news') || matchesSegment('/(tabs)/news');
+  const isAboutActive = matchesSegment('/rreth-nesh');
+  const isContactActive = matchesSegment('/na-kontakto');
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents={isInteractive ? 'auto' : 'none'}>

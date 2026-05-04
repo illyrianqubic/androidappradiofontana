@@ -229,6 +229,13 @@ const PLAYER_SCREEN_OPTIONS = {
   gestureEnabled: true,
 } as const;
 
+// +not-found should never be visible — it just <Redirect>s to home. Disabling
+// the animation prevents a brief flash of an empty fade transition when the
+// OS delivers an unhandled deep link.
+const NOT_FOUND_SCREEN_OPTIONS = {
+  animation: 'none',
+} as const;
+
 type StartupState = {
   showLaunchSplash: boolean;
   nativeSplashHidden: boolean;
@@ -366,6 +373,10 @@ export default function RootLayout() {
                 <Stack.Screen name="rreth-nesh" />
                 <Stack.Screen name="na-kontakto" />
                 <Stack.Screen name="player" options={PLAYER_SCREEN_OPTIONS} />
+                {/* Catch-all for OS-delivered deep links the app does not handle
+                    (e.g. radiofontana://notification.click on Samsung One UI).
+                    The +not-found route silently redirects to home. */}
+                <Stack.Screen name="+not-found" options={NOT_FOUND_SCREEN_OPTIONS} />
               </Stack>
 
               {showLaunchSplash ? (
