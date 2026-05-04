@@ -25,7 +25,7 @@ import {
   type RadioTrack,
 } from './trackPlayerNative';
 import { appIdentity } from '../../constants/tokens';
-import { addListeningHistory } from '../storage';
+
 
 const reconnectDelaysMs = [1000, 2000, 4000, 8000, 16000, 30000];
 const RADIO_TRACK_ID = 'rtv-fontana-live';
@@ -216,8 +216,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const reconnectAttemptRef = useRef(0);
   const reconnectRef = useRef<() => Promise<void>>(async () => undefined);
   const doReconnectRef = useRef<() => Promise<void>>(async () => undefined);
-  const historyWriteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastHistoryTitleRef = useRef<string | null>(null);
   const userIntentRef = useRef<'play' | 'pause' | 'idle'>('idle');
 
   const updateState = useCallback((patch: Partial<PlayerStateShape>) => {
@@ -620,10 +618,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       queueEndedSub.remove();
       remotePlaySub.remove();
       remotePauseSub.remove();
-      if (historyWriteTimeoutRef.current) {
-        clearTimeout(historyWriteTimeoutRef.current);
-        historyWriteTimeoutRef.current = null;
-      }
       clearReconnectTimeout();
       if (reconnectDebounceRef.current) {
         clearTimeout(reconnectDebounceRef.current);
@@ -639,42 +633,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     });
     return () => sub.remove();
   }, [syncFromTrackPlayer]);
-
-  useEffect(() => {
-    if (
-      !isPlaying ||
-      isBuffering ||
-      !metadata.title ||
-      metadata.title === 'Po lidhet...' ||
-      metadata.title === 'Gabim në stream'
-    ) {
-      if (historyWriteTimeoutRef.current) {
-        clearTimeout(historyWriteTimeoutRef.current);
-        historyWriteTimeoutRef.current = null;
-      }
-      return;
-    }
-
-    if (lastHistoryTitleRef.current === metadata.title) {
-      return;
-    }
-    lastHistoryTitleRef.current = metadata.title;
-
-    if (historyWriteTimeoutRef.current) {
-      clearTimeout(historyWriteTimeoutRef.current);
-    }
-    const title = metadata.title;
-    const artist = metadata.artist;
-    historyWriteTimeoutRef.current = setTimeout(() => {
-      historyWriteTimeoutRef.current = null;
-      addListeningHistory({
-        id: title,
-        title,
-        artist,
-        listenedAt: new Date().toISOString(),
-      });
-    }, 750);
-  }, [isPlaying, isBuffering, metadata.artist, metadata.title]);
 
   const stateValue = useMemo<AudioStateValue>(
     () => ({

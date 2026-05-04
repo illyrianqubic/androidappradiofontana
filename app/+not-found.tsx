@@ -4,7 +4,8 @@ import { Redirect } from 'expo-router';
 // app's `radiofontana://` scheme — for example `radiofontana://notification.click`
 // when the user taps the media-notification on some Android skins (Samsung One UI,
 // MIUI). Without this file Expo Router would render its built-in
-// "Unmatched Route" error screen. We silently bounce the user to home instead.
+// "Unmatched Route" error screen. Since these synthetic links always come from
+// the playback notification, bounce the user straight to the Live radio tab.
 export default function NotFound() {
-  return <Redirect href={'/(tabs)' as never} />;
+  return <Redirect href={'/(tabs)/live' as never} />;
 }

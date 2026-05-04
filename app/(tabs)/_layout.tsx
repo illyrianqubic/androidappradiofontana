@@ -106,7 +106,6 @@ export default function TabsLayout() {
       <Tabs.Screen name="index" options={{ title: 'Kryefaqja' }} />
       <Tabs.Screen name="live" options={{ title: 'Live' }} />
       <Tabs.Screen name="news" options={{ title: 'Lajme' }} />
-      <Tabs.Screen name="library" options={{ href: null }} />
     </Tabs>
   );
 }
