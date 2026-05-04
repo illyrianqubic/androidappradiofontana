@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   BackHandler,
   Linking,
@@ -79,40 +79,64 @@ function HamburgerDrawerInner() {
   const progress = useSharedValue(0);
   const panelWidth = Math.min(Math.round(windowWidth * 0.86), PANEL_MAX_W);
 
-  // Keep a ref that always reflects the latest isOpen value. Used inside the
-  // animation completion callback to avoid resetting isInteractive when the
-  // drawer has already been re-opened (race: close anim cancelled → open starts
-  // → close callback fires late).
+  // Bug fix 2: Guarantee the off-screen offset is never 0. A zero panelWidthSv
+  // makes interpolate(0,[0,1],[0,0])=0, rendering the panel at translateX:0
+  // (fully visible) whenever progress===0 — i.e. every time the drawer is closed.
+  const panelWidthSv = useSharedValue(panelWidth > 0 ? panelWidth : PANEL_MAX_W);
+  useEffect(() => {
+    if (panelWidth > 0) panelWidthSv.value = panelWidth;
+  }, [panelWidth, panelWidthSv]);
+
   const isOpenRef = useRef(isOpen);
   useLayoutEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
 
-  const closeIsInteractive = useCallback(() => {
-    if (!isOpenRef.current) setIsInteractive(false);
-  }, []);
+  // Bug fix 3 (part 1): Activate the backdrop synchronously before paint so the
+  // closing tap-target exists from the very first animation frame.
+  // Previously used async useEffect which left a gap where touches passed through.
+  useLayoutEffect(() => {
+    if (isOpen) setIsInteractive(true);
+  }, [isOpen]);
 
-  // Sync panelWidth into a shared value so the worklet always reads the current
-  // value even if the window is resized (e.g. orientation change or split-screen).
-  const panelWidthSv = useSharedValue(panelWidth);
-  useEffect(() => { panelWidthSv.value = panelWidth; }, [panelWidth, panelWidthSv]);
-
+  // Slide animation.
+  // Bug fix 1: setLajmeExpanded(false) moved OUT of the animation start and INTO
+  // the withTiming callback. Previously it fired at the start of the close, which
+  // triggered LinearTransition concurrently with the slide-out on slow devices
+  // (Samsung Galaxy A-series), starving the panel animation and causing it to
+  // visually stop at ~50% before the JS thread caught up.
+  // Bug fix 3 (part 2): setIsInteractive(false) is called in the callback so the
+  // backdrop Pressable stays mounted for the full duration of the close animation.
   useEffect(() => {
     if (isOpen) {
-      setIsInteractive(true);
-      // Cancel any in-flight animation before starting a new one. Without this,
-      // rapid open/close toggling can leave the panel stuck mid-animation.
       cancelAnimation(progress);
       progress.value = withTiming(1, { duration: OPEN_DURATION, easing: OPEN_EASING });
     } else {
-      setLajmeExpanded(false);
       cancelAnimation(progress);
-      // Always call closeIsInteractive when the close animation ends — even if
-      // the animation was interrupted — so the invisible backdrop Pressable is
-      // never left mounted after the panel is closed.
       progress.value = withTiming(0, { duration: CLOSE_DURATION, easing: CLOSE_EASING }, () => {
-        runOnJS(closeIsInteractive)();
+        runOnJS(setIsInteractive)(false);
+        runOnJS(setLajmeExpanded)(false);
       });
     }
-  }, [isOpen, progress, closeIsInteractive, panelWidthSv]);
+    return () => { cancelAnimation(progress); };
+    // progress is a stable shared-value ref; only isOpen should re-trigger this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  // Bug fix 3 (part 3 — belt-and-suspenders): In Reanimated 3, cancelAnimation
+  // silently suppresses the withTiming completion callback. If the open animation
+  // cancels a running close animation, the runOnJS(setIsInteractive)(false) above
+  // is swallowed and isInteractive stays true forever — mounting an invisible
+  // full-screen Pressable that blocks all touches (looks like the drawer
+  // "appeared on its own"). This timeout guarantees the flag always resets.
+  useEffect(() => {
+    if (isOpen) return undefined;
+    const id = setTimeout(() => {
+      if (!isOpenRef.current) {
+        setIsInteractive(false);
+        setLajmeExpanded(false);
+      }
+    }, CLOSE_DURATION + 100);
+    return () => clearTimeout(id);
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen || Platform.OS !== 'android') return undefined;
@@ -149,6 +173,10 @@ function HamburgerDrawerInner() {
   }));
 
   const navigate = (path: string) => {
+    // Skip the slide-out: the page fade is the only motion the user sees.
+    cancelAnimation(progress);
+    progress.value = 0;
+    setIsInteractive(false);
     close();
     router.push(path as never);
   };
