@@ -10,7 +10,7 @@ import {
   View,
   type LayoutChangeEvent,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 // A-3: deep import skips loading all other icon sets' glyph maps.
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
@@ -756,6 +756,7 @@ const RadioLiveBanner = memo(function RadioLiveBanner({ onPress }: { onPress: ()
 // ── HomeScreen ─────────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const [isSearchActive, setIsSearchActive] = useState(false);
@@ -916,14 +917,28 @@ export default function HomeScreen() {
         queryFn: ({ signal }) => fetchPostBySlug(post.slug, signal),
         staleTime: Infinity,
       });
-      // FIX: navigation.navigate('news', { screen: '[slug]', ... }) was
-      // landing on news/index on the first tap because the nested news stack
-      // wasn't initialised yet — the screen name '[slug]' resolved to the
-      // initial route until a second tap. router.push with the full path is
-      // resolved by Expo Router directly and routes correctly on first tap.
-      router.push(`/(tabs)/news/${post.slug}` as never);
+      // FIX: open the tapped article with the news listing in the back
+      // stack — so back lands on Lajme, not on whatever article was
+      // previously opened in the news stack and not on home.
+      //
+      // - `initial: false` forces RN to put the news stack's
+      //   `initialRouteName` (`index`) on the stack first, then push
+      //   `[slug]` on top with the freshly-tapped slug. This both prevents
+      //   stale [slug] state from showing the wrong article AND guarantees
+      //   the listing is in the back stack.
+      // - Using the typed nested-navigation API (vs router.push) is what
+      //   makes RN treat this as a single atomic stack reset rather than a
+      //   tab-switch-then-push (which on a fresh launch would land on
+      //   whichever screen the news stack happened to mount with).
+      (navigation as never as {
+        navigate: (name: string, params: object) => void;
+      }).navigate('news', {
+        screen: '[slug]',
+        initial: false,
+        params: { slug: post.slug },
+      });
     },
-    [router, queryClient],
+    [navigation, router, queryClient],
   );
 
   // AUDIT FIX P2.6: after the home screen has been idle for 2 s, warm up

@@ -261,7 +261,10 @@ export default function NewsIndexScreen() {
         // PROFILING FIX (round 2): see comment in (tabs)/index.tsx.
         staleTime: Infinity,
       });
-      router.replace({ pathname: '/news/[slug]' as never, params: { slug: post.slug } as never });
+      // FIX: was router.replace — that swapped the listing for the article
+      // and made back skip lajme entirely. router.push keeps the listing in
+      // the back stack so back returns to it (FlashList preserves scroll).
+      router.push({ pathname: '/news/[slug]' as never, params: { slug: post.slug } as never });
     },
     [router, queryClient],
   );
