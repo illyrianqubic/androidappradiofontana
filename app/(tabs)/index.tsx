@@ -10,7 +10,7 @@ import {
   View,
   type LayoutChangeEvent,
 } from 'react-native';
-import { useNavigation, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 // A-3: deep import skips loading all other icon sets' glyph maps.
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
@@ -756,7 +756,6 @@ const RadioLiveBanner = memo(function RadioLiveBanner({ onPress }: { onPress: ()
 // ── HomeScreen ─────────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const [isSearchActive, setIsSearchActive] = useState(false);
@@ -917,28 +916,20 @@ export default function HomeScreen() {
         queryFn: ({ signal }) => fetchPostBySlug(post.slug, signal),
         staleTime: Infinity,
       });
-      // FIX: open the tapped article with the news listing in the back
-      // stack — so back lands on Lajme, not on whatever article was
-      // previously opened in the news stack and not on home.
+      // FIX: open the tapped article via router.push. Expo Router honors the
+      // news stack's `unstable_settings.initialRouteName = 'index'`, so the
+      // listing is placed on the stack first and then the article is pushed
+      // on top — back lands on Lajme, not on whatever was previously open.
       //
-      // - `initial: false` forces RN to put the news stack's
-      //   `initialRouteName` (`index`) on the stack first, then push
-      //   `[slug]` on top with the freshly-tapped slug. This both prevents
-      //   stale [slug] state from showing the wrong article AND guarantees
-      //   the listing is in the back stack.
-      // - Using the typed nested-navigation API (vs router.push) is what
-      //   makes RN treat this as a single atomic stack reset rather than a
-      //   tab-switch-then-push (which on a fresh launch would land on
-      //   whichever screen the news stack happened to mount with).
-      (navigation as never as {
-        navigate: (name: string, params: object) => void;
-      }).navigate('news', {
-        screen: '[slug]',
-        initial: false,
-        params: { slug: post.slug },
-      });
+      // Previously we used `navigation.navigate('news', { screen: '[slug]', params })`,
+      // but on the FIRST tap (before the news tab had ever mounted), that
+      // nested-navigation API dropped the screen/params during the lazy
+      // mount of the stack, so the user saw the Lajme listing and had to
+      // tap a second time to actually open the article. router.push does
+      // not have that lazy-mount race.
+      router.push(`/(tabs)/news/${post.slug}` as never);
     },
-    [navigation, router, queryClient],
+    [router, queryClient],
   );
 
   // AUDIT FIX P2.6: after the home screen has been idle for 2 s, warm up
