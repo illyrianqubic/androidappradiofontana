@@ -92,8 +92,6 @@ function HamburgerDrawerInner() {
 
   const [isInteractive, setIsInteractive] = useState(false);
   const [lajmeExpanded, setLajmeExpanded] = useState(false);
-  const [showScrollHint, setShowScrollHint] = useState(true);
-  const scrollHintOpacity = useSharedValue(1);
   const scrollRef = useRef<ScrollView>(null);
 
   const progress = useSharedValue(0);
@@ -183,19 +181,7 @@ function HamburgerDrawerInner() {
   useEffect(() => {
     if (!isOpen) return;
     scrollRef.current?.scrollTo({ y: 0, animated: false });
-    setShowScrollHint(true);
-    scrollHintOpacity.value = withTiming(1, { duration: 260 });
-  }, [isOpen, scrollHintOpacity]);
-
-  const onScrollBeginDrag = () => {
-    if (!showScrollHint) return;
-    setShowScrollHint(false);
-    scrollHintOpacity.value = withTiming(0, { duration: 220 });
-  };
-
-  const scrollHintStyle = useAnimatedStyle(() => ({
-    opacity: scrollHintOpacity.value,
-  }));
+  }, [isOpen]);
 
   const backdropStyle = useAnimatedStyle(() => ({
     opacity: progress.value,
@@ -249,9 +235,8 @@ function HamburgerDrawerInner() {
             bounces={false}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={S.scrollContent}
-            onScrollBeginDrag={onScrollBeginDrag}
           >
-            <Animated.View style={S.sectionCard} layout={LinearTransition.duration(220)}>
+            <View style={S.sectionCard}>
               <Text style={S.sectionLabel}>Navigimi</Text>
               <NavItem
                 icon="home-outline"
@@ -321,7 +306,7 @@ function HamburgerDrawerInner() {
                   </View>
                 </Animated.View>
               ) : null}
-            </Animated.View>
+            </View>
 
             <View style={S.sectionCard}>
               <Text style={S.sectionLabel}>Stacioni</Text>
@@ -396,15 +381,6 @@ function HamburgerDrawerInner() {
             </View>
           </ScrollView>
 
-          <Animated.View style={[S.scrollHint, scrollHintStyle]} pointerEvents="box-none">
-            <Pressable
-              style={({ pressed }) => [S.scrollHintBtn, pressed && S.scrollHintBtnPressed]}
-              onPress={() => scrollRef.current?.scrollTo({ y: 320, animated: true })}
-              hitSlop={12}
-            >
-              <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
-            </Pressable>
-          </Animated.View>
         </View>
       </Animated.View>
     </View>
@@ -782,32 +758,5 @@ const S = StyleSheet.create({
     marginTop: spacing.md,
     textAlign: 'center',
     paddingHorizontal: spacing.md,
-  },
-  scrollHint: {
-    position: 'absolute',
-    bottom: 12,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scrollHintBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  scrollHintBtnPressed: {
-    backgroundColor: colors.surfaceSubtle,
-    transform: [{ scale: 0.94 }],
   },
 });
