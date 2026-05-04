@@ -29,8 +29,8 @@ const BAR_GAP = 28;
 // A short shimmer band slides across the filled portion repeatedly
 const SHIMMER_WIDTH = 60;
 
-const COLD_START_MIN_SPLASH_MS = 2400;
-const COLD_START_MAX_SPLASH_MS = 3400;
+const COLD_START_MIN_SPLASH_MS = 3200;
+const COLD_START_MAX_SPLASH_MS = 4200;
 const EXIT_DURATION = 220;
 
 type LaunchSplashProps = {
