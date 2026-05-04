@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import Animated, {
   cancelAnimation,
@@ -10,129 +10,81 @@ import Animated, {
   useSharedValue,
   withDelay,
   withRepeat,
-  withSequence,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import { appIdentity } from '../../constants/tokens';
+import { appIdentity, fonts } from '../../constants/tokens';
 
-// ─── constants ────────────────────────────────────────────────────────────────
-const LOGO_SIZE = 124;
-const RING_BASE = LOGO_SIZE + 6;       // ring diameter before scale animation
-const SHIMMER_W = Math.round(LOGO_SIZE * 0.52);
+// ─── design constants ─────────────────────────────────────────────────────────
+const LOGO_SIZE = 108;
+const GLOW_SIZE = LOGO_SIZE + 40;
 const PRIMARY = '#dc2626';
+const NAVY = '#0f172a';
+const NAVY_DEEP = '#070b16';
 
-// Keep the branded entrance visible long enough for the first route shell to
-// settle behind it. This does not wait on network data; Home can still render
-// cached content or skeletons when the overlay leaves.
-const COLD_START_MIN_SPLASH_MS = 3000;
-const COLD_START_MAX_SPLASH_MS = 4000;
-const EXIT_DURATION = 220;
+// Keep the branded entrance on screen long enough for the first route to
+// settle behind it. Does not wait on network data.
+const COLD_START_MIN_SPLASH_MS = 1800;
+const COLD_START_MAX_SPLASH_MS = 2800;
+const EXIT_DURATION = 240;
 
-// ─── types ────────────────────────────────────────────────────────────────────
 type LaunchSplashProps = {
   onComplete: () => void;
-  // True when the root/Home visual shell is safe to reveal. This must not wait
-  // on network data; when it flips true, the splash still waits for the minimum.
   isContentReady?: boolean;
 };
 
-// ─── PulseRing ────────────────────────────────────────────────────────────────
-// A single expanding ring that fades in briefly then dissolves outward.
-function PulseRing({ delay }: { delay: number }) {
-  const p = useSharedValue(0);
-
-  useEffect(() => {
-    p.value = withDelay(
-      delay,
-      withRepeat(
-        withTiming(1, { duration: 1600, easing: Easing.out(Easing.quad) }),
-        -1,
-        false,
-      ),
-    );
-    return () => cancelAnimation(p);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const style = useAnimatedStyle(() => ({
-    opacity: interpolate(p.value, [0, 0.10, 0.60, 1], [0, 0.46, 0.07, 0]),
-    transform: [{ scale: interpolate(p.value, [0, 1], [0.86, 2.35]) }],
-  }));
-
-  return <Animated.View style={[styles.ring, style]} />;
-}
-
-// ─── LoadingDot ───────────────────────────────────────────────────────────────
-// One of three dots in the pulsing "loading" row below the logo.
-function LoadingDot({ delay }: { delay: number }) {
-  const a = useSharedValue(0);
-
-  useEffect(() => {
-    // Each dot runs the same 1000 ms cycle, just offset by `delay` ms.
-    a.value = withDelay(
-      delay,
-      withRepeat(
-        withSequence(
-          withTiming(1, { duration: 260, easing: Easing.out(Easing.quad) }),
-          withTiming(0, { duration: 260, easing: Easing.in(Easing.quad) }),
-          withTiming(0, { duration: 480 }), // hold at rest — keeps cycle = 1000 ms
-        ),
-        -1,
-        false,
-      ),
-    );
-    return () => cancelAnimation(a);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const style = useAnimatedStyle(() => ({
-    transform: [{ scale: interpolate(a.value, [0, 1], [0.38, 1]) }],
-    opacity: interpolate(a.value, [0, 1], [0.25, 1]),
-  }));
-
-  return <Animated.View style={[styles.dot, style]} />;
-}
-
 // ─── LaunchSplash ─────────────────────────────────────────────────────────────
 export function LaunchSplash({ onComplete, isContentReady = false }: LaunchSplashProps) {
+  // Logo entrance
   const logoOpacity = useSharedValue(0);
-  const logoScale = useSharedValue(0.8);
+  const logoScale = useSharedValue(0.92);
+
+  // Soft glow halo pulse
+  const glow = useSharedValue(0);
+
+  // Wordmark + frequency entrance (staggered after logo)
+  const wordmarkOpacity = useSharedValue(0);
+  const wordmarkY = useSharedValue(8);
+  const freqOpacity = useSharedValue(0);
+
+  // Bottom progress bar
+  const progress = useSharedValue(0);
+
+  // Screen fade-out
   const screenOpacity = useSharedValue(1);
-  const shimmerX = useSharedValue(-(LOGO_SIZE + SHIMMER_W));
+
   const exitedRef = useRef(false);
   const mountedAtRef = useRef(Date.now());
 
   useEffect(() => {
-    // 1 — logo entrance: fade in + spring scale 0.8 → 1 (slight overshoot)
-    logoOpacity.value = withTiming(1, {
-      duration: 580,
-      easing: Easing.out(Easing.cubic),
-    });
-    logoScale.value = withSpring(1, { damping: 13, stiffness: 170, mass: 0.85 });
+    // 1. Logo fades + scales in
+    logoOpacity.value = withTiming(1, { duration: 460, easing: Easing.out(Easing.cubic) });
+    logoScale.value = withTiming(1, { duration: 600, easing: Easing.out(Easing.back(1.4)) });
 
-    // 2 — shimmer: sweep right → snap back → pause → repeat indefinitely
-    //    starts 560 ms in so it runs over the already-visible logo
-    shimmerX.value = withDelay(
-      560,
+    // 2. Glow halo gently breathes
+    glow.value = withDelay(
+      300,
       withRepeat(
-        withSequence(
-          withTiming(LOGO_SIZE + SHIMMER_W, {
-            duration: 470,
-            easing: Easing.inOut(Easing.quad),
-          }),
-          withTiming(-(LOGO_SIZE + SHIMMER_W), { duration: 0 }), // instant snap back
-          withTiming(-(LOGO_SIZE + SHIMMER_W), { duration: 340 }), // pause before next
-        ),
+        withTiming(1, { duration: 1600, easing: Easing.inOut(Easing.quad) }),
         -1,
-        false,
+        true,
       ),
     );
 
-    // 3 — fallback exit: fade entire screen to white, then notify parent.
-    // The normal content-ready path lives in the second effect below and
-    // exits after COLD_START_MIN_SPLASH_MS.
+    // 3. Wordmark slides up + fades in
+    wordmarkOpacity.value = withDelay(280, withTiming(1, { duration: 420, easing: Easing.out(Easing.cubic) }));
+    wordmarkY.value = withDelay(280, withTiming(0, { duration: 460, easing: Easing.out(Easing.cubic) }));
+
+    // 4. Frequency badge fades in
+    freqOpacity.value = withDelay(520, withTiming(1, { duration: 380, easing: Easing.out(Easing.cubic) }));
+
+    // 5. Progress bar fills over the min splash window
+    progress.value = withTiming(1, {
+      duration: COLD_START_MIN_SPLASH_MS,
+      easing: Easing.inOut(Easing.cubic),
+    });
+
+    // 6. Fallback exit if content never reports ready
     screenOpacity.value = withDelay(
       Math.max(0, COLD_START_MAX_SPLASH_MS - EXIT_DURATION),
       withTiming(0, { duration: EXIT_DURATION, easing: Easing.in(Easing.quad) }, (finished) => {
@@ -146,14 +98,17 @@ export function LaunchSplash({ onComplete, isContentReady = false }: LaunchSplas
     return () => {
       cancelAnimation(logoOpacity);
       cancelAnimation(logoScale);
+      cancelAnimation(glow);
+      cancelAnimation(wordmarkOpacity);
+      cancelAnimation(wordmarkY);
+      cancelAnimation(freqOpacity);
+      cancelAnimation(progress);
       cancelAnimation(screenOpacity);
-      cancelAnimation(shimmerX);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Exit once content is ready and the minimum branded window has elapsed.
-  // Cancels the scheduled fallback fade and starts the exit immediately.
+  // Exit when content is ready and minimum window elapsed.
   useEffect(() => {
     if (!isContentReady || exitedRef.current) return;
     const elapsed = Date.now() - mountedAtRef.current;
@@ -175,71 +130,68 @@ export function LaunchSplash({ onComplete, isContentReady = false }: LaunchSplas
     return () => clearTimeout(t);
   }, [isContentReady, screenOpacity, onComplete]);
 
+  const screenStyle = useAnimatedStyle(() => ({ opacity: screenOpacity.value }));
+
   const logoStyle = useAnimatedStyle(() => ({
     opacity: logoOpacity.value,
     transform: [{ scale: logoScale.value }],
   }));
 
-  const screenStyle = useAnimatedStyle(() => ({
-    opacity: screenOpacity.value,
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(glow.value, [0, 1], [0.35, 0.75]),
+    transform: [{ scale: interpolate(glow.value, [0, 1], [0.94, 1.08]) }],
   }));
 
-  const shimmerStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: shimmerX.value }],
+  const wordmarkStyle = useAnimatedStyle(() => ({
+    opacity: wordmarkOpacity.value,
+    transform: [{ translateY: wordmarkY.value }],
+  }));
+
+  const freqStyle = useAnimatedStyle(() => ({ opacity: freqOpacity.value }));
+
+  const progressStyle = useAnimatedStyle(() => ({
+    width: `${interpolate(progress.value, [0, 1], [0, 100])}%`,
   }));
 
   return (
     <Animated.View style={[styles.screen, screenStyle]}>
-      {/*
-       * Center block — fixed-size container so the absolute rings stay
-       * correctly centered relative to the logo.
-       */}
-      <View style={styles.center}>
-        {/* Three staggered pulse rings behind the logo */}
-        <PulseRing delay={220} />
-        <PulseRing delay={760} />
-        <PulseRing delay={1300} />
+      {/* Background gradient: deep navy → slightly lighter navy at the bottom */}
+      <LinearGradient
+        colors={[NAVY_DEEP, NAVY, NAVY_DEEP]}
+        locations={[0, 0.55, 1]}
+        style={StyleSheet.absoluteFill}
+      />
 
-        {/*
-         * logoShadow: carries elevation/shadow WITHOUT overflow:hidden so the
-         * drop shadow isn't clipped on Android.
-         * logoWrap: overflow:hidden clips the shimmer to the logo bounds.
-         */}
-        <Animated.View style={[styles.logoShadow, logoStyle]}>
-          <View style={styles.logoWrap}>
+      {/* Brand stack — perfectly centered */}
+      <View style={styles.brandStack}>
+        {/* Logo with soft red glow halo */}
+        <View style={styles.logoZone}>
+          <Animated.View style={[styles.glow, glowStyle]} pointerEvents="none" />
+          <Animated.View style={[styles.logoCard, logoStyle]}>
             <Image
               source={appIdentity.logo}
               contentFit="cover"
               style={styles.logo}
               cachePolicy="memory"
             />
+          </Animated.View>
+        </View>
 
-            {/* Shimmer band — translates left→right, clipped by logoWrap */}
-            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-              <Animated.View style={[styles.shimmerBand, shimmerStyle]}>
-                <LinearGradient
-                  colors={[
-                    'transparent',
-                    'rgba(255,255,255,0.20)',
-                    'rgba(255,255,255,0.52)',
-                    'rgba(255,255,255,0.20)',
-                    'transparent',
-                  ]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={StyleSheet.absoluteFill}
-                />
-              </Animated.View>
-            </View>
-          </View>
+        {/* Wordmark */}
+        <Animated.View style={[styles.wordmarkWrap, wordmarkStyle]}>
+          <Text style={styles.wordmark} allowFontScaling={false}>RADIO FONTANA</Text>
+        </Animated.View>
+
+        {/* Frequency badge */}
+        <Animated.View style={[styles.freqWrap, freqStyle]}>
+          <View style={styles.freqDot} />
+          <Text style={styles.freqText} allowFontScaling={false}>98.8 FM · ISTOG</Text>
         </Animated.View>
       </View>
 
-      {/* Three pulsing dots below the logo */}
-      <View style={styles.dotsRow}>
-        <LoadingDot delay={0} />
-        <LoadingDot delay={167} />
-        <LoadingDot delay={334} />
+      {/* Slim progress bar pinned to the bottom */}
+      <View style={styles.progressTrack} pointerEvents="none">
+        <Animated.View style={[styles.progressFill, progressStyle]} />
       </View>
     </Animated.View>
   );
@@ -249,64 +201,99 @@ export function LaunchSplash({ onComplete, isContentReady = false }: LaunchSplas
 const styles = StyleSheet.create({
   screen: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#ffffff',
+    backgroundColor: NAVY,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 120,
   },
-  // Fixed-size box that all rings + logo are positioned within.
-  center: {
-    width: RING_BASE * 2.7,
-    height: RING_BASE * 2.7,
+  brandStack: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  ring: {
+  logoZone: {
+    width: GLOW_SIZE,
+    height: GLOW_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 28,
+  },
+  // Soft red halo behind the logo — pure shadow, no border, no extra geometry
+  glow: {
     position: 'absolute',
-    width: RING_BASE,
-    height: RING_BASE,
-    borderRadius: RING_BASE / 2,
-    borderWidth: 1.5,
-    borderColor: PRIMARY,
+    width: GLOW_SIZE,
+    height: GLOW_SIZE,
+    borderRadius: GLOW_SIZE / 2,
+    backgroundColor: PRIMARY,
+    // Big soft shadow does the actual glow on Android (elevation) + iOS (shadow*).
+    shadowColor: PRIMARY,
+    shadowOpacity: 0.85,
+    shadowRadius: 32,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 24,
+    opacity: 0.55,
   },
-  // Outer shadow wrapper — no overflow:hidden so shadow is visible on Android
-  logoShadow: {
-    borderRadius: 28,
-    backgroundColor: '#ffffff',
-    shadowColor: '#000000',
-    shadowOpacity: 0.13,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 10,
-  },
-  // Inner clip wrapper — hides shimmer outside the logo bounds
-  logoWrap: {
+  logoCard: {
     width: LOGO_SIZE,
     height: LOGO_SIZE,
-    borderRadius: 28,
+    borderRadius: 26,
+    backgroundColor: '#ffffff',
     overflow: 'hidden',
+    // Subtle outline so the logo edge reads cleanly against the glow
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   logo: {
     width: LOGO_SIZE,
     height: LOGO_SIZE,
   },
-  // The moving shimmer rectangle — translateX drives it across the logo
-  shimmerBand: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    width: SHIMMER_W,
+  wordmarkWrap: {
+    alignItems: 'center',
   },
-  dotsRow: {
+  wordmark: {
+    color: '#ffffff',
+    fontFamily: fonts.uiBold,
+    fontSize: 22,
+    letterSpacing: 4.5,
+    textAlign: 'center',
+  },
+  freqWrap: {
+    marginTop: 12,
     flexDirection: 'row',
-    marginTop: 76,
-    gap: 12,
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
-  dot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
+  freqDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: PRIMARY,
+  },
+  freqText: {
+    color: 'rgba(255,255,255,0.78)',
+    fontFamily: fonts.uiMedium,
+    fontSize: 11,
+    letterSpacing: 2.2,
+  },
+  // Hairline progress track at the bottom of the screen
+  progressTrack: {
+    position: 'absolute',
+    left: 48,
+    right: 48,
+    bottom: 64,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: PRIMARY,
+    borderRadius: 1,
   },
 });

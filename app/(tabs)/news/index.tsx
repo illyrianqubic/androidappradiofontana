@@ -206,6 +206,20 @@ export default function NewsIndexScreen() {
   });
   const activeCategorySlugRef = useRef(activeCategory.slug);
   activeCategorySlugRef.current = activeCategory.slug;
+
+  // FIX: when navigating from the drawer to ?category=<slug> while this
+  // screen is already mounted in the tab stack, the useState initializer
+  // does NOT re-run, so the active category would be stuck on whatever was
+  // first opened. Sync activeCategory whenever categoryParam changes.
+  useEffect(() => {
+    if (categoryParam === undefined) return;
+    const found = NEWS_CATEGORY_TABS.find((t) => t.slug === categoryParam);
+    if (found && found.slug !== activeCategorySlugRef.current) {
+      setActiveCategory(found);
+      listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    }
+  }, [categoryParam]);
+
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
   // Header height: statusBar + titleRow(66) + search(54) + categories(50) + divider(1)

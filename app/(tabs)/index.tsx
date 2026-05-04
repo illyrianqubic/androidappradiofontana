@@ -10,7 +10,7 @@ import {
   View,
   type LayoutChangeEvent,
 } from 'react-native';
-import { useNavigation, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 // A-3: deep import skips loading all other icon sets' glyph maps.
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
@@ -756,7 +756,6 @@ const RadioLiveBanner = memo(function RadioLiveBanner({ onPress }: { onPress: ()
 // ── HomeScreen ─────────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const [isSearchActive, setIsSearchActive] = useState(false);
@@ -917,15 +916,14 @@ export default function HomeScreen() {
         queryFn: ({ signal }) => fetchPostBySlug(post.slug, signal),
         staleTime: Infinity,
       });
-      // Navigate to the news tab with [slug] as the active screen.
-      // React Navigation initialises the news stack with news/index as the base
-      // route (per initialRouteName) so back from the article lands on Lajme,
-      // not home. Using navigate() instead of push() avoids the flash of
-      // news/index that push() causes when the tab switches.
-      (navigation as never as { navigate: (name: string, params: object) => void })
-        .navigate('news', { screen: '[slug]', params: { slug: post.slug } });
+      // FIX: navigation.navigate('news', { screen: '[slug]', ... }) was
+      // landing on news/index on the first tap because the nested news stack
+      // wasn't initialised yet — the screen name '[slug]' resolved to the
+      // initial route until a second tap. router.push with the full path is
+      // resolved by Expo Router directly and routes correctly on first tap.
+      router.push(`/(tabs)/news/${post.slug}` as never);
     },
-    [navigation, router, queryClient],
+    [router, queryClient],
   );
 
   // AUDIT FIX P2.6: after the home screen has been idle for 2 s, warm up
