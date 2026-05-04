@@ -374,7 +374,6 @@ function HamburgerDrawerInner() {
                 <Text style={S.legalLinkText}>Kushtet</Text>
               </Pressable>
             </View>
-            <Text style={S.copyright}>© 2026 Radio Fontana</Text>
           </ScrollView>
 
           <Animated.View style={[S.scrollHint, scrollHintStyle]} pointerEvents="box-none">

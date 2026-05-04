@@ -71,8 +71,6 @@ export default function ContactScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={S.hero}>
-          <View style={S.heroRule} />
-          <Text style={S.heroKicker}>RTV FONTANA · KONTAKT</Text>
           <Text style={S.heroTitle}>Kanale zyrtare për publikun.</Text>
           <Text style={S.heroSub}>
             Për lajme, reklama, bashkëpunime ose pyetje rreth radios, ekipi ynë
@@ -125,7 +123,6 @@ export default function ContactScreen() {
           </View>
         </View>
 
-        <Text style={S.copyright}>© 2026 RTV Fontana · Të gjitha të drejtat e rezervuara</Text>
       </ScrollView>
 
       <StaticPageBottomBar bottomInset={insets.bottom} />
@@ -172,9 +169,9 @@ const S = StyleSheet.create({
   heroTitle: {
     color: colors.text,
     fontFamily: fonts.uiBold,
-    fontSize: 31,
-    lineHeight: 38,
-    letterSpacing: 0,
+    fontSize: 22,
+    lineHeight: 28,
+    letterSpacing: -0.4,
   },
   heroSub: {
     marginTop: spacing.md,

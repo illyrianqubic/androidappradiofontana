@@ -506,133 +506,6 @@ const LocalNewsHeader = memo(function LocalNewsHeader() {
   );
 });
 
-// ── HomeFooter ─────────────────────────────────────────────────────────────────
-const HomeFooter = memo(function HomeFooter() {
-  const router = useRouter();
-  return (
-    <View style={styles.footerWrap}>
-      <View style={styles.footerRuleWrap}>
-        <View style={styles.footerRule} />
-        <View style={styles.footerRuleDot} />
-        <View style={styles.footerRule} />
-      </View>
-
-      <View style={styles.footerCard}>
-        <LinearGradient
-          colors={['#FFFFFF', '#FFF8F8', '#FFFFFF']}
-          locations={[0, 0.5, 1]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFillObject}
-        />
-        <View style={styles.footerAccentLine} />
-
-        <View style={styles.footerBrand}>
-          <View style={styles.footerLogoWrap}>
-            <Image source={appIdentity.logo} contentFit="cover" style={styles.footerLogo} />
-          </View>
-          <View style={styles.footerBrandText}>
-            <Text style={styles.footerStationLabel}>FUNDI I KRYEFAQES</Text>
-            <Text style={styles.footerFreqLine}>Radio Fontana</Text>
-            <Text style={styles.footerTagline}>Lajme të reja dhe radio live, gjatë gjithë ditës.</Text>
-          </View>
-        </View>
-
-        <Pressable
-          style={({ pressed }) => [styles.footerLiveButton, pressed && styles.footerLiveButtonPressed]}
-          onPress={() => router.navigate('/(tabs)/live' as never)}
-        >
-          <View style={styles.footerLiveIcon}>
-            <Ionicons name="radio-outline" size={17} color={colors.primary} />
-          </View>
-          <View style={styles.footerLiveCopy}>
-            <Text style={styles.footerLiveButtonLabel}>Radio Live</Text>
-            <Text style={styles.footerLiveButtonSub}>98.8 FM · Istog</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={17} color={colors.textMuted} />
-        </Pressable>
-      </View>
-
-      <Text style={styles.footerCopy}>© {CURRENT_YEAR} RTV Fontana</Text>
-    </View>
-  );
-});
-
-// ── HomeTransitionBridge ──────────────────────────────────────────────────────
-// A premium editorial sign-off placed between the Lajmet Lokale rail and the
-// "Fundi i Kryefaqes" footer card. Concept: a centred newspaper colophon —
-// the typographic moment that tells the reader "this edition is complete".
-// The large "98.8" numeral is the station's identity anchor; the signal bars
-// evoke the broadcast itself.
-const BRIDGE_BARS = [5, 9, 15, 22, 15, 9, 5] as const;
-
-const HomeTransitionBridge = memo(function HomeTransitionBridge() {
-  const pulse = useSharedValue(0.42);
-  const isFocused = useIsFocused();
-  const reducedMotion = useReducedMotion();
-
-  useEffect(() => {
-    if (!isFocused || reducedMotion) {
-      cancelAnimation(pulse);
-      pulse.value = 1;
-      return;
-    }
-    pulse.value = withRepeat(withTiming(1, { duration: 1700 }), -1, true);
-    return () => cancelAnimation(pulse);
-  }, [pulse, isFocused, reducedMotion]);
-
-  const dotStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
-
-  return (
-    <View style={styles.bridgeWrap}>
-      {/* ── Ornamental divider ───────────────────────────────────────────── */}
-      <View style={styles.bridgeOrnament}>
-        <View style={styles.bridgeOrnLine} />
-        <View style={styles.bridgeOrnDiamond} />
-        <View style={styles.bridgeOrnLine} />
-      </View>
-
-      {/* ── Live kicker ─────────────────────────────────────────────────── */}
-      <View style={styles.bridgeKicker}>
-        <Animated.View style={[styles.bridgeLiveDot, dotStyle]} />
-        <Text style={styles.bridgeKickerText}>PËR JU GJITHMONË</Text>
-      </View>
-
-      {/* ── Frequency numeral — the station's identity anchor ───────────── */}
-      <Text style={styles.bridgeFreq}>98.8</Text>
-      <Text style={styles.bridgeFreqUnit}>FM · ISTOG, KOSOVË</Text>
-
-      {/* ── Red accent rule ──────────────────────────────────────────────── */}
-      <View style={styles.bridgeRule} />
-
-      {/* ── Closing tagline ──────────────────────────────────────────────── */}
-      <Text style={styles.bridgeTagline}>
-        Gjithmonë me ju. Çdo ditë, çdo orë.
-      </Text>
-
-      {/* ── Signal strength bars ─────────────────────────────────────────── */}
-      <View style={styles.bridgeBars}>
-        {BRIDGE_BARS.map((h, i) => (
-          <View
-            key={i}
-            style={[
-              styles.bridgeBar,
-              {
-                height: h,
-                opacity:
-                  i === 3 ? 0.85
-                  : i === 2 || i === 4 ? 0.45
-                  : i === 1 || i === 5 ? 0.24
-                  : 0.13,
-              },
-            ]}
-          />
-        ))}
-      </View>
-    </View>
-  );
-});
-
 // ── LatestNewsHeader ─────────────────────────────────────────────────────────
 const LatestNewsHeader = memo(function LatestNewsHeader({
   count,
@@ -1209,15 +1082,8 @@ export default function HomeScreen() {
     () => {
       return (
       <View>
-        {/* Subtle editorial transition from grid into Lokale rail */}
-        <View style={styles.sectionTransition}>
-          <View style={styles.sectionTransitionLine} />
-          <View style={styles.sectionTransitionDot} />
-          <View style={styles.sectionTransitionLine} />
-        </View>
-
         {/* ── LAJMET LOKALE ─────────────────────────────── */}
-        <View style={{ marginTop: 4 }}>
+        <View style={styles.lokaleSection}>
           <LocalNewsHeader />
           {localData.length > 0 ? (
             // (≤12 items) — faster than nested FlashList.
@@ -1242,12 +1108,6 @@ export default function HomeScreen() {
             </View>
           )}
         </View>
-
-        {/* ── TRANSITION BRIDGE ──────────────────────────── */}
-        <HomeTransitionBridge />
-
-        {/* ── FOOTER ─────────────────────────────────────── */}
-        <HomeFooter />
       </View>
       );
     },
@@ -2292,27 +2152,14 @@ const styles = StyleSheet.create({
     fontSize: 9.5,
   },
 
+  // ── Lokale section ─────────────────────────────────────────────────────────
+  lokaleSection: {
+    marginTop: 18,
+  },
+  listFooterPad: {
+    paddingBottom: 8,
+  },
 
-  // ── Section transition ───────────────────────────────────────────────────────
-  sectionTransition: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 20,
-    marginBottom: 20,
-    paddingHorizontal: 4,
-  },
-  sectionTransitionLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(15,23,42,0.10)',
-  },
-  sectionTransitionDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(220,38,38,0.35)',
-  },
 
   // ── Local news editorial masthead ────────────────────────────────────────────
   localHeader: {
@@ -2381,151 +2228,6 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     marginBottom: 14,
   },
-
-  // ── Footer ───────────────────────────────────────────────────────────────────
-  footerWrap: {
-    marginTop: 26,
-    paddingBottom: 0,
-  },
-  footerRuleWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 16,
-    paddingHorizontal: 4,
-  },
-  footerRule: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(15,23,42,0.12)',
-  },
-  footerRuleDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: colors.primary,
-  },
-  footerCard: {
-    borderRadius: 20,
-    overflow: 'hidden',
-    padding: 16,
-    marginBottom: 6,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(220,38,38,0.14)',
-    shadowColor: '#0F172A',
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
-  },
-  footerAccentLine: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 2,
-    backgroundColor: '#DC2626',
-  },
-  footerBrand: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 4,
-    marginBottom: 14,
-  },
-  footerLogoWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(15,23,42,0.10)',
-    overflow: 'hidden',
-    flexShrink: 0,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.10,
-    shadowRadius: 9,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  footerLogo: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-  },
-  footerBrandText: {
-    flex: 1,
-    minWidth: 0,
-    gap: 2,
-  },
-  footerStationLabel: {
-    color: colors.primary,
-    fontFamily: fonts.uiBold,
-    fontSize: 9,
-    letterSpacing: 1.6,
-  },
-  footerFreqLine: {
-    color: colors.text,
-    fontFamily: fonts.uiBold,
-    fontSize: 16,
-    letterSpacing: -0.3,
-    lineHeight: 20,
-  },
-  footerTagline: {
-    color: colors.textMuted,
-    fontFamily: fonts.uiRegular,
-    fontSize: 12,
-    lineHeight: 16,
-    marginTop: 2,
-  },
-  footerLiveButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: 'rgba(255,255,255,0.78)',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(220,38,38,0.16)',
-  },
-  footerLiveButtonPressed: {
-    opacity: 0.78,
-    backgroundColor: colors.redTint,
-  },
-  footerLiveIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    backgroundColor: colors.redTint,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  footerLiveCopy: {
-    flex: 1,
-  },
-  footerLiveButtonLabel: {
-    color: colors.text,
-    fontFamily: fonts.uiBold,
-    fontSize: 13,
-    lineHeight: 16,
-  },
-  footerLiveButtonSub: {
-    color: colors.textMuted,
-    fontFamily: fonts.uiMedium,
-    fontSize: 11,
-    lineHeight: 14,
-    marginTop: 1,
-  },
-  footerCopy: {
-    color: colors.textMuted,
-    fontFamily: fonts.uiRegular,
-    fontSize: 11.5,
-    textAlign: 'center',
-  },
-
   // ── Search ───────────────────────────────────────────────────────────────────
   searchOverlay: {
     position: 'absolute',
@@ -2613,89 +2315,5 @@ const styles = StyleSheet.create({
     fontFamily: fonts.uiRegular,
     fontSize: 12,
     lineHeight: 17,
-  },
-
-  // ── HomeTransitionBridge ─────────────────────────────────────────────────────
-  bridgeWrap: {
-    marginTop: 32,
-    marginBottom: 6,
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  bridgeOrnament: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    gap: 10,
-    marginBottom: 30,
-  },
-  bridgeOrnLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(15,23,42,0.12)',
-  },
-  bridgeOrnDiamond: {
-    width: 8,
-    height: 8,
-    backgroundColor: '#DC2626',
-    transform: [{ rotate: '45deg' }],
-  },
-  bridgeKicker: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 14,
-  },
-  bridgeLiveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#DC2626',
-  },
-  bridgeKickerText: {
-    color: '#DC2626',
-    fontFamily: fonts.uiBold,
-    fontSize: 10,
-    letterSpacing: 2.4,
-  },
-  bridgeFreq: {
-    color: '#0F172A',
-    fontFamily: fonts.uiBold,
-    fontSize: 56,
-    letterSpacing: -2.5,
-    lineHeight: 62,
-    marginBottom: 2,
-  },
-  bridgeFreqUnit: {
-    color: '#94A3B8',
-    fontFamily: fonts.uiMedium,
-    fontSize: 11.5,
-    letterSpacing: 1.8,
-    marginBottom: 22,
-  },
-  bridgeRule: {
-    width: 32,
-    height: 2,
-    backgroundColor: '#DC2626',
-    borderRadius: 1,
-    marginBottom: 18,
-  },
-  bridgeTagline: {
-    color: '#94A3B8',
-    fontFamily: fonts.uiRegular,
-    fontSize: 13.5,
-    lineHeight: 21,
-    textAlign: 'center',
-    marginBottom: 28,
-  },
-  bridgeBars: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 5,
-  },
-  bridgeBar: {
-    width: 4,
-    borderRadius: 2,
-    backgroundColor: '#DC2626',
   },
 });

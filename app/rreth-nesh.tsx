@@ -53,8 +53,6 @@ export default function AboutScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.hero}>
-          <View style={styles.heroRule} />
-          <Text style={styles.heroKicker}>RTV FONTANA · 98.8 FM</Text>
           <Text style={styles.heroTitle}>Media lokale me standard editorial.</Text>
           <Text style={styles.heroText}>
             Radio Fontana lidh ritmin e radios live me lajme të përditshme,
@@ -178,9 +176,9 @@ const styles = StyleSheet.create({
   heroTitle: {
     color: colors.text,
     fontFamily: fonts.uiBold,
-    fontSize: 31,
-    lineHeight: 38,
-    letterSpacing: 0,
+    fontSize: 22,
+    lineHeight: 28,
+    letterSpacing: -0.4,
   },
   heroText: {
     marginTop: spacing.md,

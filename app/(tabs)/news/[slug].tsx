@@ -605,13 +605,6 @@ export default function ArticleDetailScreen() {
                 the first frame under budget without an animation gate. */}
             <ArticleBody blocks={articleBody} excerpt={post.excerpt} />
 
-            {/* End-of-article ornament */}
-            <View style={styles.endOrnament}>
-              <View style={styles.endRule} />
-              <Text style={styles.endDiamond}>◆</Text>
-              <View style={styles.endRule} />
-            </View>
-
             {/* ── Share strip ───────────────────────────────────────── */}
             <View style={styles.shareStrip}>
               <Text style={styles.shareStripLabel}>Më pëlqeu? Ndaje me të tjerët.</Text>
@@ -651,13 +644,11 @@ export default function ArticleDetailScreen() {
           </View>
         </View>
 
-        {/* ── Related posts (editorial list) ───────────────────────────── */}
+        {/* ── Related posts ───────────────────────────────────────────── */}
         {relatedPosts.length > 0 ? (
           <View style={styles.relatedSection}>
             <View style={styles.relatedHeaderWrap}>
-              <Text style={styles.relatedKicker}>VAZHDO TË LEXOSH</Text>
               <Text style={styles.relatedHeadline}>Artikuj të ngjashëm</Text>
-              <View style={styles.relatedHeaderRule} />
             </View>
             {relatedPosts.slice(0, 2).map((item, i) => (
               <RelatedItem
@@ -670,12 +661,6 @@ export default function ArticleDetailScreen() {
             ))}
           </View>
         ) : null}
-
-        {/* ── Footer credit ───────────────────────────────────────────── */}
-        <View style={styles.footerCredit}>
-          <Text style={styles.footerCreditText}>RADIO FONTANA · 98.8 FM</Text>
-          <Text style={styles.footerCreditSub}>Lajmi i besueshëm i Istogut që nga viti 1999</Text>
-        </View>
       </Animated.ScrollView>
     </View>
   );
@@ -1084,28 +1069,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.articleBold,
   },
 
-  // ── End ornament ───────────────────────────────────────────────────────
-  endOrnament: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 24,
-    marginBottom: 28,
-    gap: 14,
-  },
-  endRule: {
-    flex: 1,
-    maxWidth: 48,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: RULE,
-  },
-  endDiamond: {
-    fontFamily: fonts.articleRegular,
-    color: ACCENT,
-    fontSize: 13,
-    letterSpacing: 4,
-  },
-
   // ── Share strip ────────────────────────────────────────────────────────
   shareStrip: {
     alignItems: 'center',
@@ -1146,24 +1109,12 @@ const styles = StyleSheet.create({
   relatedHeaderWrap: {
     marginBottom: 8,
   },
-  relatedKicker: {
-    fontFamily: fonts.uiBold,
-    fontSize: 10,
-    letterSpacing: 2.4,
-    color: ACCENT,
-    marginBottom: 6,
-  },
   relatedHeadline: {
     fontFamily: fonts.articleBold,
     color: INK,
     fontSize: ms(22),
     letterSpacing: -0.2,
     marginBottom: 12,
-  },
-  relatedHeaderRule: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: RULE,
-    marginBottom: 4,
   },
   relatedCardWrap: {
     marginBottom: 14,
@@ -1223,27 +1174,6 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     backgroundColor: RULE,
     marginBottom: 14,
-  },
-
-  // ── Footer credit ─────────────────────────────────────────────────────
-  footerCredit: {
-    alignItems: 'center',
-    paddingTop: 20,
-    paddingBottom: 8,
-    paddingHorizontal: BODY_PADDING_H,
-  },
-  footerCreditText: {
-    fontFamily: fonts.uiBold,
-    fontSize: 10,
-    letterSpacing: 2.6,
-    color: INK,
-    marginBottom: 4,
-  },
-  footerCreditSub: {
-    fontFamily: fonts.articleItalic,
-    fontSize: 12,
-    color: INK_FAINT,
-    textAlign: 'center',
   },
 
   // ── Loading + empty ───────────────────────────────────────────────────
