@@ -1,8 +1,9 @@
+import { useEffect } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import Animated, {
   interpolateColor,
   useAnimatedStyle,
-  useDerivedValue,
+  useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
 import { useDrawer } from '../../providers/DrawerProvider';
@@ -11,7 +12,15 @@ import { colors } from '../../constants/tokens';
 export function HamburgerButton() {
   const { isOpen, toggle } = useDrawer();
 
-  const progress = useDerivedValue(() => withTiming(isOpen ? 1 : 0, { duration: 200 }));
+  // useSharedValue + useEffect instead of useDerivedValue so the animation
+  // only starts when isOpen actually changes — not on every component
+  // re-render. useDerivedValue re-registers its worklet on every render
+  // (including frozen-tab unfreezes with freezeOnBlur:true), which caused
+  // spurious mid-animation restarts and "opens halfway" on Galaxy A-series.
+  const progress = useSharedValue(0);
+  useEffect(() => {
+    progress.value = withTiming(isOpen ? 1 : 0, { duration: 200 });
+  }, [isOpen, progress]);
 
   const topStyle = useAnimatedStyle(() => ({
     transform: [

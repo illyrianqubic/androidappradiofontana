@@ -28,6 +28,7 @@ import Animated, {
   useSharedValue,
   withRepeat,
   withTiming,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { useIsFocused } from '@react-navigation/native';
 import { HamburgerButton } from '../../components/ui/HamburgerButton';
@@ -846,154 +847,51 @@ const SearchResultCard = memo(function SearchResultCard({
 
 // ── RadioLiveBanner ────────────────────────────────────────────────────────────
 const BANNER_RED = '#dc2626';
-const BANNER_RED_DEEP = '#991b1b';
-const BANNER_ICON_SIZE = s(58);
+const BANNER_NAVY = '#0f172a';
+
+// Heights and phase offsets for the 5 animated equalizer bars.
+const BANNER_BAR_HEIGHTS = [7, 13, 20, 13, 7] as const;
+const BANNER_BAR_OFFSETS = [0, 0.17, 0.33, 0.50, 0.67] as const;
+
+// Single animated bar — worklet-driven, zero JS thread cost per frame.
+const BannerEqBar = memo(function BannerEqBar({
+  maxH,
+  offset,
+  phase,
+}: {
+  maxH: number;
+  offset: number;
+  phase: SharedValue<number>;
+}) {
+  const style = useAnimatedStyle(() => {
+    'worklet';
+    const sv = (Math.sin((phase.value + offset) * Math.PI * 2) + 1) * 0.5;
+    return { height: 3 + (maxH - 3) * sv };
+  });
+  return <Animated.View style={[styles.bannerEqBar, style]} />;
+});
 
 const RadioLiveBanner = memo(function RadioLiveBanner({ onPress }: { onPress: () => void }) {
   const isFocused = useIsFocused();
   const reducedMotion = useReducedMotion();
   const shouldAnimate = isFocused && !reducedMotion;
 
-  const ringClock = useSharedValue(0);
-  const livePulse = useSharedValue(0.55);
-  const liveSignalClock = useSharedValue(0);
-  const arrowX = useSharedValue(0);
+  const phase = useSharedValue(0);
   const cardScale = useSharedValue(1);
 
   useEffect(() => {
     if (shouldAnimate) {
-      ringClock.value = 0;
-      ringClock.value = withRepeat(
-        withTiming(1, { duration: 2400, easing: Easing.linear }),
+      phase.value = withRepeat(
+        withTiming(1, { duration: 1200, easing: Easing.linear }),
         -1,
         false,
-      );
-      livePulse.value = withRepeat(
-        withTiming(1, { duration: 900, easing: Easing.inOut(Easing.ease) }),
-        -1,
-        true,
-      );
-      liveSignalClock.value = 0;
-      liveSignalClock.value = withRepeat(
-        withTiming(1, { duration: 1350, easing: Easing.linear }),
-        -1,
-        false,
-      );
-      arrowX.value = withRepeat(
-        withTiming(4, { duration: 700, easing: Easing.inOut(Easing.cubic) }),
-        -1,
-        true,
       );
     } else {
-      cancelAnimation(ringClock);
-      cancelAnimation(livePulse);
-      cancelAnimation(liveSignalClock);
-      cancelAnimation(arrowX);
-      ringClock.value = withTiming(0, { duration: 300 });
-      livePulse.value = withTiming(0.55, { duration: 200 });
-      liveSignalClock.value = withTiming(0, { duration: 220 });
-      arrowX.value = withTiming(0, { duration: 200 });
+      cancelAnimation(phase);
+      phase.value = withTiming(0.5, { duration: 300 });
     }
-    return () => {
-      cancelAnimation(ringClock);
-      cancelAnimation(livePulse);
-      cancelAnimation(liveSignalClock);
-      cancelAnimation(arrowX);
-    };
-  }, [shouldAnimate, ringClock, livePulse, liveSignalClock, arrowX]);
-
-  const ring1Style = useAnimatedStyle(() => {
-    'worklet';
-    const p = ringClock.value % 1;
-    return {
-      opacity: interpolate(p, [0, 0.08, 0.48, 1], [0, 0.95, 0.18, 0]),
-      transform: [{ scale: interpolate(p, [0, 1], [1, 1.72]) }],
-    };
-  });
-
-  const ring2Style = useAnimatedStyle(() => {
-    'worklet';
-    const p = (ringClock.value + 0.25) % 1;
-    return {
-      opacity: interpolate(p, [0, 0.08, 0.52, 1], [0, 0.62, 0.12, 0]),
-      transform: [{ scale: interpolate(p, [0, 1], [1.04, 1.86]) }],
-    };
-  });
-
-  const ring3Style = useAnimatedStyle(() => {
-    'worklet';
-    const p = (ringClock.value + 0.5) % 1;
-    return {
-      opacity: interpolate(p, [0, 0.08, 0.58, 1], [0, 0.4, 0.08, 0]),
-      transform: [{ scale: interpolate(p, [0, 1], [1.08, 2]) }],
-    };
-  });
-
-  const ring4Style = useAnimatedStyle(() => {
-    'worklet';
-    const p = (ringClock.value + 0.75) % 1;
-    return {
-      opacity: interpolate(p, [0, 0.08, 0.62, 1], [0, 0.26, 0.05, 0]),
-      transform: [{ scale: interpolate(p, [0, 1], [1.12, 2.14]) }],
-    };
-  });
-
-  const liveDotStyle = useAnimatedStyle(() => ({
-    opacity: livePulse.value,
-    transform: [{ scale: interpolate(livePulse.value, [0.55, 1], [0.85, 1]) }],
-  }));
-
-  const signalSweepStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(liveSignalClock.value, [0, 0.12, 0.78, 1], [0, 0.12, 0.08, 0]),
-    transform: [
-      { translateX: interpolate(liveSignalClock.value, [0, 1], [-70, 300]) },
-      { rotate: '16deg' },
-    ],
-  }));
-
-  const waveBar1Style = useAnimatedStyle(() => {
-    const p = liveSignalClock.value % 1;
-    return {
-      opacity: interpolate(p, [0, 0.45, 1], [0.32, 1, 0.38]),
-      transform: [{ scaleY: interpolate(p, [0, 0.45, 1], [0.62, 1.24, 0.72]) }],
-    };
-  });
-
-  const waveBar2Style = useAnimatedStyle(() => {
-    const p = (liveSignalClock.value + 0.18) % 1;
-    return {
-      opacity: interpolate(p, [0, 0.45, 1], [0.34, 1, 0.42]),
-      transform: [{ scaleY: interpolate(p, [0, 0.45, 1], [0.68, 1.18, 0.64]) }],
-    };
-  });
-
-  const waveBar3Style = useAnimatedStyle(() => {
-    const p = (liveSignalClock.value + 0.36) % 1;
-    return {
-      opacity: interpolate(p, [0, 0.45, 1], [0.36, 1, 0.46]),
-      transform: [{ scaleY: interpolate(p, [0, 0.45, 1], [0.58, 1.12, 0.7]) }],
-    };
-  });
-
-  const waveBar4Style = useAnimatedStyle(() => {
-    const p = (liveSignalClock.value + 0.54) % 1;
-    return {
-      opacity: interpolate(p, [0, 0.45, 1], [0.34, 1, 0.42]),
-      transform: [{ scaleY: interpolate(p, [0, 0.45, 1], [0.66, 1.16, 0.66]) }],
-    };
-  });
-
-  const waveBar5Style = useAnimatedStyle(() => {
-    const p = (liveSignalClock.value + 0.72) % 1;
-    return {
-      opacity: interpolate(p, [0, 0.45, 1], [0.32, 1, 0.38]),
-      transform: [{ scaleY: interpolate(p, [0, 0.45, 1], [0.64, 1.2, 0.7]) }],
-    };
-  });
-
-  const arrowStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: arrowX.value }],
-  }));
+    return () => { cancelAnimation(phase); };
+  }, [shouldAnimate, phase]);
 
   const cardAnimStyle = useAnimatedStyle(() => ({
     transform: [{ scale: cardScale.value }],
@@ -1004,90 +902,62 @@ const RadioLiveBanner = memo(function RadioLiveBanner({ onPress }: { onPress: ()
       <Pressable
         onPress={onPress}
         onPressIn={() => {
-          cardScale.value = withTiming(0.97, { duration: 100, easing: Easing.out(Easing.cubic) });
+          cardScale.value = withTiming(0.975, { duration: 90, easing: Easing.out(Easing.cubic) });
         }}
         onPressOut={() => {
-          cardScale.value = withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) });
+          cardScale.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.cubic) });
         }}
         accessibilityRole="button"
         accessibilityLabel="Dëgjo RTV Fontana live"
         style={styles.radioCardInner}
       >
-        {/* White left → warm rose → light crimson horizontal gradient */}
-        <LinearGradient
-          colors={['#FFFFFF', '#FFFFFF', '#FFF1F1', '#FFDADA', '#FFC3C3']}
-          locations={[0, 0.36, 0.57, 0.78, 1.0]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0.08 }}
-          style={StyleSheet.absoluteFillObject}
-        />
-        {/* White left-zone vignette — keeps icon area crisp white */}
-        <LinearGradient
-          colors={['rgba(255,255,255,0.96)', 'rgba(255,255,255,0.52)', 'rgba(255,255,255,0)']}
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 0.45, y: 0.5 }}
-          style={StyleSheet.absoluteFillObject}
-        />
-        <Animated.View style={[styles.radioSignalSweep, signalSweepStyle]} pointerEvents="none" />
-        <View style={styles.radioAccentLine} />
-        {/* Hairline zone-divider between white and rose panels */}
-        <LinearGradient
-          colors={['rgba(220,38,38,0)', 'rgba(220,38,38,0.11)', 'rgba(220,38,38,0)']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={styles.radioZoneDivider}
-          pointerEvents="none"
-        />
-        <Text style={styles.radioFreqBg} numberOfLines={1}>98.8</Text>
+        {/* Ghost "98.8" watermark — oversized, clipped by overflow:hidden */}
+        <Text style={styles.radioGhostFreq} numberOfLines={1} accessible={false}>98.8</Text>
+
+        {/* Solid red left rail — the brand anchor */}
+        <View style={styles.radioRail} />
 
         <View style={styles.radioContent}>
-          <View style={styles.iconAndRingsContainer}>
-            <Animated.View style={[styles.signalRing, styles.signalRingFaint, ring4Style]} />
-            <Animated.View style={[styles.signalRing, styles.signalRingSoft, ring3Style]} />
-            <Animated.View style={[styles.signalRing, styles.signalRingMid, ring2Style]} />
-            <Animated.View style={[styles.signalRing, styles.signalRingStrong, ring1Style]} />
-            <View style={styles.radioIconCircle}>
-              <View style={styles.radioLogoPlate}>
-                <Image source={appIdentity.logo} contentFit="cover" style={styles.radioLogoMark} />
-              </View>
-            </View>
-          </View>
-
+          {/* ── Left: station identity ─────────────────────── */}
           <View style={styles.radioLeft}>
-            <View style={styles.radioTopLine}>
-              <View style={styles.liveBadge}>
-                <Animated.View style={[styles.liveDot, liveDotStyle]} />
-                <Text style={styles.radioEyebrow} numberOfLines={1}>NË TRANSMETIM</Text>
+            {/* Eyebrow row: LIVE badge + station name */}
+            <View style={styles.radioTopRow}>
+              <View style={styles.radioLiveBadge}>
+                {/* Static dot — deliberately not animated per design spec */}
+                <View style={styles.radioLiveDot} />
+                <Text style={styles.radioLiveLabel}>LIVE</Text>
               </View>
-              <View style={styles.radioFrequencyChip}>
-                <Text style={styles.radioFrequencyChipText}>98.8 FM</Text>
-              </View>
+              <Text style={styles.radioEyebrow} numberOfLines={1}>RTV FONTANA</Text>
             </View>
+
+            {/* Primary headline */}
             <Text style={styles.radioName} numberOfLines={1}>Radio Fontana</Text>
-            <Text style={styles.radioMeta} numberOfLines={1}>Istog, Kosovë · program radio live</Text>
-            <View style={styles.radioWaveRow} pointerEvents="none">
-              <Animated.View style={[styles.radioWaveBar, styles.radioWaveBarSmall, waveBar1Style]} />
-              <Animated.View style={[styles.radioWaveBar, styles.radioWaveBarMid, waveBar2Style]} />
-              <Animated.View style={[styles.radioWaveBar, styles.radioWaveBarTall, waveBar3Style]} />
-              <Animated.View style={[styles.radioWaveBar, styles.radioWaveBarMid, waveBar4Style]} />
-              <Animated.View style={[styles.radioWaveBar, styles.radioWaveBarSmall, waveBar5Style]} />
-              <Text style={styles.radioWaveText}>sinjal aktiv</Text>
+
+            {/* Meta + animated equalizer bars */}
+            <View style={styles.radioMetaRow}>
+              <Text style={styles.radioMeta}>Istog · 98.8 FM</Text>
+              <View style={styles.bannerEqRow} pointerEvents="none">
+                {BANNER_BAR_HEIGHTS.map((h, i) => (
+                  <BannerEqBar key={i} maxH={h} offset={BANNER_BAR_OFFSETS[i]} phase={phase} />
+                ))}
+              </View>
             </View>
           </View>
 
+          {/* ── Right: play CTA ────────────────────────────── */}
           <View style={styles.radioRight}>
             <View style={styles.radioPlayCircle}>
-              <Animated.View style={arrowStyle}>
-                <Ionicons name="play" size={s(17)} color="#FFFFFF" />
-              </Animated.View>
+              <Ionicons name="play" size={s(18)} color={BANNER_NAVY} style={styles.radioPlayIconNudge} />
             </View>
-            <Text style={styles.radioOpenLabel}>Hape</Text>
+            <Text style={styles.radioPlayLabel}>DËGJO</Text>
           </View>
         </View>
       </Pressable>
     </Animated.View>
   );
 });
+
+
 
 // ── HomeScreen ─────────────────────────────────────────────────────────────────
 export default function HomeScreen() {
@@ -1511,6 +1381,13 @@ export default function HomeScreen() {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <View style={styles.screen}>
+      {/* Page background: 10% dark navy fading to white over 90% of height */}
+      <LinearGradient
+        colors={['#0f172a', '#0f172a', '#eef2f7', '#f8fafc', '#ffffff']}
+        locations={[0, 0.09, 0.28, 0.55, 1.0]}
+        style={StyleSheet.absoluteFillObject}
+        pointerEvents="none"
+      />
       {/* Fixed top bar */}
       <View style={[styles.headerShell, { paddingTop: insets.top }]}>
         {isSearchActive ? (
@@ -1624,7 +1501,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.surfaceSubtle,
+    backgroundColor: '#0f172a',
   },
   flexFill: {
     flex: 1,
@@ -1779,236 +1656,143 @@ const styles = StyleSheet.create({
   radioCard: {
     marginHorizontal: 12,
     marginBottom: 14,
-    borderRadius: s(24),
-    backgroundColor: '#FFFFFF',
-    shadowColor: BANNER_RED,
-    shadowOpacity: 0.14,
+    borderRadius: s(22),
+    backgroundColor: BANNER_NAVY,
+    shadowColor: '#000000',
+    shadowOpacity: 0.36,
     shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
+    overflow: 'hidden',
   },
   radioCardInner: {
-    overflow: 'hidden',
-    borderRadius: s(24),
-    minHeight: s(122),
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(220,38,38,0.18)',
+    borderRadius: s(22),
+    minHeight: s(110),
   },
-  radioAccentLine: {
+  radioGhostFreq: {
+    position: 'absolute',
+    right: s(-4),
+    bottom: -s(18),
+    fontSize: s(96),
+    fontFamily: fonts.uiBold,
+    color: '#FFFFFF',
+    opacity: 0.04,
+    letterSpacing: -3,
+    lineHeight: s(96),
+  },
+  radioRail: {
     position: 'absolute',
     left: 0,
-    top: s(18),
-    bottom: s(18),
-    width: 3,
-    borderTopRightRadius: 3,
-    borderBottomRightRadius: 3,
+    top: s(20),
+    bottom: s(20),
+    width: 4,
+    borderTopRightRadius: 4,
+    borderBottomRightRadius: 4,
     backgroundColor: BANNER_RED,
-  },
-  radioZoneDivider: {
-    position: 'absolute',
-    left: '43%',
-    width: StyleSheet.hairlineWidth,
-    top: s(16),
-    bottom: s(16),
   },
   radioContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: s(13),
-    paddingTop: s(16),
-    paddingBottom: s(15),
-    paddingLeft: s(16),
-    paddingRight: s(13),
-    minHeight: s(122),
+    paddingTop: s(18),
+    paddingBottom: s(18),
+    paddingLeft: s(20),
+    paddingRight: s(16),
+    gap: s(14),
   },
   radioLeft: {
     flex: 1,
     minWidth: 0,
   },
-  radioTopLine: {
+  radioTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: s(7),
+    gap: s(8),
     marginBottom: s(7),
   },
-  liveBadge: {
+  radioLiveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: s(6),
-    borderRadius: 999,
-    backgroundColor: 'rgba(220,38,38,0.08)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(220,38,38,0.18)',
-    paddingHorizontal: s(8),
-    paddingVertical: s(4),
-    flexShrink: 1,
-  },
-  liveDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
+    gap: s(5),
     backgroundColor: BANNER_RED,
+    borderRadius: 999,
+    paddingHorizontal: s(9),
+    paddingVertical: s(4),
   },
-  radioEyebrow: {
+  radioLiveDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#FFFFFF',
+  },
+  radioLiveLabel: {
+    color: '#FFFFFF',
     fontFamily: fonts.uiBold,
     fontSize: ms(9),
-    color: BANNER_RED,
-    letterSpacing: 1.25,
-    textTransform: 'uppercase',
+    letterSpacing: 1.4,
   },
-  radioFrequencyChip: {
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.76)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(15,23,42,0.08)',
-    paddingHorizontal: s(8),
-    paddingVertical: s(4),
-    flexShrink: 0,
-  },
-  radioFrequencyChipText: {
+  radioEyebrow: {
+    color: 'rgba(255,255,255,0.40)',
     fontFamily: fonts.uiBold,
-    fontSize: ms(9.5),
-    color: BANNER_RED_DEEP,
-    letterSpacing: 0.4,
+    fontSize: ms(10),
+    letterSpacing: 2.0,
+    textTransform: 'uppercase',
+    flexShrink: 1,
   },
   radioName: {
     fontFamily: fonts.uiBold,
-    fontSize: ms(22),
-    color: colors.navy,
-    letterSpacing: -0.55,
-    lineHeight: ms(26),
-    marginBottom: s(2),
+    fontSize: ms(25),
+    color: '#FFFFFF',
+    letterSpacing: -0.7,
+    lineHeight: ms(29),
+    marginBottom: s(8),
   },
-  radioMeta: {
-    fontFamily: fonts.uiRegular,
-    fontSize: ms(12.5),
-    color: colors.textMuted,
-    lineHeight: ms(16),
-    marginBottom: s(9),
-  },
-  radioWaveRow: {
+  radioMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    opacity: 0.72,
+    gap: s(10),
   },
-  radioWaveBar: {
-    width: 3,
-    borderRadius: 3,
-    backgroundColor: BANNER_RED,
-  },
-  radioWaveBarSmall: {
-    height: 9,
-  },
-  radioWaveBarMid: {
-    height: 15,
-  },
-  radioWaveBarTall: {
-    height: 21,
-  },
-  radioWaveText: {
-    marginLeft: s(5),
-    color: colors.textFaint,
+  radioMeta: {
     fontFamily: fonts.uiMedium,
-    fontSize: ms(10.5),
+    fontSize: ms(12),
+    color: 'rgba(255,255,255,0.42)',
+    letterSpacing: 0.2,
+  },
+  bannerEqRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 3,
+    height: 20,
+  },
+  bannerEqBar: {
+    width: 2.5,
+    borderRadius: 2,
+    backgroundColor: BANNER_RED,
   },
   radioRight: {
-    width: s(54),
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: s(6),
+    gap: s(5),
   },
   radioPlayCircle: {
-    width: s(44),
-    height: s(44),
-    borderRadius: s(22),
-    backgroundColor: BANNER_RED,
+    width: s(50),
+    height: s(50),
+    borderRadius: s(25),
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: BANNER_RED,
-    shadowOpacity: 0.42,
-    shadowRadius: 12,
+    shadowColor: '#FFFFFF',
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 7,
+    elevation: 6,
   },
-  radioOpenLabel: {
-    color: BANNER_RED_DEEP,
+  radioPlayIconNudge: {
+    marginLeft: 2,
+  },
+  radioPlayLabel: {
+    color: 'rgba(255,255,255,0.40)',
     fontFamily: fonts.uiBold,
-    fontSize: ms(10.5),
-    letterSpacing: 0.25,
-  },
-  radioSignalSweep: {
-    position: 'absolute',
-    top: -s(18),
-    bottom: -s(18),
-    left: 0,
-    width: s(10),
-    borderRadius: s(12),
-    backgroundColor: 'rgba(220,38,38,0.08)',
-  },
-  radioFreqBg: {
-    position: 'absolute',
-    bottom: -s(6),
-    right: s(58),
-    fontSize: s(42),
-    fontFamily: fonts.uiBold,
-    color: BANNER_RED,
-    opacity: 0.07,
-    letterSpacing: 3,
-  },
-  iconAndRingsContainer: {
-    width: BANNER_ICON_SIZE,
-    height: BANNER_ICON_SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  signalRing: {
-    position: 'absolute',
-    width: BANNER_ICON_SIZE,
-    height: BANNER_ICON_SIZE,
-    borderRadius: BANNER_ICON_SIZE / 2,
-  },
-  signalRingStrong: {
-    borderWidth: 1.8,
-    borderColor: 'rgba(220,38,38,0.72)',
-  },
-  signalRingMid: {
-    borderWidth: 1.5,
-    borderColor: 'rgba(220,38,38,0.46)',
-  },
-  signalRingSoft: {
-    borderWidth: 1.2,
-    borderColor: 'rgba(220,38,38,0.30)',
-  },
-  signalRingFaint: {
-    borderWidth: 1,
-    borderColor: 'rgba(220,38,38,0.18)',
-  },
-  radioIconCircle: {
-    width: BANNER_ICON_SIZE,
-    height: BANNER_ICON_SIZE,
-    borderRadius: BANNER_ICON_SIZE / 2,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: BANNER_RED,
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
-  },
-  radioLogoPlate: {
-    width: BANNER_ICON_SIZE - s(7),
-    height: BANNER_ICON_SIZE - s(7),
-    borderRadius: (BANNER_ICON_SIZE - s(7)) / 2,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(15,23,42,0.10)',
-    overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
-  },
-  radioLogoMark: {
-    width: '100%',
-    height: '100%',
+    fontSize: ms(9),
+    letterSpacing: 1.8,
   },
 
   // ── Section layout ──────────────────────────────────────────────────────────

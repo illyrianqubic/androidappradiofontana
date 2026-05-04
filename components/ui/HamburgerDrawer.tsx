@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   BackHandler,
   Linking,
@@ -90,43 +90,56 @@ function HamburgerDrawerInner() {
   const isOpenRef = useRef(isOpen);
   useLayoutEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
 
-  // Bug fix 3 (part 1): Activate the backdrop synchronously before paint so the
-  // closing tap-target exists from the very first animation frame.
-  // Previously used async useEffect which left a gap where touches passed through.
+  // Activate the backdrop synchronously before paint so the closing tap-target
+  // exists from the very first animation frame.
   useLayoutEffect(() => {
     if (isOpen) setIsInteractive(true);
   }, [isOpen]);
 
+  // handleCloseComplete guards against the critical timing race:
+  // When the close animation completes naturally (finished=true), its
+  // runOnJS callback is queued on the UI thread and delivered to the JS
+  // thread asynchronously. If the user re-opens before that message is
+  // processed, useLayoutEffect already set isInteractive=true — but the
+  // queued setIsInteractive(false) would then fire AFTER, leaving an
+  // invisible full-screen Pressable blocking every touch ("menu appears
+  // on its own"). Checking isOpenRef.current at call-time prevents the
+  // stale false-write.
+  const handleCloseComplete = useCallback(() => {
+    if (!isOpenRef.current) {
+      setIsInteractive(false);
+      setLajmeExpanded(false);
+    }
+  }, []);
+
   // Slide animation.
-  // Bug fix 1: setLajmeExpanded(false) moved OUT of the animation start and INTO
-  // the withTiming callback. Previously it fired at the start of the close, which
-  // triggered LinearTransition concurrently with the slide-out on slow devices
-  // (Samsung Galaxy A-series), starving the panel animation and causing it to
-  // visually stop at ~50% before the JS thread caught up.
-  // Bug fix 3 (part 2): setIsInteractive(false) is called in the callback so the
-  // backdrop Pressable stays mounted for the full duration of the close animation.
+  // setLajmeExpanded(false) is deferred to the close callback so a
+  // LinearTransition never runs concurrently with the panel slide-out
+  // on slow devices (Samsung Galaxy A-series).
+  // The `finished` guard prevents handleCloseComplete from firing when
+  // the close animation is cancelled mid-way (finished=false) — e.g.
+  // when the user rapidly toggles the drawer.
   useEffect(() => {
     if (isOpen) {
       cancelAnimation(progress);
       progress.value = withTiming(1, { duration: OPEN_DURATION, easing: OPEN_EASING });
     } else {
       cancelAnimation(progress);
-      progress.value = withTiming(0, { duration: CLOSE_DURATION, easing: CLOSE_EASING }, () => {
-        runOnJS(setIsInteractive)(false);
-        runOnJS(setLajmeExpanded)(false);
+      progress.value = withTiming(0, { duration: CLOSE_DURATION, easing: CLOSE_EASING }, (finished) => {
+        'worklet';
+        if (finished) runOnJS(handleCloseComplete)();
       });
     }
     return () => { cancelAnimation(progress); };
-    // progress is a stable shared-value ref; only isOpen should re-trigger this.
+    // progress and handleCloseComplete are stable refs; only isOpen should re-trigger.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  // Bug fix 3 (part 3 — belt-and-suspenders): In Reanimated 3, cancelAnimation
-  // silently suppresses the withTiming completion callback. If the open animation
-  // cancels a running close animation, the runOnJS(setIsInteractive)(false) above
-  // is swallowed and isInteractive stays true forever — mounting an invisible
-  // full-screen Pressable that blocks all touches (looks like the drawer
-  // "appeared on its own"). This timeout guarantees the flag always resets.
+  // Belt-and-suspenders: explicit cancelAnimation suppresses the withTiming
+  // callback entirely (Reanimated 3 design). If the user rapidly toggles the
+  // drawer, the cleanup cancelAnimation may swallow handleCloseComplete, leaving
+  // isInteractive stuck at true (invisible full-screen Pressable blocks touches).
+  // This timeout guarantees reset CLOSE_DURATION+100ms after every close.
   useEffect(() => {
     if (isOpen) return undefined;
     const id = setTimeout(() => {

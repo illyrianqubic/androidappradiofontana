@@ -1,7 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   InteractionManager,
-  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -37,26 +36,25 @@ import {
 
 // ── NewsFooter ─────────────────────────────────────────────────────────────────
 const CURRENT_YEAR = new Date().getFullYear();
-const NEWS_SOCIAL_LINKS = [
-  { label: 'Facebook', url: 'https://www.facebook.com/rtvfontanalive' },
-  { label: 'Instagram', url: 'https://www.instagram.com/rtvfontana/' },
-  { label: 'YouTube', url: 'https://www.youtube.com/@RTVFontana' },
-  { label: 'TikTok', url: 'https://www.tiktok.com/@rtvfontanalive' },
-] as const;
 
 const NewsFooter = memo(function NewsFooter() {
   const router = useRouter();
   return (
     <View style={SFoot.wrap}>
+      <View style={SFoot.ruleWrap}>
+        <View style={SFoot.rule} />
+        <View style={SFoot.ruleDot} />
+        <View style={SFoot.rule} />
+      </View>
+
       <View style={SFoot.card}>
         <LinearGradient
-          colors={['#0f172a', '#1a2540', '#0f172a']}
+          colors={['#FFFFFF', '#FFF8F8', '#FFFFFF']}
+          locations={[0, 0.5, 1]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFillObject}
         />
-        <View style={SFoot.glow1} pointerEvents="none" />
-        <View style={SFoot.glow2} pointerEvents="none" />
         <View style={SFoot.accentLine} />
 
         <View style={SFoot.brand}>
@@ -64,291 +62,174 @@ const NewsFooter = memo(function NewsFooter() {
             <Image source={appIdentity.logo} contentFit="cover" style={SFoot.logo} />
           </View>
           <View style={SFoot.brandText}>
-            <Text style={SFoot.stationLabel}>RTV FONTANA</Text>
-            <Text style={SFoot.freqLine}>98.8 FM · Istog, Kosovë</Text>
-            <Text style={SFoot.tagline}>Lajmi lokal, zëri i qytetit.</Text>
-          </View>
-          <View style={SFoot.livePill}>
-            <View style={SFoot.liveDot} />
-            <Text style={SFoot.liveText}>LIVE</Text>
+            <Text style={SFoot.stationLabel}>FUNDI I LAJMEVE</Text>
+            <Text style={SFoot.freqLine}>Radio Fontana</Text>
+            <Text style={SFoot.tagline}>Kthehu te lajmet e fundit ose vazhdo me radion live.</Text>
           </View>
         </View>
 
-        <View style={SFoot.divider} />
-
-        <View style={SFoot.actionRow}>
-          <Pressable
-            style={({ pressed }) => [SFoot.actionBtn, pressed && SFoot.actionBtnPressed]}
-            onPress={() => Linking.openURL('tel:+38344150027').catch(() => undefined)}
-          >
-            <View style={SFoot.actionIcon}>
-              <Ionicons name="call" size={15} color="#FFFFFF" />
-            </View>
-            <Text style={SFoot.actionLabel}>Telefono</Text>
-          </Pressable>
-          <View style={SFoot.actionSep} />
-          <Pressable
-            style={({ pressed }) => [SFoot.actionBtn, pressed && SFoot.actionBtnPressed]}
-            onPress={() => Linking.openURL('mailto:rtvfontana@gmail.com').catch(() => undefined)}
-          >
-            <View style={SFoot.actionIcon}>
-              <Ionicons name="mail" size={15} color="#FFFFFF" />
-            </View>
-            <Text style={SFoot.actionLabel}>Email</Text>
-          </Pressable>
-          <View style={SFoot.actionSep} />
-          <Pressable
-            style={({ pressed }) => [SFoot.actionBtn, SFoot.actionBtnAccent, pressed && SFoot.actionBtnPressed]}
-            onPress={() => router.push('/(tabs)/live' as never)}
-          >
-            <View style={[SFoot.actionIcon, SFoot.actionIconRed]}>
-              <Ionicons name="radio" size={15} color="#FFFFFF" />
-            </View>
-            <Text style={SFoot.actionLabel}>Radio Live</Text>
-          </Pressable>
-        </View>
-
-        <View style={SFoot.divider} />
-
-        <View style={SFoot.socialGrid}>
-          {NEWS_SOCIAL_LINKS.map((link) => (
-            <Pressable
-              key={link.label}
-              style={({ pressed }) => [SFoot.socialChip, pressed && SFoot.socialChipPressed]}
-              onPress={() => Linking.openURL(link.url).catch(() => undefined)}
-            >
-              <Text style={SFoot.socialLabel}>{link.label}</Text>
-            </Pressable>
-          ))}
-        </View>
+        <Pressable
+          style={({ pressed }) => [SFoot.liveButton, pressed && SFoot.liveButtonPressed]}
+          onPress={() => router.navigate('/(tabs)/live' as never)}
+        >
+          <View style={SFoot.liveIcon}>
+            <Ionicons name="radio-outline" size={17} color={colors.primary} />
+          </View>
+          <View style={SFoot.liveCopy}>
+            <Text style={SFoot.liveButtonLabel}>Radio Live</Text>
+            <Text style={SFoot.liveButtonSub}>98.8 FM · Istog</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={17} color={colors.textMuted} />
+        </Pressable>
       </View>
 
-      <View style={SFoot.legal}>
-        <Pressable
-          onPress={() => Linking.openURL('https://radiofontana.org/privacy').catch(() => undefined)}
-          style={({ pressed }) => pressed && { opacity: 0.6 }}
-        >
-          <Text style={SFoot.legalLink}>Privatësia</Text>
-        </Pressable>
-        <Text style={SFoot.legalDot}>·</Text>
-        <Pressable
-          onPress={() => Linking.openURL('https://radiofontana.org/terms').catch(() => undefined)}
-          style={({ pressed }) => pressed && { opacity: 0.6 }}
-        >
-          <Text style={SFoot.legalLink}>Kushtet</Text>
-        </Pressable>
-        <View style={{ flex: 1 }} />
-        <Text style={SFoot.copy}>© {CURRENT_YEAR} RTV Fontana</Text>
-      </View>
+      <Text style={SFoot.copy}>© {CURRENT_YEAR} RTV Fontana</Text>
     </View>
   );
 });
 
 const SFoot = StyleSheet.create({
   wrap: {
-    marginTop: 24,
-    paddingBottom: 8,
+    marginTop: 26,
+    paddingBottom: 0,
+  },
+  ruleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  rule: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(15,23,42,0.12)',
+  },
+  ruleDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: colors.primary,
   },
   card: {
-    borderRadius: 24,
+    borderRadius: 20,
     overflow: 'hidden',
-    padding: 20,
-    marginBottom: 14,
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.28,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 14 },
-    elevation: 12,
-  },
-  glow1: {
-    position: 'absolute',
-    right: -s(40),
-    top: -s(40),
-    width: s(180),
-    height: s(180),
-    borderRadius: s(90),
-    backgroundColor: 'rgba(220,38,38,0.12)',
-  },
-  glow2: {
-    position: 'absolute',
-    left: -s(30),
-    bottom: -s(30),
-    width: s(140),
-    height: s(140),
-    borderRadius: s(70),
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    padding: 16,
+    marginBottom: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(220,38,38,0.14)',
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
   accentLine: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: 3,
+    height: 2,
     backgroundColor: '#DC2626',
   },
   brand: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 13,
-    marginTop: 6,
-    marginBottom: 18,
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 4,
+    marginBottom: 14,
   },
   logoWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(15,23,42,0.10)',
     overflow: 'hidden',
     flexShrink: 0,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.10,
+    shadowRadius: 9,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
   logo: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
   },
   brandText: {
     flex: 1,
+    minWidth: 0,
     gap: 2,
   },
   stationLabel: {
-    color: 'rgba(255,255,255,0.5)',
+    color: colors.primary,
     fontFamily: fonts.uiBold,
-    fontSize: 9.5,
-    letterSpacing: 2.0,
+    fontSize: 9,
+    letterSpacing: 1.6,
   },
   freqLine: {
-    color: '#FFFFFF',
+    color: colors.text,
     fontFamily: fonts.uiBold,
-    fontSize: 17,
+    fontSize: 16,
     letterSpacing: -0.3,
-    lineHeight: 22,
+    lineHeight: 20,
   },
   tagline: {
-    color: 'rgba(255,255,255,0.55)',
+    color: colors.textMuted,
     fontFamily: fonts.uiRegular,
     fontSize: 12,
-    lineHeight: 17,
+    lineHeight: 16,
     marginTop: 2,
   },
-  livePill: {
+  liveButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(220,38,38,0.22)',
-    borderRadius: 999,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(220,38,38,0.4)',
-    alignSelf: 'flex-start',
-    flexShrink: 0,
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#DC2626',
-  },
-  liveText: {
-    color: '#ff6b6b',
-    fontFamily: fonts.uiBold,
-    fontSize: 10,
-    letterSpacing: 1.2,
-  },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    marginVertical: 14,
-    marginHorizontal: -4,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  actionSep: {
-    width: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-  },
-  actionBtn: {
-    flex: 1,
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 12,
+    gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.78)',
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    paddingHorizontal: 12,
+    paddingVertical: 11,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.10)',
+    borderColor: 'rgba(220,38,38,0.16)',
   },
-  actionBtnAccent: {
-    backgroundColor: 'rgba(220,38,38,0.22)',
-    borderColor: 'rgba(220,38,38,0.35)',
+  liveButtonPressed: {
+    opacity: 0.78,
+    backgroundColor: colors.redTint,
   },
-  actionBtnPressed: {
-    opacity: 0.75,
-  },
-  actionIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.10)',
+  liveIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    backgroundColor: colors.redTint,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actionIconRed: {
-    backgroundColor: 'rgba(220,38,38,0.30)',
-  },
-  actionLabel: {
-    color: 'rgba(255,255,255,0.82)',
-    fontFamily: fonts.uiBold,
-    fontSize: 11,
-    letterSpacing: 0.1,
-  },
-  socialGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  socialChip: {
+  liveCopy: {
     flex: 1,
-    minWidth: '46%',
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.10)',
   },
-  socialChipPressed: {
-    backgroundColor: 'rgba(255,255,255,0.14)',
+  liveButtonLabel: {
+    color: colors.text,
+    fontFamily: fonts.uiBold,
+    fontSize: 13,
+    lineHeight: 16,
   },
-  socialLabel: {
-    color: 'rgba(255,255,255,0.78)',
-    fontFamily: fonts.uiMedium,
-    fontSize: 12,
-    letterSpacing: 0.1,
-  },
-  legal: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 4,
-    paddingBottom: 4,
-  },
-  legalLink: {
+  liveButtonSub: {
     color: colors.textMuted,
     fontFamily: fonts.uiMedium,
-    fontSize: 11.5,
-    textDecorationLine: 'underline',
-  },
-  legalDot: {
-    color: colors.textFaint,
     fontSize: 11,
+    lineHeight: 14,
+    marginTop: 1,
   },
   copy: {
     color: colors.textMuted,
     fontFamily: fonts.uiRegular,
     fontSize: 11.5,
+    textAlign: 'center',
   },
 });
 
@@ -442,15 +323,20 @@ const FeaturedCard = memo(function FeaturedCard({ post, onPress }: { post: Post;
 const CategoryPill = memo(function CategoryPill({
   item,
   active,
-  onPress,
+  onSelect,
+  onPrefetch,
 }: {
   item: NewsCategoryTab;
   active: boolean;
-  onPress: () => void;
+  onSelect: (tab: NewsCategoryTab) => void;
+  onPrefetch: (tab: NewsCategoryTab) => void;
 }) {
+  const handlePress = useCallback(() => onSelect(item), [onSelect, item]);
+  const handlePressIn = useCallback(() => onPrefetch(item), [onPrefetch, item]);
   return (
     <Pressable
-      onPress={onPress}
+      onPressIn={handlePressIn}
+      onPress={handlePress}
       style={[SP.pill, active && SP.pillActive]}
     >
       <Text style={[SP.pillText, active && SP.pillTextActive]}>{item.label}</Text>
@@ -519,12 +405,18 @@ export default function NewsIndexScreen() {
 
   // Header height: statusBar + titleRow(66) + search(54) + categories(50) + divider(1)
   const HEADER_H = insets.top + 171;
-  const bottomInsetOffset = insets.bottom + 190;
+  const bottomInsetOffset = 4;
 
   const postsQuery = useQuery({
     queryKey: ['news-feed', activeCategory.slug, debouncedSearch],
     queryFn: ({ signal }) => fetchLatestPosts(activeCategory.slug, debouncedSearch, 40, signal),
-    placeholderData: (previousData) => previousData,
+    // Keep stale data for same-key background revalidation (pull-to-refresh,
+    // re-focus). We intentionally do NOT use placeholderData here \u2014 showing a
+    // different category's posts while the new fetch loads is worse than
+    // showing skeletons. isFetching+isPlaceholderData would have caused a
+    // jarring wrong-posts\u2192correct-posts snap; we detect the equivalent
+    // condition via isPlaceholderData below and render skeletons instead.
+    staleTime: 5 * 60 * 1000,
     // H-B11: 5min gcTime so flipping through all 7 category tabs once does
     // NOT leave 7 \u00d7 60KB feeds resident for half an hour. Re-entering a
     // category within 5 min still hits cache; longer than that just refetches.
@@ -561,6 +453,34 @@ export default function NewsIndexScreen() {
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, []);
 
+  // Fire a prefetch for a category so data is warm before setActiveCategory runs.
+  // Called on onPressIn (finger-down) — ~150ms before the press registers —
+  // so the fetch is often in-flight or complete by the time the list re-renders.
+  const onPrefetchCategory = useCallback((tab: NewsCategoryTab) => {
+    if (tab.slug === activeCategorySlugRef.current) return;
+    queryClient.prefetchQuery({
+      queryKey: ['news-feed', tab.slug, debouncedSearch],
+      queryFn: ({ signal }) => fetchLatestPosts(tab.slug, debouncedSearch, 40, signal),
+      staleTime: 5 * 60 * 1000,
+    });
+  }, [queryClient, debouncedSearch]);
+
+  // Prefetch all category tabs on mount so every first tap is instant.
+  // Runs after interactions settle to avoid competing with the initial render.
+  useEffect(() => {
+    const handle = InteractionManager.runAfterInteractions(() => {
+      for (const tab of NEWS_CATEGORY_TABS) {
+        if (tab.slug === '') continue; // already fetched by postsQuery
+        queryClient.prefetchQuery({
+          queryKey: ['news-feed', tab.slug, ''],
+          queryFn: ({ signal }) => fetchLatestPosts(tab.slug, '', 40, signal),
+          staleTime: 5 * 60 * 1000,
+        });
+      }
+    });
+    return () => handle.cancel();
+  }, [queryClient]);
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [bannerVisible, setBannerVisible] = useState(false);
   const refreshRunRef = useRef(0);
@@ -591,6 +511,11 @@ export default function NewsIndexScreen() {
   // dwell time so the most likely next taps are near-instant. Declared
   // after `posts` is materialized below.
   const initialLoading = postsQuery.isLoading && !postsQuery.data;
+  // When we're fetching a category whose data isn't in cache yet, React Query
+  // has no placeholder to show — isPlaceholderData is false and data is
+  // undefined until the fetch resolves. Show skeletons rather than an empty
+  // list or the previous (wrong) category's posts.
+  const isSwitchingCategory = postsQuery.isFetching && !postsQuery.data;
   const posts = postsQuery.data ?? [];
 
   useEffect(() => {
@@ -693,7 +618,8 @@ export default function NewsIndexScreen() {
               key={tab.slug || 'all'}
               item={tab}
               active={tab.slug === activeCategory.slug}
-              onPress={() => onSelectCategory(tab)}
+              onSelect={onSelectCategory}
+              onPrefetch={onPrefetchCategory}
             />
           ))}
         </ScrollView>
@@ -704,7 +630,9 @@ export default function NewsIndexScreen() {
     ),
     // SearchInput owns per-keystroke state and only updates this screen after
     // debounce, so typing does not rebuild the title/category header.
-    [insets.top, activeCategory.slug, onSelectCategory],
+    // onSelectCategory and onPrefetchCategory are stable (empty/stable deps),
+    // so only the active pill changes trigger a header rebuild.
+    [insets.top, activeCategory.slug, onSelectCategory, onPrefetchCategory],
   );
 
   const refreshHeader = useMemo(
@@ -719,8 +647,8 @@ export default function NewsIndexScreen() {
   );
   const postKeyExtractor = useCallback((item: Post) => item._id, []);
   const loadingKeyExtractor = useCallback((item: number) => String(item), []);
-  // ── Loading state ──────────────────────────────────────────────────────────
-  if (initialLoading) {
+  // ── Loading / category-switch state ───────────────────────────────────────
+  if (initialLoading || isSwitchingCategory) {
     return (
       <View style={S.screen}>
         {stickyHeader}
@@ -751,7 +679,7 @@ export default function NewsIndexScreen() {
         renderItem={renderPostItem}
         getItemType={getPostItemType}
         ListHeaderComponent={refreshHeader}
-        ListFooterComponent={activeCategory.slug === '' ? NewsFooter : null}
+        ListFooterComponent={NewsFooter}
         ListEmptyComponent={emptyState}
         refreshing={isRefreshing}
         onRefresh={onPullToRefresh}
