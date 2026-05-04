@@ -494,42 +494,14 @@ const LocalCard = memo(function LocalCard({ post, onPress }: { post: Post; onPre
 );
 
 
-// ── LocalNewsHeader — editorial masthead for the Lokale rail ─────────────────
-// Mirrors LatestNewsHeader's visual language so the two sections feel like a
-// continuous editorial flow rather than two disconnected widgets.
+// ── LocalNewsHeader ─────────────────────────────────────────────────────────
 const LocalNewsHeader = memo(function LocalNewsHeader() {
-  const pulse = useSharedValue(0.45);
-  const isFocused = useIsFocused();
-  const reducedMotion = useReducedMotion();
-  useEffect(() => {
-    if (!isFocused || reducedMotion) {
-      cancelAnimation(pulse);
-      pulse.value = 1;
-      return;
-    }
-    pulse.value = withRepeat(withTiming(1, { duration: 1600 }), -1, true);
-    return () => cancelAnimation(pulse);
-  }, [pulse, isFocused, reducedMotion]);
-  const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
-
   return (
     <View style={styles.localHeader}>
-      <View style={styles.localHeaderTopRow}>
-        <View style={styles.localKickerGroup}>
-          <Animated.View style={[styles.localPulse, pulseStyle]} />
-          <Text style={styles.localKicker}>LOKALE</Text>
-        </View>
-      </View>
-      <View style={styles.localTitleRow}>
+      <View style={styles.localTitleGroup}>
+        <View style={styles.localAccentBar} />
         <Text style={styles.localHeaderTitle}>Lajmet Lokale</Text>
       </View>
-      <View style={styles.localSubRow}>
-        <Text style={styles.localSubhead}>
-          Histori, ngjarje dhe jetë nga komuniteti dhe rajoni
-        </Text>
-      </View>
-      <View style={styles.localRuleHeavy} />
-      <View style={styles.localRuleHair} />
     </View>
   );
 });
@@ -661,13 +633,7 @@ const HomeTransitionBridge = memo(function HomeTransitionBridge() {
   );
 });
 
-// ── LatestNewsHeader — bespoke editorial masthead for the main feed ──────────
-// Why a separate component (not the generic SectionHeader): the "Lajmet e
-// Fundit" grid IS the home feed. It deserves a true editorial banner: a
-// kicker, a serif title, a live "lapsi nën dorë" pulse, an article counter
-// and today's date — the kind of treatment a print masthead earns above the
-// fold. The pulse uses the existing reanimated import; opacity-only worklets
-// stay on the UI thread and cost ~0.05 ms/frame on Cortex-A53.
+// ── LatestNewsHeader ─────────────────────────────────────────────────────────
 const LatestNewsHeader = memo(function LatestNewsHeader({
   count,
   onSeeAll,
@@ -675,65 +641,20 @@ const LatestNewsHeader = memo(function LatestNewsHeader({
   count: number;
   onSeeAll?: () => void;
 }) {
-  const pulse = useSharedValue(0.4);
-  // AUDIT FIX P3.10 + P8.28: cancel the pulse worklet on unmount or when
-  // the Home tab loses focus, and respect prefers-reduced-motion.
-  // Previously withRepeat ran for the entire app lifetime.
-  const isFocused = useIsFocused();
-  const reducedMotion = useReducedMotion();
-  useEffect(() => {
-    if (!isFocused || reducedMotion) {
-      cancelAnimation(pulse);
-      pulse.value = 1;
-      return;
-    }
-    pulse.value = withRepeat(
-      withTiming(1, { duration: 1100 }),
-      -1,
-      true,
-    );
-    return () => cancelAnimation(pulse);
-  }, [pulse, isFocused, reducedMotion]);
-  const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
-
-  // Albanian short date: "e martë, 28 prill" — built once per render.
-  const dateLabel = useMemo(() => {
-    const d = new Date();
-    return `${ALBANIAN_DAYS[d.getDay()]}, ${d.getDate()} ${ALBANIAN_MONTHS[d.getMonth()]}`;
-  }, []);
-
   return (
     <View style={styles.latestHeader}>
-      {/* Top: kicker + live pulse + date */}
       <View style={styles.latestTopRow}>
-        <View style={styles.latestKickerGroup}>
-          <Animated.View style={[styles.latestPulse, pulseStyle]} />
-          <Text style={styles.latestKicker}>NË VAZHDIM</Text>
+        <View style={styles.latestTitleGroup}>
+          <View style={styles.latestAccentBar} />
+          <Text style={styles.latestTitle}>Lajmet e Fundit</Text>
         </View>
-        <Text style={styles.latestDate}>{dateLabel}</Text>
-      </View>
-
-      {/* Title + serif underline rule */}
-      <View style={styles.latestTitleRow}>
-        <Text style={styles.latestTitle}>Lajmet e Fundit</Text>
-      </View>
-
-      {/* Subhead with see-all on the same line */}
-      <View style={styles.latestSubRow}>
-        <Text style={styles.latestSubhead}>
-          Përditësimet më të reja editoriale nga RTV Fontana
-        </Text>
         {onSeeAll ? (
           <Pressable onPress={onSeeAll} hitSlop={10} style={styles.latestSeeAll}>
             <Text style={styles.latestSeeAllText}>Të gjitha</Text>
-            <Ionicons name="arrow-forward" size={13} color={colors.primary} />
+            <Ionicons name="chevron-forward" size={13} color={colors.primary} />
           </Pressable>
         ) : null}
       </View>
-
-      {/* Editorial divider — heavy line over hairline (newsprint masthead) */}
-      <View style={styles.latestRuleHeavy} />
-      <View style={styles.latestRuleHair} />
     </View>
   );
 }, (prev, next) =>
@@ -927,7 +848,7 @@ const RadioLiveBanner = memo(function RadioLiveBanner({ onPress }: { onPress: ()
                 <View style={styles.radioLiveDot} />
                 <Text style={styles.radioLiveLabel}>LIVE</Text>
               </View>
-              <Text style={styles.radioEyebrow} numberOfLines={1}>RTV FONTANA</Text>
+              <Text style={styles.radioEyebrow} numberOfLines={1}>NË TRANSMETIM</Text>
             </View>
 
             {/* Primary headline */}
@@ -1381,13 +1302,6 @@ export default function HomeScreen() {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <View style={styles.screen}>
-      {/* Page background: 10% dark navy fading to white over 90% of height */}
-      <LinearGradient
-        colors={['#0f172a', '#0f172a', '#eef2f7', '#f8fafc', '#ffffff']}
-        locations={[0, 0.09, 0.28, 0.55, 1.0]}
-        style={StyleSheet.absoluteFillObject}
-        pointerEvents="none"
-      />
       {/* Fixed top bar */}
       <View style={[styles.headerShell, { paddingTop: insets.top }]}>
         {isSearchActive ? (
@@ -1501,7 +1415,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#F2F4F7',
   },
   flexFill: {
     flex: 1,
@@ -1830,13 +1744,24 @@ const styles = StyleSheet.create({
 
   // ── Latest news editorial masthead ─────────────────────────────────────────
   latestHeader: {
-    marginBottom: 18,
+    marginBottom: 16,
+    paddingHorizontal: 2,
   },
   latestTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+  },
+  latestTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+  },
+  latestAccentBar: {
+    width: 3,
+    height: 22,
+    borderRadius: 2,
+    backgroundColor: colors.primary,
   },
   latestKickerGroup: {
     flexDirection: 'row',
@@ -1866,11 +1791,10 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   latestTitle: {
-    color: '#0A0F1C',
-    fontFamily: fonts.articleBold,
-    fontSize: 30,
-    lineHeight: 34,
-    letterSpacing: -1.2,
+    color: colors.text,
+    fontFamily: fonts.uiBold,
+    fontSize: 20,
+    letterSpacing: -0.4,
   },
   latestCountChip: {
     minWidth: 28,
@@ -1897,7 +1821,7 @@ const styles = StyleSheet.create({
   },
   latestSubhead: {
     color: '#5C6478',
-    fontFamily: fonts.articleItalic,
+    fontFamily: fonts.uiRegular,
     fontSize: 13,
     lineHeight: 18,
     flex: 1,
@@ -1906,13 +1830,13 @@ const styles = StyleSheet.create({
   latestSeeAll: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 2,
     flexShrink: 0,
   },
   latestSeeAllText: {
     color: colors.primary,
     fontFamily: fonts.uiBold,
-    fontSize: 12.5,
+    fontSize: 13,
     letterSpacing: -0.1,
   },
   latestRuleHeavy: {
@@ -2392,7 +2316,19 @@ const styles = StyleSheet.create({
 
   // ── Local news editorial masthead ────────────────────────────────────────────
   localHeader: {
-    marginBottom: 16,
+    marginBottom: 14,
+    paddingHorizontal: 2,
+  },
+  localTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+  },
+  localAccentBar: {
+    width: 3,
+    height: 22,
+    borderRadius: 2,
+    backgroundColor: colors.primary,
   },
   localHeaderTopRow: {
     flexDirection: 'row',
@@ -2420,18 +2356,17 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   localHeaderTitle: {
-    color: '#0A0F1C',
-    fontFamily: fonts.articleBold,
-    fontSize: 28,
-    lineHeight: 32,
-    letterSpacing: -1.1,
+    color: colors.text,
+    fontFamily: fonts.uiBold,
+    fontSize: 20,
+    letterSpacing: -0.4,
   },
   localSubRow: {
     marginBottom: 12,
   },
   localSubhead: {
     color: '#5C6478',
-    fontFamily: fonts.articleItalic,
+    fontFamily: fonts.uiRegular,
     fontSize: 13,
     lineHeight: 18,
   },
