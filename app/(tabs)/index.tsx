@@ -2,7 +2,6 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import {
   AppState,
   InteractionManager,
-  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -535,114 +534,127 @@ const LocalNewsHeader = memo(function LocalNewsHeader() {
 });
 
 // ── HomeFooter ─────────────────────────────────────────────────────────────────
-const FOOTER_SOCIAL_LINKS = [
-  { label: 'Facebook', url: 'https://www.facebook.com/rtvfontanalive' },
-  { label: 'Instagram', url: 'https://www.instagram.com/rtvfontana/' },
-  { label: 'YouTube', url: 'https://www.youtube.com/@RTVFontana' },
-  { label: 'TikTok', url: 'https://www.tiktok.com/@rtvfontanalive' },
-] as const;
-
 const HomeFooter = memo(function HomeFooter() {
   const router = useRouter();
   return (
     <View style={styles.footerWrap}>
+      <View style={styles.footerRuleWrap}>
+        <View style={styles.footerRule} />
+        <View style={styles.footerRuleDot} />
+        <View style={styles.footerRule} />
+      </View>
+
       <View style={styles.footerCard}>
         <LinearGradient
-          colors={['#0f172a', '#1a2540', '#0f172a']}
+          colors={['#FFFFFF', '#FFF8F8', '#FFFFFF']}
+          locations={[0, 0.5, 1]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFillObject}
         />
-        {/* Decorative glow circles */}
-        <View style={styles.footerGlow1} pointerEvents="none" />
-        <View style={styles.footerGlow2} pointerEvents="none" />
-        {/* Red accent line at top */}
         <View style={styles.footerAccentLine} />
 
-        {/* Brand block */}
         <View style={styles.footerBrand}>
           <View style={styles.footerLogoWrap}>
             <Image source={appIdentity.logo} contentFit="cover" style={styles.footerLogo} />
           </View>
           <View style={styles.footerBrandText}>
-            <Text style={styles.footerStationLabel}>RTV FONTANA</Text>
-            <Text style={styles.footerFreqLine}>98.8 FM · Istog, Kosovë</Text>
-            <Text style={styles.footerTagline}>Lajmi lokal, zëri i qytetit.</Text>
-          </View>
-          <View style={styles.footerLivePill}>
-            <View style={styles.footerLiveDot} />
-            <Text style={styles.footerLiveText}>LIVE</Text>
+            <Text style={styles.footerStationLabel}>FUNDI I KRYEFAQES</Text>
+            <Text style={styles.footerFreqLine}>Radio Fontana</Text>
+            <Text style={styles.footerTagline}>Lajme të reja dhe radio live, gjatë gjithë ditës.</Text>
           </View>
         </View>
 
-        <View style={styles.footerInnerDivider} />
-
-        {/* Action row */}
-        <View style={styles.footerActionRow}>
-          <Pressable
-            style={({ pressed }) => [styles.footerActionBtn, pressed && styles.footerActionBtnPressed]}
-            onPress={() => Linking.openURL('tel:+38344150027').catch(() => undefined)}
-          >
-            <View style={styles.footerActionIcon}>
-              <Ionicons name="call" size={15} color="#FFFFFF" />
-            </View>
-            <Text style={styles.footerActionLabel}>Telefono</Text>
-          </Pressable>
-          <View style={styles.footerActionSep} />
-          <Pressable
-            style={({ pressed }) => [styles.footerActionBtn, pressed && styles.footerActionBtnPressed]}
-            onPress={() => Linking.openURL('mailto:rtvfontana@gmail.com').catch(() => undefined)}
-          >
-            <View style={styles.footerActionIcon}>
-              <Ionicons name="mail" size={15} color="#FFFFFF" />
-            </View>
-            <Text style={styles.footerActionLabel}>Email</Text>
-          </Pressable>
-          <View style={styles.footerActionSep} />
-          <Pressable
-            style={({ pressed }) => [styles.footerActionBtn, styles.footerActionBtnAccent, pressed && styles.footerActionBtnPressed]}
-            onPress={() => router.push('/(tabs)/live' as never)}
-          >
-            <View style={[styles.footerActionIcon, styles.footerActionIconRed]}>
-              <Ionicons name="radio" size={15} color="#FFFFFF" />
-            </View>
-            <Text style={styles.footerActionLabel}>Radio Live</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.footerInnerDivider} />
-
-        {/* Social grid */}
-        <View style={styles.footerSocialGrid}>
-          {FOOTER_SOCIAL_LINKS.map((link) => (
-            <Pressable
-              key={link.label}
-              style={({ pressed }) => [styles.footerSocialChip, pressed && styles.footerSocialChipPressed]}
-              onPress={() => Linking.openURL(link.url).catch(() => undefined)}
-            >
-              <Text style={styles.footerSocialLabel}>{link.label}</Text>
-            </Pressable>
-          ))}
-        </View>
+        <Pressable
+          style={({ pressed }) => [styles.footerLiveButton, pressed && styles.footerLiveButtonPressed]}
+          onPress={() => router.navigate('/(tabs)/live' as never)}
+        >
+          <View style={styles.footerLiveIcon}>
+            <Ionicons name="radio-outline" size={17} color={colors.primary} />
+          </View>
+          <View style={styles.footerLiveCopy}>
+            <Text style={styles.footerLiveButtonLabel}>Radio Live</Text>
+            <Text style={styles.footerLiveButtonSub}>98.8 FM · Istog</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={17} color={colors.textMuted} />
+        </Pressable>
       </View>
 
-      {/* Legal strip */}
-      <View style={styles.footerLegal}>
-        <Pressable
-          onPress={() => Linking.openURL('https://radiofontana.org/privacy').catch(() => undefined)}
-          style={({ pressed }) => pressed && { opacity: 0.6 }}
-        >
-          <Text style={styles.footerLegalLink}>Privatësia</Text>
-        </Pressable>
-        <Text style={styles.footerLegalDot}>·</Text>
-        <Pressable
-          onPress={() => Linking.openURL('https://radiofontana.org/terms').catch(() => undefined)}
-          style={({ pressed }) => pressed && { opacity: 0.6 }}
-        >
-          <Text style={styles.footerLegalLink}>Kushtet</Text>
-        </Pressable>
-        <View style={styles.footerLegalSpacer} />
-        <Text style={styles.footerCopy}>© {CURRENT_YEAR} RTV Fontana</Text>
+      <Text style={styles.footerCopy}>© {CURRENT_YEAR} RTV Fontana</Text>
+    </View>
+  );
+});
+
+// ── HomeTransitionBridge ──────────────────────────────────────────────────────
+// A premium editorial sign-off placed between the Lajmet Lokale rail and the
+// "Fundi i Kryefaqes" footer card. Concept: a centred newspaper colophon —
+// the typographic moment that tells the reader "this edition is complete".
+// The large "98.8" numeral is the station's identity anchor; the signal bars
+// evoke the broadcast itself.
+const BRIDGE_BARS = [5, 9, 15, 22, 15, 9, 5] as const;
+
+const HomeTransitionBridge = memo(function HomeTransitionBridge() {
+  const pulse = useSharedValue(0.42);
+  const isFocused = useIsFocused();
+  const reducedMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (!isFocused || reducedMotion) {
+      cancelAnimation(pulse);
+      pulse.value = 1;
+      return;
+    }
+    pulse.value = withRepeat(withTiming(1, { duration: 1700 }), -1, true);
+    return () => cancelAnimation(pulse);
+  }, [pulse, isFocused, reducedMotion]);
+
+  const dotStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
+
+  return (
+    <View style={styles.bridgeWrap}>
+      {/* ── Ornamental divider ───────────────────────────────────────────── */}
+      <View style={styles.bridgeOrnament}>
+        <View style={styles.bridgeOrnLine} />
+        <View style={styles.bridgeOrnDiamond} />
+        <View style={styles.bridgeOrnLine} />
+      </View>
+
+      {/* ── Live kicker ─────────────────────────────────────────────────── */}
+      <View style={styles.bridgeKicker}>
+        <Animated.View style={[styles.bridgeLiveDot, dotStyle]} />
+        <Text style={styles.bridgeKickerText}>PËR JU GJITHMONË</Text>
+      </View>
+
+      {/* ── Frequency numeral — the station's identity anchor ───────────── */}
+      <Text style={styles.bridgeFreq}>98.8</Text>
+      <Text style={styles.bridgeFreqUnit}>FM · ISTOG, KOSOVË</Text>
+
+      {/* ── Red accent rule ──────────────────────────────────────────────── */}
+      <View style={styles.bridgeRule} />
+
+      {/* ── Closing tagline ──────────────────────────────────────────────── */}
+      <Text style={styles.bridgeTagline}>
+        Gjithmonë me ju. Çdo ditë, çdo orë.
+      </Text>
+
+      {/* ── Signal strength bars ─────────────────────────────────────────── */}
+      <View style={styles.bridgeBars}>
+        {BRIDGE_BARS.map((h, i) => (
+          <View
+            key={i}
+            style={[
+              styles.bridgeBar,
+              {
+                height: h,
+                opacity:
+                  i === 3 ? 0.85
+                  : i === 2 || i === 4 ? 0.45
+                  : i === 1 || i === 5 ? 0.24
+                  : 0.13,
+              },
+            ]}
+          />
+        ))}
       </View>
     </View>
   );
@@ -1001,69 +1013,34 @@ const RadioLiveBanner = memo(function RadioLiveBanner({ onPress }: { onPress: ()
         accessibilityLabel="Dëgjo RTV Fontana live"
         style={styles.radioCardInner}
       >
+        {/* White left → warm rose → light crimson horizontal gradient */}
         <LinearGradient
-          colors={['#FFFFFF', '#FFF7F7', '#FEE2E2']}
-          locations={[0, 0.58, 1]}
+          colors={['#FFFFFF', '#FFFFFF', '#FFF1F1', '#FFDADA', '#FFC3C3']}
+          locations={[0, 0.36, 0.57, 0.78, 1.0]}
           start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+          end={{ x: 1, y: 0.08 }}
           style={StyleSheet.absoluteFillObject}
         />
+        {/* White left-zone vignette — keeps icon area crisp white */}
         <LinearGradient
-          colors={['rgba(220,38,38,0.035)', 'rgba(220,38,38,0.065)', 'rgba(220,38,38,0.12)']}
-          locations={[0, 0.58, 1]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+          colors={['rgba(255,255,255,0.96)', 'rgba(255,255,255,0.52)', 'rgba(255,255,255,0)']}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 0.45, y: 0.5 }}
           style={StyleSheet.absoluteFillObject}
         />
-        <View style={styles.radioBridgeWash} />
-        <View style={styles.radioDiagonalPanel} />
         <Animated.View style={[styles.radioSignalSweep, signalSweepStyle]} pointerEvents="none" />
         <View style={styles.radioAccentLine} />
+        {/* Hairline zone-divider between white and rose panels */}
+        <LinearGradient
+          colors={['rgba(220,38,38,0)', 'rgba(220,38,38,0.11)', 'rgba(220,38,38,0)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.radioZoneDivider}
+          pointerEvents="none"
+        />
+        <Text style={styles.radioFreqBg} numberOfLines={1}>98.8</Text>
 
-        <View style={styles.radioLeft}>
-          <View style={styles.radioTopLine}>
-            <View style={styles.liveBadge}>
-              <Animated.View style={[styles.liveDot, liveDotStyle]} />
-              <Text style={styles.radioEyebrow}>NË TRANSMETIM</Text>
-            </View>
-            <View style={styles.radioFrequencyChip}>
-              <Text style={styles.radioFrequencyChipText}>98.8 FM</Text>
-            </View>
-          </View>
-          <Text style={styles.radioName}>Radio Fontana</Text>
-          <Text style={styles.radioMeta}>Istog, Kosovë</Text>
-          <View style={styles.radioCtaRow}>
-            <LinearGradient
-              colors={[BANNER_RED, BANNER_RED_DEEP]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.radioCtaButton}
-            >
-              <Text style={styles.radioCta}>Dëgjo tani</Text>
-              <Animated.View style={arrowStyle}>
-                <Ionicons name="arrow-forward" size={s(14)} color="#FFFFFF" />
-              </Animated.View>
-            </LinearGradient>
-          </View>
-        </View>
-
-        <View style={styles.radioRight}>
-          <LinearGradient
-            colors={['rgba(255,255,255,0)', 'rgba(254,242,242,0.50)', 'rgba(254,226,226,0.75)']}
-            locations={[0, 0.52, 1]}
-            start={{ x: 0, y: 0.45 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFillObject}
-          />
-          <View style={styles.radioRightGrid} pointerEvents="none" />
-          <View style={styles.radioWaveRow} pointerEvents="none">
-            <Animated.View style={[styles.radioWaveBar, styles.radioWaveBarSmall, waveBar1Style]} />
-            <Animated.View style={[styles.radioWaveBar, styles.radioWaveBarMid, waveBar2Style]} />
-            <Animated.View style={[styles.radioWaveBar, styles.radioWaveBarTall, waveBar3Style]} />
-            <Animated.View style={[styles.radioWaveBar, styles.radioWaveBarMid, waveBar4Style]} />
-            <Animated.View style={[styles.radioWaveBar, styles.radioWaveBarSmall, waveBar5Style]} />
-          </View>
-          <Text style={styles.radioFreqBg} numberOfLines={1}>LIVE</Text>
+        <View style={styles.radioContent}>
           <View style={styles.iconAndRingsContainer}>
             <Animated.View style={[styles.signalRing, styles.signalRingFaint, ring4Style]} />
             <Animated.View style={[styles.signalRing, styles.signalRingSoft, ring3Style]} />
@@ -1074,6 +1051,37 @@ const RadioLiveBanner = memo(function RadioLiveBanner({ onPress }: { onPress: ()
                 <Image source={appIdentity.logo} contentFit="cover" style={styles.radioLogoMark} />
               </View>
             </View>
+          </View>
+
+          <View style={styles.radioLeft}>
+            <View style={styles.radioTopLine}>
+              <View style={styles.liveBadge}>
+                <Animated.View style={[styles.liveDot, liveDotStyle]} />
+                <Text style={styles.radioEyebrow} numberOfLines={1}>NË TRANSMETIM</Text>
+              </View>
+              <View style={styles.radioFrequencyChip}>
+                <Text style={styles.radioFrequencyChipText}>98.8 FM</Text>
+              </View>
+            </View>
+            <Text style={styles.radioName} numberOfLines={1}>Radio Fontana</Text>
+            <Text style={styles.radioMeta} numberOfLines={1}>Istog, Kosovë · program radio live</Text>
+            <View style={styles.radioWaveRow} pointerEvents="none">
+              <Animated.View style={[styles.radioWaveBar, styles.radioWaveBarSmall, waveBar1Style]} />
+              <Animated.View style={[styles.radioWaveBar, styles.radioWaveBarMid, waveBar2Style]} />
+              <Animated.View style={[styles.radioWaveBar, styles.radioWaveBarTall, waveBar3Style]} />
+              <Animated.View style={[styles.radioWaveBar, styles.radioWaveBarMid, waveBar4Style]} />
+              <Animated.View style={[styles.radioWaveBar, styles.radioWaveBarSmall, waveBar5Style]} />
+              <Text style={styles.radioWaveText}>sinjal aktiv</Text>
+            </View>
+          </View>
+
+          <View style={styles.radioRight}>
+            <View style={styles.radioPlayCircle}>
+              <Animated.View style={arrowStyle}>
+                <Ionicons name="play" size={s(17)} color="#FFFFFF" />
+              </Animated.View>
+            </View>
+            <Text style={styles.radioOpenLabel}>Hape</Text>
           </View>
         </View>
       </Pressable>
@@ -1105,7 +1113,7 @@ export default function HomeScreen() {
   const searchInputRef = useRef<TextInput>(null);
 
   const headerHeight = insets.top + 66;
-  const bottomInsetOffset = insets.bottom + 208;
+  const bottomInsetOffset = 4;
 
   const latestSkeleton = useMemo(
     () => Array.from({ length: 6 }, (_, i) => ({ _skeleton: `sk-${i}` })),
@@ -1330,6 +1338,10 @@ export default function HomeScreen() {
     router.navigate('/(tabs)/live' as never);
   }, [router]);
 
+  const onOpenNewsPage = useCallback(() => {
+    router.navigate('/(tabs)/news' as never);
+  }, [router]);
+
   // ── Render helpers ──────────────────────────────────────────────────────────
   const renderGridItem = useCallback(
     ({ item, index }: ListRenderItemInfo<LatestGridItem>) => {
@@ -1394,11 +1406,11 @@ export default function HomeScreen() {
         </View>
 
         {/* ── LAJMET E FUNDIT — bespoke editorial masthead ────── */}
-        <LatestNewsHeader count={latestData.length} onSeeAll={onHeaderSearch} />
+        <LatestNewsHeader count={latestData.length} onSeeAll={onOpenNewsPage} />
       </View>
       );
     },
-    [hero, heroImageUri, heroQuery.isLoading, bannerVisible, onPressPost, onHeaderSearch, onPressLive, latestData.length],
+    [hero, heroImageUri, heroQuery.isLoading, bannerVisible, onPressPost, onOpenNewsPage, onPressLive, latestData.length],
   );
 
   // ── List footer: Lokale → Footer ──────────────────────────────────────────
@@ -1439,6 +1451,9 @@ export default function HomeScreen() {
             </View>
           )}
         </View>
+
+        {/* ── TRANSITION BRIDGE ──────────────────────────── */}
+        <HomeTransitionBridge />
 
         {/* ── FOOTER ─────────────────────────────────────── */}
         <HomeFooter />
@@ -1764,168 +1779,118 @@ const styles = StyleSheet.create({
   radioCard: {
     marginHorizontal: 12,
     marginBottom: 14,
-    borderRadius: s(22),
+    borderRadius: s(24),
     backgroundColor: '#FFFFFF',
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.18,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 7,
+    shadowColor: BANNER_RED,
+    shadowOpacity: 0.14,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
   },
   radioCardInner: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
     overflow: 'hidden',
-    borderRadius: s(22),
-    minHeight: s(130),
+    borderRadius: s(24),
+    minHeight: s(122),
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(15,23,42,0.08)',
-  },
-  radioBridgeWash: {
-    position: 'absolute',
-    top: -s(12),
-    bottom: -s(12),
-    right: s(70),
-    width: s(132),
-    borderRadius: s(80),
-    backgroundColor: 'rgba(254,226,226,0.34)',
-    transform: [{ rotate: '13deg' }],
-  },
-  radioDiagonalPanel: {
-    position: 'absolute',
-    top: -s(38),
-    right: s(86),
-    width: s(84),
-    height: s(220),
-    backgroundColor: 'rgba(255,255,255,0.34)',
-    transform: [{ rotate: '16deg' }],
+    borderColor: 'rgba(220,38,38,0.18)',
   },
   radioAccentLine: {
     position: 'absolute',
-    top: 0,
     left: 0,
-    right: 0,
-    height: 3,
+    top: s(18),
+    bottom: s(18),
+    width: 3,
+    borderTopRightRadius: 3,
+    borderBottomRightRadius: 3,
     backgroundColor: BANNER_RED,
+  },
+  radioZoneDivider: {
+    position: 'absolute',
+    left: '43%',
+    width: StyleSheet.hairlineWidth,
+    top: s(16),
+    bottom: s(16),
+  },
+  radioContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s(13),
+    paddingTop: s(16),
+    paddingBottom: s(15),
+    paddingLeft: s(16),
+    paddingRight: s(13),
+    minHeight: s(122),
   },
   radioLeft: {
     flex: 1,
-    paddingTop: s(17),
-    paddingBottom: s(15),
-    paddingLeft: s(18),
-    paddingRight: s(12),
-    justifyContent: 'center',
+    minWidth: 0,
   },
   radioTopLine: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: s(10),
-    marginBottom: s(9),
+    gap: s(7),
+    marginBottom: s(7),
   },
   liveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: s(6),
+    borderRadius: 999,
+    backgroundColor: 'rgba(220,38,38,0.08)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(220,38,38,0.18)',
+    paddingHorizontal: s(8),
+    paddingVertical: s(4),
     flexShrink: 1,
   },
   liveDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
     backgroundColor: BANNER_RED,
   },
   radioEyebrow: {
     fontFamily: fonts.uiBold,
-    fontSize: ms(10),
+    fontSize: ms(9),
     color: BANNER_RED,
-    letterSpacing: 1.6,
+    letterSpacing: 1.25,
     textTransform: 'uppercase',
   },
   radioFrequencyChip: {
     borderRadius: 999,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: 'rgba(255,255,255,0.76)',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(220,38,38,0.22)',
+    borderColor: 'rgba(15,23,42,0.08)',
     paddingHorizontal: s(8),
     paddingVertical: s(4),
+    flexShrink: 0,
   },
   radioFrequencyChipText: {
     fontFamily: fonts.uiBold,
-    fontSize: ms(10),
+    fontSize: ms(9.5),
     color: BANNER_RED_DEEP,
     letterSpacing: 0.4,
   },
   radioName: {
     fontFamily: fonts.uiBold,
-    fontSize: ms(24),
+    fontSize: ms(22),
     color: colors.navy,
-    letterSpacing: -0.45,
-    lineHeight: ms(29),
+    letterSpacing: -0.55,
+    lineHeight: ms(26),
     marginBottom: s(2),
   },
   radioMeta: {
     fontFamily: fonts.uiRegular,
-    fontSize: ms(13),
-    color: colors.textMuted,
-    lineHeight: ms(17),
-    marginBottom: s(12),
-  },
-  radioCtaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  radioCtaButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: s(7),
-    borderRadius: 999,
-    paddingHorizontal: s(15),
-    paddingVertical: s(8),
-    shadowColor: BANNER_RED,
-    shadowOpacity: 0.26,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
-  },
-  radioCta: {
-    fontFamily: fonts.uiBold,
     fontSize: ms(12.5),
-    color: '#FFFFFF',
-    letterSpacing: 0.1,
-  },
-  radioRight: {
-    width: s(122),
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  radioRightGrid: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    width: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(220,38,38,0.04)',
-  },
-  radioSignalSweep: {
-    position: 'absolute',
-    top: -s(18),
-    bottom: -s(18),
-    left: 0,
-    width: s(16),
-    borderRadius: s(12),
-    backgroundColor: 'rgba(220,38,38,0.12)',
+    color: colors.textMuted,
+    lineHeight: ms(16),
+    marginBottom: s(9),
   },
   radioWaveRow: {
-    position: 'absolute',
-    top: s(14),
-    right: s(12),
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    opacity: 0.34,
+    opacity: 0.72,
   },
   radioWaveBar: {
     width: 3,
@@ -1933,23 +1898,63 @@ const styles = StyleSheet.create({
     backgroundColor: BANNER_RED,
   },
   radioWaveBarSmall: {
-    height: 12,
+    height: 9,
   },
   radioWaveBarMid: {
-    height: 20,
+    height: 15,
   },
   radioWaveBarTall: {
-    height: 30,
+    height: 21,
+  },
+  radioWaveText: {
+    marginLeft: s(5),
+    color: colors.textFaint,
+    fontFamily: fonts.uiMedium,
+    fontSize: ms(10.5),
+  },
+  radioRight: {
+    width: s(54),
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: s(6),
+  },
+  radioPlayCircle: {
+    width: s(44),
+    height: s(44),
+    borderRadius: s(22),
+    backgroundColor: BANNER_RED,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: BANNER_RED,
+    shadowOpacity: 0.42,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 7,
+  },
+  radioOpenLabel: {
+    color: BANNER_RED_DEEP,
+    fontFamily: fonts.uiBold,
+    fontSize: ms(10.5),
+    letterSpacing: 0.25,
+  },
+  radioSignalSweep: {
+    position: 'absolute',
+    top: -s(18),
+    bottom: -s(18),
+    left: 0,
+    width: s(10),
+    borderRadius: s(12),
+    backgroundColor: 'rgba(220,38,38,0.08)',
   },
   radioFreqBg: {
     position: 'absolute',
-    bottom: -s(3),
-    right: s(9),
-    fontSize: s(32),
+    bottom: -s(6),
+    right: s(58),
+    fontSize: s(42),
     fontFamily: fonts.uiBold,
     color: BANNER_RED,
-    opacity: 0.08,
-    letterSpacing: 1.5,
+    opacity: 0.07,
+    letterSpacing: 3,
   },
   iconAndRingsContainer: {
     width: BANNER_ICON_SIZE,
@@ -1987,10 +1992,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: BANNER_RED,
-    shadowOpacity: 0.16,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 5,
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
   radioLogoPlate: {
     width: BANNER_ICON_SIZE - s(7),
@@ -2660,218 +2665,146 @@ const styles = StyleSheet.create({
 
   // ── Footer ───────────────────────────────────────────────────────────────────
   footerWrap: {
-    marginTop: 24,
-    paddingBottom: 8,
-    gap: 0,
+    marginTop: 26,
+    paddingBottom: 0,
+  },
+  footerRuleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  footerRule: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(15,23,42,0.12)',
+  },
+  footerRuleDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: colors.primary,
   },
   footerCard: {
-    borderRadius: 24,
+    borderRadius: 20,
     overflow: 'hidden',
-    padding: 20,
-    marginBottom: 14,
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.28,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 14 },
-    elevation: 12,
-  },
-  footerGlow1: {
-    position: 'absolute',
-    right: -s(40),
-    top: -s(40),
-    width: s(180),
-    height: s(180),
-    borderRadius: s(90),
-    backgroundColor: 'rgba(220,38,38,0.12)',
-  },
-  footerGlow2: {
-    position: 'absolute',
-    left: -s(30),
-    bottom: -s(30),
-    width: s(140),
-    height: s(140),
-    borderRadius: s(70),
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    padding: 16,
+    marginBottom: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(220,38,38,0.14)',
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
   footerAccentLine: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: 3,
+    height: 2,
     backgroundColor: '#DC2626',
   },
   footerBrand: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 13,
-    marginTop: 6,
-    marginBottom: 18,
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 4,
+    marginBottom: 14,
   },
   footerLogoWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.15)',
+    borderColor: 'rgba(15,23,42,0.10)',
     overflow: 'hidden',
     flexShrink: 0,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.10,
+    shadowRadius: 9,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
   footerLogo: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
   },
   footerBrandText: {
     flex: 1,
+    minWidth: 0,
     gap: 2,
   },
   footerStationLabel: {
-    color: 'rgba(255,255,255,0.5)',
+    color: colors.primary,
     fontFamily: fonts.uiBold,
-    fontSize: 9.5,
-    letterSpacing: 2.0,
+    fontSize: 9,
+    letterSpacing: 1.6,
   },
   footerFreqLine: {
-    color: '#FFFFFF',
+    color: colors.text,
     fontFamily: fonts.uiBold,
-    fontSize: 17,
+    fontSize: 16,
     letterSpacing: -0.3,
-    lineHeight: 22,
+    lineHeight: 20,
   },
   footerTagline: {
-    color: 'rgba(255,255,255,0.55)',
+    color: colors.textMuted,
     fontFamily: fonts.uiRegular,
     fontSize: 12,
-    lineHeight: 17,
+    lineHeight: 16,
     marginTop: 2,
   },
-  footerLivePill: {
+  footerLiveButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(220,38,38,0.22)',
-    borderRadius: 999,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(220,38,38,0.4)',
-    alignSelf: 'flex-start',
-    flexShrink: 0,
-  },
-  footerLiveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#DC2626',
-  },
-  footerLiveText: {
-    color: '#ff6b6b',
-    fontFamily: fonts.uiBold,
-    fontSize: 10,
-    letterSpacing: 1.2,
-  },
-  footerInnerDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    marginVertical: 14,
-    marginHorizontal: -4,
-  },
-  footerActionRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  footerActionSep: {
-    width: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-  },
-  footerActionBtn: {
-    flex: 1,
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 12,
+    gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.78)',
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    paddingHorizontal: 12,
+    paddingVertical: 11,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.10)',
+    borderColor: 'rgba(220,38,38,0.16)',
   },
-  footerActionBtnAccent: {
-    backgroundColor: 'rgba(220,38,38,0.22)',
-    borderColor: 'rgba(220,38,38,0.35)',
+  footerLiveButtonPressed: {
+    opacity: 0.78,
+    backgroundColor: colors.redTint,
   },
-  footerActionBtnPressed: {
-    opacity: 0.75,
-  },
-  footerActionIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.10)',
+  footerLiveIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    backgroundColor: colors.redTint,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  footerActionIconRed: {
-    backgroundColor: 'rgba(220,38,38,0.30)',
-  },
-  footerActionLabel: {
-    color: 'rgba(255,255,255,0.82)',
-    fontFamily: fonts.uiBold,
-    fontSize: 11,
-    letterSpacing: 0.1,
-  },
-  footerSocialGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  footerSocialChip: {
+  footerLiveCopy: {
     flex: 1,
-    minWidth: '46%',
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.10)',
   },
-  footerSocialChipPressed: {
-    backgroundColor: 'rgba(255,255,255,0.14)',
+  footerLiveButtonLabel: {
+    color: colors.text,
+    fontFamily: fonts.uiBold,
+    fontSize: 13,
+    lineHeight: 16,
   },
-  footerSocialLabel: {
-    color: 'rgba(255,255,255,0.78)',
-    fontFamily: fonts.uiMedium,
-    fontSize: 12,
-    letterSpacing: 0.1,
-  },
-  footerLegal: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 4,
-    paddingBottom: 4,
-  },
-  footerLegalLink: {
+  footerLiveButtonSub: {
     color: colors.textMuted,
     fontFamily: fonts.uiMedium,
-    fontSize: 11.5,
-    textDecorationLine: 'underline',
-  },
-  footerLegalDot: {
-    color: colors.textFaint,
     fontSize: 11,
-  },
-  footerLegalSpacer: {
-    flex: 1,
+    lineHeight: 14,
+    marginTop: 1,
   },
   footerCopy: {
     color: colors.textMuted,
     fontFamily: fonts.uiRegular,
     fontSize: 11.5,
+    textAlign: 'center',
   },
 
   // ── Search ───────────────────────────────────────────────────────────────────
@@ -2961,5 +2894,89 @@ const styles = StyleSheet.create({
     fontFamily: fonts.uiRegular,
     fontSize: 12,
     lineHeight: 17,
+  },
+
+  // ── HomeTransitionBridge ─────────────────────────────────────────────────────
+  bridgeWrap: {
+    marginTop: 32,
+    marginBottom: 6,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  bridgeOrnament: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    gap: 10,
+    marginBottom: 30,
+  },
+  bridgeOrnLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(15,23,42,0.12)',
+  },
+  bridgeOrnDiamond: {
+    width: 8,
+    height: 8,
+    backgroundColor: '#DC2626',
+    transform: [{ rotate: '45deg' }],
+  },
+  bridgeKicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 14,
+  },
+  bridgeLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#DC2626',
+  },
+  bridgeKickerText: {
+    color: '#DC2626',
+    fontFamily: fonts.uiBold,
+    fontSize: 10,
+    letterSpacing: 2.4,
+  },
+  bridgeFreq: {
+    color: '#0F172A',
+    fontFamily: fonts.uiBold,
+    fontSize: 56,
+    letterSpacing: -2.5,
+    lineHeight: 62,
+    marginBottom: 2,
+  },
+  bridgeFreqUnit: {
+    color: '#94A3B8',
+    fontFamily: fonts.uiMedium,
+    fontSize: 11.5,
+    letterSpacing: 1.8,
+    marginBottom: 22,
+  },
+  bridgeRule: {
+    width: 32,
+    height: 2,
+    backgroundColor: '#DC2626',
+    borderRadius: 1,
+    marginBottom: 18,
+  },
+  bridgeTagline: {
+    color: '#94A3B8',
+    fontFamily: fonts.uiRegular,
+    fontSize: 13.5,
+    lineHeight: 21,
+    textAlign: 'center',
+    marginBottom: 28,
+  },
+  bridgeBars: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 5,
+  },
+  bridgeBar: {
+    width: 4,
+    borderRadius: 2,
+    backgroundColor: '#DC2626',
   },
 });
