@@ -121,12 +121,6 @@ const PERSIST_OPTIONS = {
 
 const ROOT_STACK_SCREEN_OPTIONS = { headerShown: false, animation: 'fade' } as const;
 
-const PLAYER_SCREEN_OPTIONS = {
-  presentation: 'modal',
-  animation: 'slide_from_bottom',
-  gestureEnabled: true,
-} as const;
-
 export default function RootLayout() {
   const [showLaunchSplash, setShowLaunchSplash] = useState(true);
   const [nativeSplashHidden, setNativeSplashHidden] = useState(false);
@@ -164,7 +158,6 @@ export default function RootLayout() {
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="rreth-nesh" />
                 <Stack.Screen name="na-kontakto" />
-                <Stack.Screen name="player" options={PLAYER_SCREEN_OPTIONS} />
               </Stack>
 
               {showLaunchSplash ? (

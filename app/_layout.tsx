@@ -223,12 +223,6 @@ const ROOT_STACK_SCREEN_OPTIONS = {
   contentStyle: { backgroundColor: colors.surface },
 } as const;
 
-const PLAYER_SCREEN_OPTIONS = {
-  presentation: 'modal',
-  animation: 'slide_from_bottom',
-  gestureEnabled: true,
-} as const;
-
 // +not-found should never be visible — it just <Redirect>s to home. Disabling
 // the animation prevents a brief flash of an empty fade transition when the
 // OS delivers an unhandled deep link.
@@ -372,7 +366,6 @@ export default function RootLayout() {
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="rreth-nesh" />
                 <Stack.Screen name="na-kontakto" />
-                <Stack.Screen name="player" options={PLAYER_SCREEN_OPTIONS} />
                 {/* Catch-all for OS-delivered deep links the app does not handle
                     (e.g. radiofontana://notification.click on Samsung One UI).
                     The +not-found route silently redirects to home. */}
