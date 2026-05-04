@@ -12,6 +12,8 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
+// NOTE: logo intentionally has NO entrance animation — it must be visible
+// the instant the splash mounts. Only the progress bar / shimmer animate.
 import { LinearGradient } from 'expo-linear-gradient';
 import { appIdentity } from '../../constants/tokens';
 
@@ -27,8 +29,8 @@ const BAR_GAP = 28;
 // A short shimmer band slides across the filled portion repeatedly
 const SHIMMER_WIDTH = 60;
 
-const COLD_START_MIN_SPLASH_MS = 1600;
-const COLD_START_MAX_SPLASH_MS = 2600;
+const COLD_START_MIN_SPLASH_MS = 2400;
+const COLD_START_MAX_SPLASH_MS = 3400;
 const EXIT_DURATION = 220;
 
 type LaunchSplashProps = {
@@ -38,8 +40,6 @@ type LaunchSplashProps = {
 
 // ─── LaunchSplash ─────────────────────────────────────────────────────────────
 export function LaunchSplash({ onComplete, isContentReady = false }: LaunchSplashProps) {
-  const logoOpacity = useSharedValue(0);
-  const logoTranslate = useSharedValue(6);
   const progress = useSharedValue(0);
   const shimmerX = useSharedValue(-SHIMMER_WIDTH);
   const screenOpacity = useSharedValue(1);
@@ -48,10 +48,6 @@ export function LaunchSplash({ onComplete, isContentReady = false }: LaunchSplas
   const mountedAtRef = useRef(Date.now());
 
   useEffect(() => {
-    // Logo: gentle fade-up — calm, no spring overshoot.
-    logoOpacity.value = withTiming(1, { duration: 460, easing: Easing.out(Easing.cubic) });
-    logoTranslate.value = withTiming(0, { duration: 460, easing: Easing.out(Easing.cubic) });
-
     // Progress bar fills smoothly across the minimum splash window.
     progress.value = withDelay(
       120,
@@ -86,8 +82,6 @@ export function LaunchSplash({ onComplete, isContentReady = false }: LaunchSplas
     );
 
     return () => {
-      cancelAnimation(logoOpacity);
-      cancelAnimation(logoTranslate);
       cancelAnimation(progress);
       cancelAnimation(shimmerX);
       cancelAnimation(screenOpacity);
@@ -117,10 +111,6 @@ export function LaunchSplash({ onComplete, isContentReady = false }: LaunchSplas
   }, [isContentReady, screenOpacity, onComplete]);
 
   const screenStyle = useAnimatedStyle(() => ({ opacity: screenOpacity.value }));
-  const logoStyle = useAnimatedStyle(() => ({
-    opacity: logoOpacity.value,
-    transform: [{ translateY: logoTranslate.value }],
-  }));
   const progressFillStyle = useAnimatedStyle(() => ({
     width: interpolate(progress.value, [0, 1], [0, BAR_WIDTH]),
   }));
@@ -131,14 +121,14 @@ export function LaunchSplash({ onComplete, isContentReady = false }: LaunchSplas
   return (
     <Animated.View style={[styles.screen, screenStyle]}>
       <View style={styles.stack}>
-        <Animated.View style={[styles.logoWrap, logoStyle]}>
+        <View style={styles.logoWrap}>
           <Image
             source={appIdentity.logo}
             contentFit="contain"
             style={styles.logo}
             cachePolicy="memory"
           />
-        </Animated.View>
+        </View>
 
         {/* Animated progress bar — fills with a moving shimmer highlight */}
         <View style={styles.progressTrack} pointerEvents="none">
