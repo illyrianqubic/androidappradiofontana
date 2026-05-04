@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Tabs, useRouter } from 'expo-router';
+import { Tabs } from 'expo-router';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 // A-3: deep import skips loading all other icon sets' glyph maps.
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -28,7 +28,6 @@ const TAB_LABELS: Record<TabRoute, string> = {
 
 function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const safeBottom = Math.max(insets.bottom, 10);
 
   return (
@@ -46,9 +45,16 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
             .then((Haptics) => Haptics.selectionAsync())
             .catch(() => undefined);
 
-          // BUGFIX: Lajme tab must always land on listing, not a previously-opened article.
+          // Always land on the news listing, never a stale open article.
+          // Previously used router.replace('/news') which dispatched StackActions.replace
+          // on the ROOT navigator, wiping the parent navigation state. After that,
+          // the CommonActions.navigate dispatch from the Home screen (openPost) could
+          // no longer attach the nested [slug] route — only the tab switch fired and
+          // the article never opened. Fix: navigate within the tabs navigator itself,
+          // passing screen:'index' so the news stack pops any open article back to the
+          // listing before switching, without touching the root stack at all.
           if (name === 'news') {
-            router.replace('/news' as never);
+            navigation.navigate('news', { screen: 'index' } as never);
             return;
           }
 
