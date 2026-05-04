@@ -11,6 +11,8 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { CommonActions, useNavigation } from '@react-navigation/native';
+import type { NavigationState } from '@react-navigation/native';
 // A-3: deep import skips loading all other icon sets' glyph maps.
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
@@ -756,6 +758,7 @@ const RadioLiveBanner = memo(function RadioLiveBanner({ onPress }: { onPress: ()
 // ── HomeScreen ─────────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const [isSearchActive, setIsSearchActive] = useState(false);
@@ -916,20 +919,46 @@ export default function HomeScreen() {
         queryFn: ({ signal }) => fetchPostBySlug(post.slug, signal),
         staleTime: Infinity,
       });
-      // FIX: open the tapped article via router.push. Expo Router honors the
-      // news stack's `unstable_settings.initialRouteName = 'index'`, so the
-      // listing is placed on the stack first and then the article is pushed
-      // on top — back lands on Lajme, not on whatever was previously open.
+      // Navigate to the article from the home screen.
       //
-      // Previously we used `navigation.navigate('news', { screen: '[slug]', params })`,
-      // but on the FIRST tap (before the news tab had ever mounted), that
-      // nested-navigation API dropped the screen/params during the lazy
-      // mount of the stack, so the user saw the Lajme listing and had to
-      // tap a second time to actually open the article. router.push does
-      // not have that lazy-mount race.
-      router.push(`/(tabs)/news/${post.slug}` as never);
+      // Root cause of the "second tap only switches tabs" bug:
+      //   TabRouter.getStateForAction for NAVIGATE merges route params when the
+      //   target tab already has state. The nested `screen:'[slug]'` param is
+      //   stored on the route object but NEVER forwarded as a navigate action to
+      //   the inner StackRouter. So the tab switches (correct) but the stack
+      //   doesn't move (bug). This initial-state mechanism only fires on the very
+      //   first visit when the tab has no existing state.
+      //
+      // Fix (two-dispatch approach):
+      //   When the news stack already exists (has a key), dispatch TWO synchronous
+      //   actions that React Navigation batches into one state commit:
+      //     1. Focus the news tab.
+      //     2. Navigate within the news stack by targeting it directly via its key.
+      //   When the news stack doesn't exist yet (first visit), fall back to the
+      //   single-dispatch initial-state approach which still works correctly.
+      const tabsState = navigation.getState();
+      const newsRoute = tabsState?.routes?.find((r) => r.name === 'news');
+      const newsStackKey = (newsRoute?.state as NavigationState | undefined)?.key;
+
+      if (newsStackKey) {
+        // Step 1: focus the tab (no-op if already focused).
+        navigation.dispatch(CommonActions.navigate({ name: 'news' }));
+        // Step 2: navigate within the news stack directly, bypassing TabRouter.
+        navigation.dispatch({
+          ...CommonActions.navigate({ name: '[slug]', params: { slug: post.slug } }),
+          target: newsStackKey,
+        });
+      } else {
+        // First visit — tab uninitialized, initial-state mechanism handles nesting.
+        navigation.dispatch(
+          CommonActions.navigate({
+            name: 'news',
+            params: { screen: '[slug]', initial: false, params: { slug: post.slug } },
+          }),
+        );
+      }
     },
-    [router, queryClient],
+    [navigation, queryClient, router],
   );
 
   // AUDIT FIX P2.6: after the home screen has been idle for 2 s, warm up
