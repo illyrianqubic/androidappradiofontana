@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   BackHandler,
+  InteractionManager,
   Linking,
   Platform,
   Pressable,
@@ -53,13 +54,32 @@ const CLOSE_DURATION = 160;
 
 export function HamburgerDrawer() {
   const { isOpen } = useDrawer();
-  const [hasOpened, setHasOpened] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
 
+  // Eagerly pre-mount the drawer once the home screen's initial queries +
+  // FlashList grid have settled. Without this, the very first tap on the
+  // hamburger has to (a) build the entire drawer tree AND (b) drive the
+  // slide animation in the same frame while the JS thread is still busy
+  // hydrating home — on slower Android devices that can stall the open
+  // animation for several seconds ("opens just a bit, then jumps open
+  // later"). Pre-mounting makes the first tap pure animation work.
   useEffect(() => {
-    if (isOpen && !hasOpened) setHasOpened(true);
-  }, [isOpen, hasOpened]);
+    if (hasMounted) return undefined;
+    const handle = InteractionManager.runAfterInteractions(() => {
+      setHasMounted(true);
+    });
+    return () => {
+      // RN typings: cancel exists on the returned handle.
+      handle?.cancel?.();
+    };
+  }, [hasMounted]);
 
-  if (!hasOpened) return null;
+  // Safety net: if the user somehow taps before idle fires, mount immediately.
+  useEffect(() => {
+    if (isOpen && !hasMounted) setHasMounted(true);
+  }, [isOpen, hasMounted]);
+
+  if (!hasMounted) return null;
   return <HamburgerDrawerInner />;
 }
 
