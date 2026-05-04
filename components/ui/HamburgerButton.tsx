@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import Animated, {
+  cancelAnimation,
   interpolateColor,
   useAnimatedStyle,
   useSharedValue,
@@ -19,7 +20,21 @@ export function HamburgerButton() {
   // spurious mid-animation restarts and "opens halfway" on Galaxy A-series.
   const progress = useSharedValue(0);
   useEffect(() => {
+    // cancelAnimation guarantees a stale/interrupted tween from a previous
+    // toggle (e.g. a screen-freeze during navigation) cannot leave the icon
+    // stuck at progress=1 (red X) when isOpen has already gone false.
+    cancelAnimation(progress);
     progress.value = withTiming(isOpen ? 1 : 0, { duration: 200 });
+    if (!isOpen) {
+      // Belt-and-suspenders: snap to hamburger after the animation window
+      // in case the worklet was suppressed mid-flight by a frozen screen.
+      const id = setTimeout(() => {
+        cancelAnimation(progress);
+        progress.value = 0;
+      }, 260);
+      return () => clearTimeout(id);
+    }
+    return undefined;
   }, [isOpen, progress]);
 
   const topStyle = useAnimatedStyle(() => ({

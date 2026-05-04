@@ -120,40 +120,43 @@ export function LaunchSplash({ onComplete, isContentReady = false }: LaunchSplas
 
   return (
     <Animated.View style={[styles.screen, screenStyle]}>
-      <View style={styles.stack}>
-        <View style={styles.logoWrap}>
-          <Image
-            source={appIdentity.logo}
-            contentFit="contain"
-            style={styles.logo}
-            cachePolicy="memory"
-          />
-        </View>
+      {/* Logo is absolutely centered to match the native Android splash
+          position exactly (expo-splash-screen with imageWidth=184). This
+          prevents the logo from "jumping" when the native splash hands
+          off to the JS splash. */}
+      <View style={styles.logoWrap} pointerEvents="none">
+        <Image
+          source={appIdentity.logo}
+          contentFit="contain"
+          style={styles.logo}
+          cachePolicy="memory"
+        />
+      </View>
 
-        {/* Animated progress bar — fills with a moving shimmer highlight */}
-        <View style={styles.progressTrack} pointerEvents="none">
-          <Animated.View style={[styles.progressFill, progressFillStyle]}>
+      {/* Progress bar sits a short distance below the logo. Absolutely
+          positioned so the logo's center remains exactly at screen-center. */}
+      <View style={styles.progressTrack} pointerEvents="none">
+        <Animated.View style={[styles.progressFill, progressFillStyle]}>
+          <LinearGradient
+            colors={[PRIMARY, PRIMARY_SOFT, PRIMARY]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={StyleSheet.absoluteFill}
+          />
+          {/* Bright shimmer band sliding across the filled portion */}
+          <Animated.View style={[styles.shimmer, shimmerStyle]}>
             <LinearGradient
-              colors={[PRIMARY, PRIMARY_SOFT, PRIMARY]}
+              colors={[
+                'rgba(255,255,255,0)',
+                'rgba(255,255,255,0.55)',
+                'rgba(255,255,255,0)',
+              ]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={StyleSheet.absoluteFill}
             />
-            {/* Bright shimmer band sliding across the filled portion */}
-            <Animated.View style={[styles.shimmer, shimmerStyle]}>
-              <LinearGradient
-                colors={[
-                  'rgba(255,255,255,0)',
-                  'rgba(255,255,255,0.55)',
-                  'rgba(255,255,255,0)',
-                ]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={StyleSheet.absoluteFill}
-              />
-            </Animated.View>
           </Animated.View>
-        </View>
+        </Animated.View>
       </View>
     </Animated.View>
   );
@@ -168,11 +171,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 120,
   },
-  stack: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   logoWrap: {
+    // Dead-center on screen — matches native splash position exactly.
+    position: 'absolute',
     width: LOGO_SIZE,
     height: LOGO_SIZE,
     alignItems: 'center',
@@ -183,7 +184,11 @@ const styles = StyleSheet.create({
     height: LOGO_SIZE,
   },
   progressTrack: {
-    marginTop: BAR_GAP,
+    // Absolutely positioned just below the centered logo so the logo's
+    // center stays at exact screen-center (no shift from a flex stack).
+    position: 'absolute',
+    top: '50%',
+    marginTop: LOGO_SIZE / 2 + BAR_GAP,
     width: BAR_WIDTH,
     height: BAR_HEIGHT,
     borderRadius: BAR_HEIGHT / 2,

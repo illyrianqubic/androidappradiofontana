@@ -197,7 +197,12 @@ function HamburgerDrawerInner() {
     progress.value = 0;
     setIsInteractive(false);
     close();
-    router.push(path as never);
+    // Defer router.push by one tick so React can commit isOpen=false to
+    // every consumer (most importantly HamburgerButton) BEFORE the screen
+    // freezes for navigation. Without this, the source screen sometimes
+    // freezes mid-render and the hamburger icon stays as a red X until
+    // the user navigates back.
+    setTimeout(() => router.push(path as never), 0);
   };
 
   const isHomeActive = pathname === '/' || pathname === '/(tabs)' || pathname === '/(tabs)/';

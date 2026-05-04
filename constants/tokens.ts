@@ -84,7 +84,7 @@ export const appIdentity = {
   location: 'Istog, Kosovë',
   frequency: '98.8 FM',
   streamUrl: 'https://live.radiostreaming.al:8010/stream.mp3',
-  logo: require('../assets/logoandroid.jpg'),
+  logo: require('../assets/images/logoandroid.png'),
   lockScreenArtwork: require('../assets/images/media-artwork.png'),
 } as const;
 
