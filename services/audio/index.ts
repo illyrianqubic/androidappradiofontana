@@ -463,7 +463,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
   const play = useCallback(async () => {
     if (!isTrackPlayerAvailable()) {
-      console.error('[Audio] TrackPlayer TurboModule is not available — rebuild the native app');
+      if (__DEV__) console.error('[Audio] TrackPlayer TurboModule is not available — rebuild the native app');
       return;
     }
     audioLog('play action');
@@ -495,7 +495,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         if (userIntentRef.current === 'pause') return;
         const cur = stateRef.current;
         if (!cur.isPlaying && !cur.isBuffering) {
-          console.error('[Audio] play() timeout — state did not transition to playing after 3 s', {
+          if (__DEV__) console.error('[Audio] play() timeout — state did not transition to playing after 3 s', {
             playbackState: cur.playbackState,
             isPlaying: cur.isPlaying,
             isBuffering: cur.isBuffering,
@@ -565,7 +565,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         audioError('eager setup error', error);
       });
     } else {
-      console.error('[Audio] TrackPlayer TurboModule is not available — rebuild the native app');
+      if (__DEV__) console.error('[Audio] TrackPlayer TurboModule is not available — rebuild the native app');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

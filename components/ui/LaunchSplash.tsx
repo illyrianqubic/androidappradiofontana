@@ -9,13 +9,23 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withDelay,
+  withRepeat,
   withTiming,
 } from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
 import { appIdentity } from '../../constants/tokens';
 
 // ─── constants ────────────────────────────────────────────────────────────────
-const LOGO_SIZE = 132;
+const LOGO_SIZE = 184;
 const PRIMARY = '#dc2626';
+const PRIMARY_SOFT = '#ef4444';
+
+// Progress bar geometry — sits directly under the logo
+const BAR_WIDTH = 168;
+const BAR_HEIGHT = 4;
+const BAR_GAP = 28;
+// A short shimmer band slides across the filled portion repeatedly
+const SHIMMER_WIDTH = 60;
 
 const COLD_START_MIN_SPLASH_MS = 1600;
 const COLD_START_MAX_SPLASH_MS = 2600;
@@ -29,21 +39,40 @@ type LaunchSplashProps = {
 // ─── LaunchSplash ─────────────────────────────────────────────────────────────
 export function LaunchSplash({ onComplete, isContentReady = false }: LaunchSplashProps) {
   const logoOpacity = useSharedValue(0);
+  const logoTranslate = useSharedValue(6);
   const progress = useSharedValue(0);
+  const shimmerX = useSharedValue(-SHIMMER_WIDTH);
   const screenOpacity = useSharedValue(1);
 
   const exitedRef = useRef(false);
   const mountedAtRef = useRef(Date.now());
 
   useEffect(() => {
-    // Logo fades in — calm, no scale, no spring, no overshoot.
-    logoOpacity.value = withTiming(1, { duration: 420, easing: Easing.out(Easing.cubic) });
+    // Logo: gentle fade-up — calm, no spring overshoot.
+    logoOpacity.value = withTiming(1, { duration: 460, easing: Easing.out(Easing.cubic) });
+    logoTranslate.value = withTiming(0, { duration: 460, easing: Easing.out(Easing.cubic) });
 
-    // Red progress bar fills smoothly across the minimum splash window.
-    progress.value = withTiming(1, {
-      duration: COLD_START_MIN_SPLASH_MS,
-      easing: Easing.inOut(Easing.cubic),
-    });
+    // Progress bar fills smoothly across the minimum splash window.
+    progress.value = withDelay(
+      120,
+      withTiming(1, {
+        duration: COLD_START_MIN_SPLASH_MS - 120,
+        easing: Easing.inOut(Easing.cubic),
+      }),
+    );
+
+    // Shimmer band slides across the bar continuously — pure UI-thread work.
+    shimmerX.value = withDelay(
+      200,
+      withRepeat(
+        withTiming(BAR_WIDTH, {
+          duration: 1200,
+          easing: Easing.inOut(Easing.cubic),
+        }),
+        -1,
+        false,
+      ),
+    );
 
     // Fallback exit if isContentReady never flips true.
     screenOpacity.value = withDelay(
@@ -58,13 +87,14 @@ export function LaunchSplash({ onComplete, isContentReady = false }: LaunchSplas
 
     return () => {
       cancelAnimation(logoOpacity);
+      cancelAnimation(logoTranslate);
       cancelAnimation(progress);
+      cancelAnimation(shimmerX);
       cancelAnimation(screenOpacity);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Exit when content is ready and minimum window elapsed.
   useEffect(() => {
     if (!isContentReady || exitedRef.current) return;
     const elapsed = Date.now() - mountedAtRef.current;
@@ -87,29 +117,53 @@ export function LaunchSplash({ onComplete, isContentReady = false }: LaunchSplas
   }, [isContentReady, screenOpacity, onComplete]);
 
   const screenStyle = useAnimatedStyle(() => ({ opacity: screenOpacity.value }));
-  const logoStyle = useAnimatedStyle(() => ({ opacity: logoOpacity.value }));
-  const progressStyle = useAnimatedStyle(() => ({
-    width: `${interpolate(progress.value, [0, 1], [0, 100])}%`,
+  const logoStyle = useAnimatedStyle(() => ({
+    opacity: logoOpacity.value,
+    transform: [{ translateY: logoTranslate.value }],
+  }));
+  const progressFillStyle = useAnimatedStyle(() => ({
+    width: interpolate(progress.value, [0, 1], [0, BAR_WIDTH]),
+  }));
+  const shimmerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shimmerX.value }],
   }));
 
   return (
     <Animated.View style={[styles.screen, screenStyle]}>
-      {/* Logo sits flush on the white background — no card, no shadow,
-         no border. contentFit="contain" keeps the image inside its
-         bounds with the original aspect ratio. */}
-      <Animated.View style={[styles.logoWrap, logoStyle]}>
-        <Image
-          source={appIdentity.logo}
-          contentFit="contain"
-          style={styles.logo}
-          cachePolicy="memory"
-        />
-      </Animated.View>
+      <View style={styles.stack}>
+        <Animated.View style={[styles.logoWrap, logoStyle]}>
+          <Image
+            source={appIdentity.logo}
+            contentFit="contain"
+            style={styles.logo}
+            cachePolicy="memory"
+          />
+        </Animated.View>
 
-      {/* Slim red progress bar pinned to the bottom — fills over the
-         minimum splash window so the user always sees motion. */}
-      <View style={styles.progressTrack} pointerEvents="none">
-        <Animated.View style={[styles.progressFill, progressStyle]} />
+        {/* Animated progress bar — fills with a moving shimmer highlight */}
+        <View style={styles.progressTrack} pointerEvents="none">
+          <Animated.View style={[styles.progressFill, progressFillStyle]}>
+            <LinearGradient
+              colors={[PRIMARY, PRIMARY_SOFT, PRIMARY]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={StyleSheet.absoluteFill}
+            />
+            {/* Bright shimmer band sliding across the filled portion */}
+            <Animated.View style={[styles.shimmer, shimmerStyle]}>
+              <LinearGradient
+                colors={[
+                  'rgba(255,255,255,0)',
+                  'rgba(255,255,255,0.55)',
+                  'rgba(255,255,255,0)',
+                ]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={StyleSheet.absoluteFill}
+              />
+            </Animated.View>
+          </Animated.View>
+        </View>
       </View>
     </Animated.View>
   );
@@ -124,6 +178,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 120,
   },
+  stack: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   logoWrap: {
     width: LOGO_SIZE,
     height: LOGO_SIZE,
@@ -135,18 +193,22 @@ const styles = StyleSheet.create({
     height: LOGO_SIZE,
   },
   progressTrack: {
-    position: 'absolute',
-    left: 56,
-    right: 56,
-    bottom: 72,
-    height: 2,
-    borderRadius: 1,
+    marginTop: BAR_GAP,
+    width: BAR_WIDTH,
+    height: BAR_HEIGHT,
+    borderRadius: BAR_HEIGHT / 2,
     backgroundColor: 'rgba(15,23,42,0.08)',
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: PRIMARY,
-    borderRadius: 1,
+    borderRadius: BAR_HEIGHT / 2,
+    overflow: 'hidden',
+  },
+  shimmer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: SHIMMER_WIDTH,
   },
 });
