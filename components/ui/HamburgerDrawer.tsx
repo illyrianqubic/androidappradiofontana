@@ -291,7 +291,7 @@ function HamburgerDrawerInner() {
                     {LAJME_CATEGORIES.map((cat) => (
                       <Pressable
                         key={cat.slug}
-                        onPress={() => navigate('/(tabs)/news')}
+                        onPress={() => navigate(`/(tabs)/news?category=${cat.slug}`)}
                         style={({ pressed }) => [S.categoryRow, pressed && S.categoryRowPressed]}
                       >
                         <View style={S.categoryAccent} />

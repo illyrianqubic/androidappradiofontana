@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 // A-3: deep import skips loading all other icon sets' glyph maps.
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -197,9 +197,13 @@ const REFRESH_MAX_WAIT_MS = 3500;
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function NewsIndexScreen() {
   const router = useRouter();
+  const { category: categoryParam } = useLocalSearchParams<{ category?: string }>();
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlashListRef<Post>>(null);
-  const [activeCategory, setActiveCategory] = useState<NewsCategoryTab>(NEWS_CATEGORY_TABS[0]);
+  const [activeCategory, setActiveCategory] = useState<NewsCategoryTab>(() => {
+    const found = NEWS_CATEGORY_TABS.find((t) => t.slug === categoryParam);
+    return found ?? NEWS_CATEGORY_TABS[0];
+  });
   const activeCategorySlugRef = useRef(activeCategory.slug);
   activeCategorySlugRef.current = activeCategory.slug;
   const [debouncedSearch, setDebouncedSearch] = useState('');
