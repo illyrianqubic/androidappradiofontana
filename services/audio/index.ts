@@ -525,7 +525,17 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       },
     });
 
-    TrackPlayer.pause().catch(() => undefined);
+    // FIX: This is a LIVE radio stream — pause() alone keeps the buffered
+    // position, so resuming after N minutes plays N minutes behind live
+    // ("radio is sounding something else"). Stop the player and invalidate
+    // the queue so the next play() does a fresh load and reconnects at the
+    // live edge of the stream every time.
+    TrackPlayer.stop().catch(() => {
+      // stop() may reject if the queue is already empty — fall back to pause()
+      // so we still release audio focus and update the lock-screen UI.
+      TrackPlayer.pause().catch(() => undefined);
+    });
+    queueReadyRef.current = false;
     void safeUpdateStationMetadata();
   }, [cancelReconnect, updateState]);
 

@@ -188,4 +188,8 @@ export const TrackPlayer = {
   pause() {
     return loadTrackPlayerPackage().default.pause();
   },
+
+  stop() {
+    return loadTrackPlayerPackage().default.stop();
+  },
 };
