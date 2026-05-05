@@ -79,6 +79,14 @@ function HamburgerDrawerInner() {
 
   const [isInteractive, setIsInteractive] = useState(false);
   const [lajmeExpanded, setLajmeExpanded] = useState(false);
+  // Hard-hide flag: when navigate() is called, the entire drawer subtree is
+  // unmounted synchronously by React. This bypasses Reanimated entirely —
+  // JS-side SharedValue writes are serialized to the UI thread asynchronously,
+  // so a `progress.value = 0` followed by router.push() can still let the UI
+  // thread render one or more frames using the pre-snap value, painting the
+  // panel on top of the destination screen. Conditional render skips that
+  // path: there is nothing to draw.
+  const [isHidden, setIsHidden] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   const progress = useSharedValue(0);
@@ -207,22 +215,32 @@ function HamburgerDrawerInner() {
     transform: [{ translateX: interpolate(progress.value, [0, 1], [panelWidthSv.value, 0]) }],
   }));
 
+  // Re-show the drawer once the pathname change has committed. By the time
+  // this effect runs, the destination screen is mounted and isHidden flipping
+  // back to false will not paint the (now-fully-closed, progress=0) panel on
+  // top of it.
+  useEffect(() => {
+    if (!isHidden) return;
+    setIsHidden(false);
+    // pathname is the trigger — we want to re-show after the route commits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
   const navigate = (path: string) => {
     // Reentry guard: rapid double-taps on a NavItem could otherwise queue
     // multiple router.push timers and stack the same screen twice.
     if (isNavigatingRef.current) return;
     isNavigatingRef.current = true;
-    // Tell the close useEffect to snap instead of animating. Must be set
-    // BEFORE close() so that when isOpen flips to false, the effect sees the
-    // flag on its very first run.
+    // Tell the close useEffect to snap instead of animating.
     skipCloseAnimRef.current = true;
-    // Synchronously hide the panel and the touch-blocking overlay so the
-    // outgoing screen renders cleanly even if React batches close() into the
-    // same commit as the navigation push.
+    // Snap shared values + collapse all React state synchronously.
     cancelAnimation(progress);
     progress.value = 0;
     setIsInteractive(false);
     setLajmeExpanded(false);
+    // Hard-unmount the drawer subtree so the UI thread cannot paint a stale
+    // animation frame on top of the destination screen.
+    setIsHidden(true);
     close();
     // Defer router.push by one frame so React can commit isOpen=false to
     // every consumer (most importantly HamburgerButton) BEFORE the screen
@@ -247,6 +265,11 @@ function HamburgerDrawerInner() {
   const isNewsActive = matchesSegment('/news') || matchesSegment('/(tabs)/news');
   const isAboutActive = matchesSegment('/rreth-nesh');
   const isContactActive = matchesSegment('/na-kontakto');
+
+  // While navigating, the entire drawer subtree is unmounted so the UI thread
+  // has nothing to draw — prevents the closing animation from being painted
+  // on top of the destination screen.
+  if (isHidden) return null;
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents={isInteractive ? 'auto' : 'none'}>
