@@ -239,29 +239,20 @@ function HamburgerDrawerInner() {
     // multiple router.push timers and stack the same screen twice.
     if (isNavigatingRef.current) return;
     isNavigatingRef.current = true;
-    // Tell the close useEffect to snap instead of animating.
-    skipCloseAnimRef.current = true;
-    // Snap shared values + collapse all React state synchronously.
-    cancelAnimation(progress);
-    progress.value = 0;
-    setIsInteractive(false);
+    // Play the full close slide-out FIRST, then navigate. The user sees the
+    // menu close cleanly and only after that does the destination screen
+    // appear — no overlap, no animation glitch on top of the new page.
     setLajmeExpanded(false);
-    // Hard-unmount the drawer subtree so the UI thread cannot paint a stale
-    // animation frame on top of the destination screen.
-    setIsHidden(true);
     close();
-    // Defer router.push by one frame so React can commit isOpen=false to
-    // every consumer (most importantly HamburgerButton) BEFORE the screen
-    // freezes for navigation. Without this, the source screen sometimes
-    // freezes mid-render and the hamburger icon stays as a red X until
-    // the user navigates back.
     if (pendingNavTimerRef.current) clearTimeout(pendingNavTimerRef.current);
+    // CLOSE_DURATION (160 ms) + small buffer so the panel is fully off-screen
+    // and the backdrop fully transparent before the route push begins.
     pendingNavTimerRef.current = setTimeout(() => {
       pendingNavTimerRef.current = null;
       router.push(path as never);
       // Release the reentry lock after the navigator commits.
       setTimeout(() => { isNavigatingRef.current = false; }, 200);
-    }, 0);
+    }, CLOSE_DURATION + 40);
   };
 
   const isHomeActive = pathname === '/' || pathname === '/(tabs)' || pathname === '/(tabs)/';
