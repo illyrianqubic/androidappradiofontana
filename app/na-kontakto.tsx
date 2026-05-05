@@ -36,7 +36,7 @@ const CONTACT_ITEMS = [
     value: 'Istog, Kosovë',
     helper: 'Shiko në hartë',
     action: 'Hartë',
-    url: 'https://maps.google.com/?q=Istog,Kosovo',
+    url: 'https://maps.app.goo.gl/HckE6N4qVKsWjMzy6',
   },
 ] as const;
 
