@@ -215,14 +215,22 @@ function HamburgerDrawerInner() {
     transform: [{ translateX: interpolate(progress.value, [0, 1], [panelWidthSv.value, 0]) }],
   }));
 
-  // Re-show the drawer once the pathname change has committed. By the time
+  // Re-show the drawer once the pathname change has committed OR after a
+  // short safety timeout (covers same-route navigations like tapping the
+  // current page in the menu, where pathname never changes). By the time
   // this effect runs, the destination screen is mounted and isHidden flipping
   // back to false will not paint the (now-fully-closed, progress=0) panel on
   // top of it.
   useEffect(() => {
+    if (!isHidden) return undefined;
+    const id = setTimeout(() => setIsHidden(false), 350);
+    return () => clearTimeout(id);
+  }, [isHidden]);
+
+  useEffect(() => {
     if (!isHidden) return;
     setIsHidden(false);
-    // pathname is the trigger — we want to re-show after the route commits.
+    // pathname is the trigger — re-show as soon as the route commits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
