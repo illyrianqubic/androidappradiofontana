@@ -24,7 +24,9 @@
         "UIBackgroundModes": [
           "audio",
           "fetch"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationCategoryType": "public.app-category.music"
       }
     },
     "android": {
