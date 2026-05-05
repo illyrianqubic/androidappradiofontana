@@ -20,6 +20,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.radiofontana.app",
+      "icon": "./assets/icon.png",
       "infoPlist": {
         "UIBackgroundModes": [
           "audio",
