@@ -1,41 +1,17 @@
-import { useEffect } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import Animated, {
-  cancelAnimation,
   interpolateColor,
   useAnimatedStyle,
-  useSharedValue,
-  withTiming,
 } from 'react-native-reanimated';
 import { useDrawer } from '../../providers/DrawerProvider';
 import { colors } from '../../constants/tokens';
 
 export function HamburgerButton() {
-  const { isOpen, toggle } = useDrawer();
+  const { isOpen, toggle, progress } = useDrawer();
 
-  // useSharedValue + useEffect instead of useDerivedValue so the animation
-  // only starts when isOpen actually changes — not on every component
-  // re-render. useDerivedValue re-registers its worklet on every render
-  // (including frozen-tab unfreezes with freezeOnBlur:true), which caused
-  // spurious mid-animation restarts and "opens halfway" on Galaxy A-series.
-  const progress = useSharedValue(0);
-  useEffect(() => {
-    // cancelAnimation guarantees a stale/interrupted tween from a previous
-    // toggle (e.g. a screen-freeze during navigation) cannot leave the icon
-    // stuck at progress=1 (red X) when isOpen has already gone false.
-    cancelAnimation(progress);
-    progress.value = withTiming(isOpen ? 1 : 0, { duration: 200 });
-    if (!isOpen) {
-      // Belt-and-suspenders: snap to hamburger after the animation window
-      // in case the worklet was suppressed mid-flight by a frozen screen.
-      const id = setTimeout(() => {
-        cancelAnimation(progress);
-        progress.value = 0;
-      }, 260);
-      return () => clearTimeout(id);
-    }
-    return undefined;
-  }, [isOpen, progress]);
+  // The icon morph reads the same SharedValue that DrawerProvider drives
+  // synchronously on press \u2014 zero React-render dependency, zero risk of the
+  // icon being out of sync with the panel.
 
   const topStyle = useAnimatedStyle(() => ({
     transform: [

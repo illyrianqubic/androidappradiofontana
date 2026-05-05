@@ -13,16 +13,12 @@ import {
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
-  cancelAnimation,
-  Easing,
   FadeIn,
   FadeOut,
   interpolate,
   LinearTransition,
-  runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withTiming,
 } from 'react-native-reanimated';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useDrawer } from '../../providers/DrawerProvider';
@@ -46,9 +42,6 @@ const SOCIAL_LINKS = [
 ] as const;
 
 const PANEL_MAX_W = 360;
-const OPEN_EASING = Easing.out(Easing.poly(4));
-const CLOSE_EASING = Easing.in(Easing.cubic);
-const OPEN_DURATION = 220;
 const CLOSE_DURATION = 160;
 
 export function HamburgerDrawer() {
@@ -71,7 +64,7 @@ export function HamburgerDrawer() {
 }
 
 function HamburgerDrawerInner() {
-  const { isOpen, close } = useDrawer();
+  const { isOpen, close, progress } = useDrawer();
   const { width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
@@ -89,7 +82,6 @@ function HamburgerDrawerInner() {
   const [isHidden, setIsHidden] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
-  const progress = useSharedValue(0);
   const panelWidth = Math.min(Math.round(windowWidth * 0.86), PANEL_MAX_W);
 
   // Bug fix 2: Guarantee the off-screen offset is never 0. A zero panelWidthSv
@@ -125,62 +117,16 @@ function HamburgerDrawerInner() {
     }
   }, []);
 
-  // When navigate() triggers the close, we want an instant snap (no slide-out)
-  // so the panel cannot be left rendered at an intermediate translateX while
-  // the route transition is running. Without this flag, the close useEffect
-  // would call withTiming(0,160ms) AFTER navigate() already set progress=0;
-  // because the JS-thread shared-value write hasn't committed to the UI thread
-  // yet, withTiming reads the still-open value and animates from 1→0 again,
-  // and the busy JS thread during navigation leaves it stranded mid-frame.
-  const skipCloseAnimRef = useRef(false);
-
-  // Slide animation.
-  // setLajmeExpanded(false) is deferred to the close callback so a
-  // LinearTransition never runs concurrently with the panel slide-out
-  // on slow devices (Samsung Galaxy A-series).
-  // The `finished` guard prevents handleCloseComplete from firing when
-  // the close animation is cancelled mid-way (finished=false) — e.g.
-  // when the user rapidly toggles the drawer.
-  useEffect(() => {
-    if (isOpen) {
-      skipCloseAnimRef.current = false;
-      cancelAnimation(progress);
-      progress.value = withTiming(1, { duration: OPEN_DURATION, easing: OPEN_EASING });
-    } else {
-      cancelAnimation(progress);
-      if (skipCloseAnimRef.current) {
-        // Instant-snap close requested by navigate(). Reset the flag and drop
-        // progress to 0 directly — no withTiming, no race with the route push.
-        skipCloseAnimRef.current = false;
-        progress.value = 0;
-        handleCloseComplete();
-      } else {
-        progress.value = withTiming(0, { duration: CLOSE_DURATION, easing: CLOSE_EASING }, (finished) => {
-          'worklet';
-          if (finished) runOnJS(handleCloseComplete)();
-        });
-      }
-    }
-    return () => { cancelAnimation(progress); };
-    // progress and handleCloseComplete are stable refs; only isOpen should re-trigger.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
-
-  // Belt-and-suspenders: explicit cancelAnimation suppresses the withTiming
-  // callback entirely (Reanimated 3 design). If the user rapidly toggles the
-  // drawer, the cleanup cancelAnimation may swallow handleCloseComplete, leaving
-  // isInteractive stuck at true (invisible full-screen Pressable blocks touches).
-  // This timeout guarantees reset CLOSE_DURATION+100ms after every close.
+  // The slide animation itself is driven by DrawerProvider's open()/close()/
+  // toggle() — those write to `progress` synchronously inside the press
+  // handler, so the animation starts on the UI thread the same frame as the
+  // tap, not after a React render commit. This effect only handles the
+  // post-close cleanup (deactivating the touch overlay, collapsing submenu).
   useEffect(() => {
     if (isOpen) return undefined;
-    const id = setTimeout(() => {
-      if (!isOpenRef.current) {
-        setIsInteractive(false);
-        setLajmeExpanded(false);
-      }
-    }, CLOSE_DURATION + 100);
+    const id = setTimeout(handleCloseComplete, CLOSE_DURATION + 60);
     return () => clearTimeout(id);
-  }, [isOpen]);
+  }, [isOpen, handleCloseComplete]);
 
   useEffect(() => {
     if (!isOpen || Platform.OS !== 'android') return undefined;
