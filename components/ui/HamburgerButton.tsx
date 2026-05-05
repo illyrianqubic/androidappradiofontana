@@ -35,7 +35,12 @@ export function HamburgerButton() {
 
   return (
     <Pressable
-      onPress={toggle}
+      // onPressIn fires the moment the finger touches the button (touch-down),
+      // ~50–100 ms before onPress would commit the gesture. Combined with the
+      // synchronous animation kick in DrawerProvider.toggle(), the slide
+      // starts on the same UI-thread frame as the touch event — the user
+      // perceives zero latency.
+      onPressIn={toggle}
       style={({ pressed }) => [styles.button, isOpen && styles.buttonActive, pressed && styles.buttonPressed]}
       hitSlop={8}
     >

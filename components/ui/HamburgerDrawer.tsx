@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   BackHandler,
   Linking,
@@ -72,14 +72,6 @@ function HamburgerDrawerInner() {
 
   const [isInteractive, setIsInteractive] = useState(false);
   const [lajmeExpanded, setLajmeExpanded] = useState(false);
-  // Hard-hide flag: when navigate() is called, the entire drawer subtree is
-  // unmounted synchronously by React. This bypasses Reanimated entirely —
-  // JS-side SharedValue writes are serialized to the UI thread asynchronously,
-  // so a `progress.value = 0` followed by router.push() can still let the UI
-  // thread render one or more frames using the pre-snap value, painting the
-  // panel on top of the destination screen. Conditional render skips that
-  // path: there is nothing to draw.
-  const [isHidden, setIsHidden] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   const panelWidth = Math.min(Math.round(windowWidth * 0.86), PANEL_MAX_W);
@@ -167,20 +159,8 @@ function HamburgerDrawerInner() {
   // this effect runs, the destination screen is mounted and isHidden flipping
   // back to false will not paint the (now-fully-closed, progress=0) panel on
   // top of it.
-  useEffect(() => {
-    if (!isHidden) return undefined;
-    const id = setTimeout(() => setIsHidden(false), 350);
-    return () => clearTimeout(id);
-  }, [isHidden]);
 
-  useEffect(() => {
-    if (!isHidden) return;
-    setIsHidden(false);
-    // pathname is the trigger — re-show as soon as the route commits.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
-
-  const navigate = (path: string) => {
+  const navigate = useCallback((path: string) => {
     // Reentry guard: rapid double-taps on a NavItem could otherwise queue
     // multiple router.push timers and stack the same screen twice.
     if (isNavigatingRef.current) return;
@@ -191,30 +171,35 @@ function HamburgerDrawerInner() {
     setLajmeExpanded(false);
     close();
     if (pendingNavTimerRef.current) clearTimeout(pendingNavTimerRef.current);
-    // CLOSE_DURATION (160 ms) + small buffer so the panel is fully off-screen
-    // and the backdrop fully transparent before the route push begins.
     pendingNavTimerRef.current = setTimeout(() => {
       pendingNavTimerRef.current = null;
       router.push(path as never);
-      // Release the reentry lock after the navigator commits.
       setTimeout(() => { isNavigatingRef.current = false; }, 200);
     }, CLOSE_DURATION + 40);
-  };
+  }, [close, router]);
 
-  const isHomeActive = pathname === '/' || pathname === '/(tabs)' || pathname === '/(tabs)/';
-  // Use exact-segment matching so pathname='/live-blog' (a hypothetical future
-  // route) does not falsely highlight the radio-Live entry, etc.
-  const matchesSegment = (segment: string) =>
-    pathname === segment || pathname.startsWith(`${segment}/`) || pathname.startsWith(`${segment}?`);
-  const isLiveActive = matchesSegment('/live') || matchesSegment('/(tabs)/live');
-  const isNewsActive = matchesSegment('/news') || matchesSegment('/(tabs)/news');
-  const isAboutActive = matchesSegment('/rreth-nesh');
-  const isContactActive = matchesSegment('/na-kontakto');
+  const toggleLajme = useCallback(() => setLajmeExpanded((v) => !v), []);
+
+  // Active-state derivation runs only when pathname actually changes, not on
+  // every drawer re-render (e.g. open/close, isInteractive flips).
+  const activeStates = useMemo(() => {
+    const matchesSegment = (segment: string) =>
+      pathname === segment || pathname.startsWith(`${segment}/`) || pathname.startsWith(`${segment}?`);
+    return {
+      isHomeActive: pathname === '/' || pathname === '/(tabs)' || pathname === '/(tabs)/',
+      isLiveActive: matchesSegment('/live') || matchesSegment('/(tabs)/live'),
+      isNewsActive: matchesSegment('/news') || matchesSegment('/(tabs)/news'),
+      isAboutActive: matchesSegment('/rreth-nesh'),
+      isContactActive: matchesSegment('/na-kontakto'),
+    };
+  }, [pathname]);
+  const { isHomeActive, isLiveActive, isNewsActive, isAboutActive, isContactActive } = activeStates;
 
   // While navigating, the entire drawer subtree is unmounted so the UI thread
   // has nothing to draw — prevents the closing animation from being painted
   // on top of the destination screen.
-  if (isHidden) return null;
+  // (no longer hard-hidden; navigate() now waits for the close animation,
+  //  so by the time router.push runs the panel is already off-screen)
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents={isInteractive ? 'auto' : 'none'}>
@@ -252,19 +237,21 @@ function HamburgerDrawerInner() {
                 icon="home-outline"
                 label="Kryefaqja"
                 detail="Pamja kryesore"
+                path="/(tabs)"
                 active={isHomeActive}
-                onPress={() => navigate('/(tabs)')}
+                onNavigate={navigate}
               />
               <NavItem
                 icon="radio-outline"
                 label="Drejtpërdrejt"
                 detail="Radio live"
+                path="/(tabs)/live"
                 active={isLiveActive}
-                onPress={() => navigate('/(tabs)/live')}
+                onNavigate={navigate}
               />
 
               <Pressable
-                onPress={() => setLajmeExpanded((v) => !v)}
+                onPress={toggleLajme}
                 style={({ pressed }) => [
                   S.navRow,
                   isNewsActive && S.navRowActive,
@@ -295,23 +282,11 @@ function HamburgerDrawerInner() {
                 >
                   <View style={S.categoryHeader}>
                     <Text style={S.categoryHeaderLabel}>Zgjidh rubrikën</Text>
-                    <Pressable
-                      onPress={() => navigate('/(tabs)/news')}
-                      style={({ pressed }) => [S.categoryAllButton, pressed && S.categoryAllButtonPressed]}
-                    >
-                      <Text style={S.categoryAllText}>Të gjitha</Text>
-                    </Pressable>
+                    <CategoryAllButton onNavigate={navigate} />
                   </View>
                   <View style={S.categoryGrid}>
                     {LAJME_CATEGORIES.map((cat) => (
-                      <Pressable
-                        key={cat.slug}
-                        onPress={() => navigate(`/(tabs)/news?category=${cat.slug}`)}
-                        style={({ pressed }) => [S.categoryRow, pressed && S.categoryRowPressed]}
-                      >
-                        <View style={S.categoryAccent} />
-                        <Text style={S.categoryLabel}>{cat.label}</Text>
-                      </Pressable>
+                      <CategoryRow key={cat.slug} slug={cat.slug} label={cat.label} onNavigate={navigate} />
                     ))}
                   </View>
                 </Animated.View>
@@ -324,31 +299,25 @@ function HamburgerDrawerInner() {
                 icon="information-circle-outline"
                 label="Rreth Nesh"
                 detail="Profili i radios"
+                path="/rreth-nesh"
                 active={isAboutActive}
-                onPress={() => navigate('/rreth-nesh')}
+                onNavigate={navigate}
               />
               <NavItem
                 icon="call-outline"
                 label="Na Kontakto"
                 detail="Telefon, email, rrjete"
+                path="/na-kontakto"
                 active={isContactActive}
-                onPress={() => navigate('/na-kontakto')}
+                onNavigate={navigate}
               />
             </View>
 
             <View style={S.contactCard}>
               <Text style={S.sectionLabel}>Studio</Text>
-              <ActionRow
-                label="+383 44 150 027"
-                action="Telefono"
-                onPress={() => Linking.openURL('tel:+38344150027').catch(() => undefined)}
-              />
+              <ActionRow label="+383 44 150 027" action="Telefono" url="tel:+38344150027" />
               <View style={S.softDivider} />
-              <ActionRow
-                label="rtvfontana@gmail.com"
-                action="Email"
-                onPress={() => Linking.openURL('mailto:rtvfontana@gmail.com').catch(() => undefined)}
-              />
+              <ActionRow label="rtvfontana@gmail.com" action="Email" url="mailto:rtvfontana@gmail.com" />
               <View style={S.softDivider} />
               <View style={S.statusRow}>
                 <Text style={S.statusText}>08:00 - 20:00</Text>
@@ -363,31 +332,15 @@ function HamburgerDrawerInner() {
               </View>
               <View style={S.socialGrid}>
                 {SOCIAL_LINKS.map((link) => (
-                  <Pressable
-                    key={link.label}
-                    onPress={() => Linking.openURL(link.url).catch(() => undefined)}
-                    style={({ pressed }) => [S.socialChip, pressed && S.socialChipPressed]}
-                  >
-                    <Text style={S.socialLabel}>{link.label}</Text>
-                  </Pressable>
+                  <SocialChip key={link.label} label={link.label} url={link.url} />
                 ))}
               </View>
             </View>
 
             <View style={S.legalLinks}>
-              <Pressable
-                onPress={() => Linking.openURL('https://radiofontana.org/privacy').catch(() => undefined)}
-                style={({ pressed }) => [S.legalLink, pressed && S.legalLinkPressed]}
-              >
-                <Text style={S.legalLinkText}>Privatësia</Text>
-              </Pressable>
+              <LegalLink label="Privatësia" url="https://radiofontana.org/privacy" />
               <Text style={S.legalDot}>·</Text>
-              <Pressable
-                onPress={() => Linking.openURL('https://radiofontana.org/terms').catch(() => undefined)}
-                style={({ pressed }) => [S.legalLink, pressed && S.legalLinkPressed]}
-              >
-                <Text style={S.legalLinkText}>Kushtet</Text>
-              </Pressable>
+              <LegalLink label="Kushtet" url="https://radiofontana.org/terms" />
             </View>
           </ScrollView>
 
@@ -397,28 +350,42 @@ function HamburgerDrawerInner() {
   );
 }
 
-function NavItem({
+// Stable Pressable style fns (defined once at module level so they aren't
+// reallocated per render — React.memo on each row component then has a chance
+// to actually skip re-renders when its props haven't changed).
+const navRowStyleFor = (active: boolean) =>
+  ({ pressed }: { pressed: boolean }) => [
+    S.navRow,
+    active && S.navRowActive,
+    pressed && !active && S.rowPressed,
+  ];
+const actionRowStyle = ({ pressed }: { pressed: boolean }) => [S.actionRow, pressed && S.rowPressed];
+const categoryAllStyle = ({ pressed }: { pressed: boolean }) => [S.categoryAllButton, pressed && S.categoryAllButtonPressed];
+const categoryRowStyle = ({ pressed }: { pressed: boolean }) => [S.categoryRow, pressed && S.categoryRowPressed];
+const socialChipStyle = ({ pressed }: { pressed: boolean }) => [S.socialChip, pressed && S.socialChipPressed];
+const legalLinkStyle = ({ pressed }: { pressed: boolean }) => [S.legalLink, pressed && S.legalLinkPressed];
+
+const openLink = (url: string) => Linking.openURL(url).catch(() => undefined);
+
+const NavItem = memo(function NavItem({
   icon,
   label,
   detail,
+  path,
   active = false,
-  onPress,
+  onNavigate,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   detail: string;
+  path: string;
   active?: boolean;
-  onPress: () => void;
+  onNavigate: (path: string) => void;
 }) {
+  const handlePress = useCallback(() => onNavigate(path), [onNavigate, path]);
+  const pressableStyle = useMemo(() => navRowStyleFor(active), [active]);
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        S.navRow,
-        active && S.navRowActive,
-        pressed && !active && S.rowPressed,
-      ]}
-    >
+    <Pressable onPress={handlePress} style={pressableStyle}>
       {active ? <View style={S.activeRail} /> : null}
       <View style={[S.navIconBox, active && S.navIconBoxActive]}>
         <Ionicons name={icon} size={18} color={active ? colors.primary : colors.textMuted} />
@@ -429,24 +396,74 @@ function NavItem({
       </View>
     </Pressable>
   );
-}
+});
 
-function ActionRow({
+const ActionRow = memo(function ActionRow({
   label,
   action,
-  onPress,
+  url,
 }: {
   label: string;
   action: string;
-  onPress: () => void;
+  url: string;
 }) {
+  const handlePress = useCallback(() => openLink(url), [url]);
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [S.actionRow, pressed && S.rowPressed]}>
+    <Pressable onPress={handlePress} style={actionRowStyle}>
       <Text numberOfLines={1} style={S.actionLabel}>{label}</Text>
       <Text style={S.actionText}>{action}</Text>
     </Pressable>
   );
-}
+});
+
+const CategoryAllButton = memo(function CategoryAllButton({
+  onNavigate,
+}: {
+  onNavigate: (path: string) => void;
+}) {
+  const handlePress = useCallback(() => onNavigate('/(tabs)/news'), [onNavigate]);
+  return (
+    <Pressable onPress={handlePress} style={categoryAllStyle}>
+      <Text style={S.categoryAllText}>Të gjitha</Text>
+    </Pressable>
+  );
+});
+
+const CategoryRow = memo(function CategoryRow({
+  slug,
+  label,
+  onNavigate,
+}: {
+  slug: string;
+  label: string;
+  onNavigate: (path: string) => void;
+}) {
+  const handlePress = useCallback(() => onNavigate(`/(tabs)/news?category=${slug}`), [onNavigate, slug]);
+  return (
+    <Pressable onPress={handlePress} style={categoryRowStyle}>
+      <View style={S.categoryAccent} />
+      <Text style={S.categoryLabel}>{label}</Text>
+    </Pressable>
+  );
+});
+
+const SocialChip = memo(function SocialChip({ label, url }: { label: string; url: string }) {
+  const handlePress = useCallback(() => openLink(url), [url]);
+  return (
+    <Pressable onPress={handlePress} style={socialChipStyle}>
+      <Text style={S.socialLabel}>{label}</Text>
+    </Pressable>
+  );
+});
+
+const LegalLink = memo(function LegalLink({ label, url }: { label: string; url: string }) {
+  const handlePress = useCallback(() => openLink(url), [url]);
+  return (
+    <Pressable onPress={handlePress} style={legalLinkStyle}>
+      <Text style={S.legalLinkText}>{label}</Text>
+    </Pressable>
+  );
+});
 
 const S = StyleSheet.create({
   backdrop: {
