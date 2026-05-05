@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   BackHandler,
-  InteractionManager,
   Linking,
   Platform,
   Pressable,
@@ -53,33 +52,21 @@ const OPEN_DURATION = 220;
 const CLOSE_DURATION = 160;
 
 export function HamburgerDrawer() {
-  const { isOpen } = useDrawer();
-  const [hasMounted, setHasMounted] = useState(false);
-
-  // Eagerly pre-mount the drawer once the home screen's initial queries +
-  // FlashList grid have settled. Without this, the very first tap on the
-  // hamburger has to (a) build the entire drawer tree AND (b) drive the
-  // slide animation in the same frame while the JS thread is still busy
-  // hydrating home — on slower Android devices that can stall the open
-  // animation for several seconds ("opens just a bit, then jumps open
-  // later"). Pre-mounting makes the first tap pure animation work.
-  useEffect(() => {
-    if (hasMounted) return undefined;
-    const handle = InteractionManager.runAfterInteractions(() => {
-      setHasMounted(true);
-    });
-    return () => {
-      // RN typings: cancel exists on the returned handle.
-      handle?.cancel?.();
-    };
-  }, [hasMounted]);
-
-  // Safety net: if the user somehow taps before idle fires, mount immediately.
-  useEffect(() => {
-    if (isOpen && !hasMounted) setHasMounted(true);
-  }, [isOpen, hasMounted]);
-
-  if (!hasMounted) return null;
+  // Bug fix: previously this component deferred mounting the drawer tree
+  // via InteractionManager.runAfterInteractions and unblocked it lazily on
+  // first tap. On a busy home screen (FlashList grid, breaking ticker,
+  // equalizer bars, weather query) the JS thread never reaches idle, so
+  // runAfterInteractions never fires. The first hamburger tap then had to
+  // (1) mount the entire drawer tree (~200 Pressables, Ionicons, multiple
+  // Animated.Views) and (2) start the 220 ms slide-in animation in the
+  // same frame. Fabric painted the first slide frame, the JS thread
+  // stalled on the mount commit for several seconds, then Reanimated's
+  // worklet caught up and jumped the panel to fully open — exactly the
+  // "opens just a bit, then 5–6 s later opens all the way" symptom.
+  //
+  // The panel is invisible when closed (translateX = panelWidth,
+  // pointerEvents="none"), so eager-mounting costs nothing visually but
+  // turns the first tap into pure animation work.
   return <HamburgerDrawerInner />;
 }
 
