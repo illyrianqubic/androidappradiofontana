@@ -22,7 +22,6 @@ import { SkeletonCard } from '../../../components/news/SkeletonCard';
 import { isBreakingBadgeVisible } from '../../../lib/breakingBadge';
 import { HamburgerButton } from '../../../components/ui/HamburgerButton';
 import { appIdentity, colors, fonts } from '../../../constants/tokens';
-import { s } from '../../../lib/responsive';
 import { queueImagePrefetch } from '../../../lib/prefetchQueue';
 import {
   buildSanityImageUrl,

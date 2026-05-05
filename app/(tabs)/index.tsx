@@ -16,7 +16,6 @@ import type { NavigationState } from '@react-navigation/native';
 // A-3: deep import skips loading all other icon sets' glyph maps.
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList, type ListRenderItemInfo } from '@shopify/flash-list';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -39,12 +38,6 @@ import { RefreshStatusBanner } from '../../components/ui/RefreshStatusBanner';
 import { isBreakingBadgeVisible } from '../../lib/breakingBadge';
 import { SkeletonCard } from '../../components/news/SkeletonCard';
 
-// AUDIT FIX P8.32: module-level constants — not reallocated per render.
-// Hoisted to the top of the module so every closure that references them
-// (LatestNewsHeader's useMemo, etc.) sees the binding regardless of where
-// the consuming component is declared in the file.
-const ALBANIAN_DAYS = ['e diel', 'e hënë', 'e martë', 'e mërkurë', 'e enjte', 'e premte', 'e shtunë'];
-const ALBANIAN_MONTHS = ['janar', 'shkurt', 'mars', 'prill', 'maj', 'qershor', 'korrik', 'gusht', 'shtator', 'tetor', 'nëntor', 'dhjetor'];
 import { appIdentity, colors, fonts } from '../../constants/tokens';
 import { ms, s } from '../../lib/responsive';
 import { queueImagePrefetch } from '../../lib/prefetchQueue';
@@ -61,7 +54,6 @@ import {
 } from '../../services/api';
 
 const BREAKING_H = 44;
-const CURRENT_YEAR = new Date().getFullYear();
 const DISABLE_MAINTAIN_VISIBLE_CONTENT_POSITION = { disabled: true } as const;
 const REFRESH_MIN_VISIBLE_MS = 600;
 const REFRESH_MAX_WAIT_MS = 3500;
@@ -510,10 +502,8 @@ const LocalNewsHeader = memo(function LocalNewsHeader() {
 
 // ── LatestNewsHeader ─────────────────────────────────────────────────────────
 const LatestNewsHeader = memo(function LatestNewsHeader({
-  count,
   onSeeAll,
 }: {
-  count: number;
   onSeeAll?: () => void;
 }) {
   return (
@@ -532,10 +522,7 @@ const LatestNewsHeader = memo(function LatestNewsHeader({
       </View>
     </View>
   );
-}, (prev, next) =>
-  prev.count === next.count &&
-  prev.onSeeAll === next.onSeeAll,
-);
+}, (prev, next) => prev.onSeeAll === next.onSeeAll);
 
 // ── GridItem (memoized) ──────────────────────────────────────────────────────
 const GridItem = memo(function GridItem({
@@ -1103,7 +1090,7 @@ export default function HomeScreen() {
         </View>
 
         {/* ── LAJMET E FUNDIT — bespoke editorial masthead ────── */}
-        <LatestNewsHeader count={latestData.length} onSeeAll={onOpenNewsPage} />
+        <LatestNewsHeader onSeeAll={onOpenNewsPage} />
       </View>
       );
     },

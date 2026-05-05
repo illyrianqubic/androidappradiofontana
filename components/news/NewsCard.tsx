@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { buildSanityImageUrl, defaultThumbhash, sanityImageWidths, type Post } from '../../services/api';
-import { colors, fonts } from '../../constants/tokens';
+import { fonts } from '../../constants/tokens';
 import { RelativeTime } from '../ui/RelativeTime';
 import { isBreakingBadgeVisible } from '../../lib/breakingBadge';
 
