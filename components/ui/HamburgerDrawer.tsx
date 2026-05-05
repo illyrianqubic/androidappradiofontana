@@ -117,6 +117,15 @@ function HamburgerDrawerInner() {
     }
   }, []);
 
+  // When navigate() triggers the close, we want an instant snap (no slide-out)
+  // so the panel cannot be left rendered at an intermediate translateX while
+  // the route transition is running. Without this flag, the close useEffect
+  // would call withTiming(0,160ms) AFTER navigate() already set progress=0;
+  // because the JS-thread shared-value write hasn't committed to the UI thread
+  // yet, withTiming reads the still-open value and animates from 1→0 again,
+  // and the busy JS thread during navigation leaves it stranded mid-frame.
+  const skipCloseAnimRef = useRef(false);
+
   // Slide animation.
   // setLajmeExpanded(false) is deferred to the close callback so a
   // LinearTransition never runs concurrently with the panel slide-out
@@ -126,14 +135,23 @@ function HamburgerDrawerInner() {
   // when the user rapidly toggles the drawer.
   useEffect(() => {
     if (isOpen) {
+      skipCloseAnimRef.current = false;
       cancelAnimation(progress);
       progress.value = withTiming(1, { duration: OPEN_DURATION, easing: OPEN_EASING });
     } else {
       cancelAnimation(progress);
-      progress.value = withTiming(0, { duration: CLOSE_DURATION, easing: CLOSE_EASING }, (finished) => {
-        'worklet';
-        if (finished) runOnJS(handleCloseComplete)();
-      });
+      if (skipCloseAnimRef.current) {
+        // Instant-snap close requested by navigate(). Reset the flag and drop
+        // progress to 0 directly — no withTiming, no race with the route push.
+        skipCloseAnimRef.current = false;
+        progress.value = 0;
+        handleCloseComplete();
+      } else {
+        progress.value = withTiming(0, { duration: CLOSE_DURATION, easing: CLOSE_EASING }, (finished) => {
+          'worklet';
+          if (finished) runOnJS(handleCloseComplete)();
+        });
+      }
     }
     return () => { cancelAnimation(progress); };
     // progress and handleCloseComplete are stable refs; only isOpen should re-trigger.
@@ -194,12 +212,19 @@ function HamburgerDrawerInner() {
     // multiple router.push timers and stack the same screen twice.
     if (isNavigatingRef.current) return;
     isNavigatingRef.current = true;
-    // Skip the slide-out: the page fade is the only motion the user sees.
+    // Tell the close useEffect to snap instead of animating. Must be set
+    // BEFORE close() so that when isOpen flips to false, the effect sees the
+    // flag on its very first run.
+    skipCloseAnimRef.current = true;
+    // Synchronously hide the panel and the touch-blocking overlay so the
+    // outgoing screen renders cleanly even if React batches close() into the
+    // same commit as the navigation push.
     cancelAnimation(progress);
     progress.value = 0;
     setIsInteractive(false);
+    setLajmeExpanded(false);
     close();
-    // Defer router.push by one tick so React can commit isOpen=false to
+    // Defer router.push by one frame so React can commit isOpen=false to
     // every consumer (most importantly HamburgerButton) BEFORE the screen
     // freezes for navigation. Without this, the source screen sometimes
     // freezes mid-render and the hamburger icon stays as a red X until
