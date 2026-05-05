@@ -270,7 +270,15 @@ export default function RootLayout() {
       return false;
     };
     if (check()) return;
-    const unsub = cache.subscribe(() => { check(); });
+    // queryCache.subscribe fires synchronously inside TanStack's
+    // getOptimisticResult, which runs during another component's render
+    // (e.g. ArticleDetailScreen's useQuery). Calling setState directly from
+    // there triggers React's "Cannot update a component while rendering a
+    // different component" warning. Defer to a microtask so the state
+    // update lands after the in-flight render commits.
+    const unsub = cache.subscribe(() => {
+      queueMicrotask(() => { check(); });
+    });
     // Cold-start fallback: if MMKV cache is empty (first install), do not wait
     // for a Sanity response before the splash can exit. Unblock quickly so Home
     // renders with skeletons and data fills in as requests land.
