@@ -158,7 +158,12 @@ function createAsyncStoragePersister(opts: {
         // it must complete before queries hydrate.
         const parsed = JSON.parse(raw);
         return parsed;
-      } catch {
+      } catch (error) {
+        // Corrupted cache file (rare — happens after force-kill mid-write or
+        // an unclean OTA update). Drop it so the next write replaces it with
+        // a clean payload; surface in dev only.
+        if (__DEV__) console.warn('[query-cache] restore parse failed; dropping cache', error);
+        opts.storage.removeItem(KEY);
         return undefined;
       }
     },

@@ -41,6 +41,9 @@ export function HamburgerButton() {
       // starts on the same UI-thread frame as the touch event — the user
       // perceives zero latency.
       onPressIn={toggle}
+      accessibilityRole="button"
+      accessibilityLabel={isOpen ? 'Mbyll menûnë' : 'Hap menûnë'}
+      accessibilityState={{ expanded: isOpen }}
       style={({ pressed }) => [styles.button, isOpen && styles.buttonActive, pressed && styles.buttonPressed]}
       hitSlop={8}
     >
