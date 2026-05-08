@@ -204,6 +204,15 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   // After this many ms of pause, we assume the audio in the buffer is too far
   // behind live to be acceptable for a radio listener and force a reload.
   const LIVE_EDGE_RESYNC_AFTER_MS = 8000;
+  // Resume UX: while a play() call is in flight (especially the load()->play()
+  // path that reconnects to the live edge), RNTP fires Loading/Buffering
+  // PlaybackState events. Letting those drive the UI causes a visible spinner
+  // flash on every resume, even when the actual audible gap is < 1 second.
+  // We optimistically show the playing state and suppress the buffering
+  // indicator until either real Playing fires OR this deadline passes (in
+  // which case the network is genuinely slow and the user should see feedback).
+  const suppressBufferingUntilRef = useRef(0);
+  const SUPPRESS_BUFFERING_WINDOW_MS = 1500;
 
   const updateState = useCallback((patch: Partial<PlayerStateShape>) => {
     const prev = stateRef.current;
@@ -455,10 +464,17 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     userIntentRef.current = 'play';
     cancelReconnect();
 
+    // Optimistic UI: flip straight to the playing state so the user sees the
+    // pause button and "now playing" UI instantly. Real Loading/Buffering
+    // events from RNTP that arrive within the suppression window below are
+    // ignored — they would otherwise flash a spinner for the brief reconnect.
+    suppressBufferingUntilRef.current = Date.now() + SUPPRESS_BUFFERING_WINDOW_MS;
     updateState({
-      isReconnecting: true,
-      isBuffering: true,
-      playbackState: PlayerState.connecting,
+      isReady: true,
+      isPlaying: true,
+      isBuffering: false,
+      isReconnecting: false,
+      playbackState: PlayerState.playing,
     });
 
     try {
@@ -541,6 +557,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     // Live-edge resync after a long pause is now handled in play() via
     // TrackPlayer.load() (in-place swap, no MediaSession churn).
     pausedAtRef.current = Date.now();
+    suppressBufferingUntilRef.current = 0;
     TrackPlayer.pause().catch(() => undefined);
     void safeUpdateStationMetadata();
   }, [cancelReconnect, updateState]);
@@ -587,11 +604,26 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         userIntentRef.current = 'idle';
         reconnectAttemptRef.current = 0;
         clearReconnectTimeout();
+        suppressBufferingUntilRef.current = 0;
         void safeUpdateStationMetadata();
       }
       if (event.state === TrackPlayerState.Error && userIntentRef.current !== 'pause') {
+        suppressBufferingUntilRef.current = 0;
         updateState(toStatePatch(event.state));
         void reconnectRef.current();
+        return;
+      }
+      // Suppress the Loading/Buffering UI flash during the brief reconnect
+      // window after a resume. The user already sees the optimistic playing
+      // state from play(); flipping to a spinner for ~300–800 ms and back
+      // looks like a glitch. Real buffering longer than the window still
+      // surfaces normally.
+      if (
+        (event.state === TrackPlayerState.Buffering || event.state === TrackPlayerState.Loading) &&
+        userIntentRef.current === 'play' &&
+        Date.now() < suppressBufferingUntilRef.current
+      ) {
+        audioLog('state event suppressed (resume window)', event.state);
         return;
       }
       updateState(toStatePatch(event.state));
