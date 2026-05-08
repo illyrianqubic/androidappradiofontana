@@ -21,14 +21,12 @@ import {
   TrackPlayer,
   TrackPlayerEvent,
   TrackPlayerState,
-  TrackType,
-  type RadioTrack,
 } from './trackPlayerNative';
+import { radioTrack, stationMetadata } from './radioTrack';
 import { appIdentity } from '../../constants/tokens';
 
 
 const reconnectDelaysMs = [1000, 2000, 4000, 8000, 16000, 30000];
-const RADIO_TRACK_ID = 'rtv-fontana-live';
 const AUDIO_DEBUG = __DEV__;
 
 const PlayerState = {
@@ -40,30 +38,11 @@ const PlayerState = {
   error: 5,
 } as const;
 
-const stationMetadata = {
-  title: appIdentity.stationName,
-  artist: appIdentity.location,
-  album: appIdentity.albumTitle,
-};
-
 // Resolve the local asset to a file:// URI so Android can use it as the
 // media notification largeIcon (square thumbnail on the left). Passing a raw
 // require() number works for React Native views but Android's MediaSession
 // needs an actual URI string to render the thumbnail correctly.
 const logoUri = Image.resolveAssetSource(appIdentity.logo).uri;
-
-const radioTrack: RadioTrack = {
-  id: RADIO_TRACK_ID,
-  url: appIdentity.streamUrl,
-  type: TrackType.Default,
-  contentType: 'audio/mpeg',
-  userAgent: 'RTV Fontana/2.0.0 react-native-track-player',
-  title: stationMetadata.title,
-  artist: stationMetadata.artist,
-  album: stationMetadata.album,
-  artwork: logoUri,
-  isLiveStream: true,
-};
 
 type NowPlayingMetadata = {
   title: string;
