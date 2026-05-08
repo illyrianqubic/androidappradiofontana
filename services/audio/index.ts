@@ -204,15 +204,14 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   // After this many ms of pause, we assume the audio in the buffer is too far
   // behind live to be acceptable for a radio listener and force a reload.
   const LIVE_EDGE_RESYNC_AFTER_MS = 8000;
-  // Resume UX: while a play() call is in flight (especially the load()->play()
-  // path that reconnects to the live edge), RNTP fires Loading/Buffering
-  // PlaybackState events. Letting those drive the UI causes a visible spinner
-  // flash on every resume, even when the actual audible gap is < 1 second.
-  // We optimistically show the playing state and suppress the buffering
-  // indicator until either real Playing fires OR this deadline passes (in
-  // which case the network is genuinely slow and the user should see feedback).
-  const suppressBufferingUntilRef = useRef(0);
-  const SUPPRESS_BUFFERING_WINDOW_MS = 1500;
+  // Spinner debounce: brief Loading/Buffering events during a normal resume
+  // (typically < 800 ms total) would otherwise flash the spinner on screen
+  // for a few hundred ms then disappear, which reads as a glitch. We delay
+  // *showing* the buffering UI by this window; if Playing arrives first the
+  // pending show is cancelled and the spinner never appears. Genuinely slow
+  // network loads still surface the spinner once the window elapses.
+  const BUFFERING_SHOW_DELAY_MS = 450;
+  const bufferingShowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const updateState = useCallback((patch: Partial<PlayerStateShape>) => {
     const prev = stateRef.current;
@@ -464,18 +463,13 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     userIntentRef.current = 'play';
     cancelReconnect();
 
-    // Optimistic UI: flip straight to the playing state so the user sees the
-    // pause button and "now playing" UI instantly. Real Loading/Buffering
-    // events from RNTP that arrive within the suppression window below are
-    // ignored — they would otherwise flash a spinner for the brief reconnect.
-    suppressBufferingUntilRef.current = Date.now() + SUPPRESS_BUFFERING_WINDOW_MS;
-    updateState({
-      isReady: true,
-      isPlaying: true,
-      isBuffering: false,
-      isReconnecting: false,
-      playbackState: PlayerState.playing,
-    });
+    // Do NOT optimistically flip the UI here. The play button already gives
+    // tactile feedback via haptics + the button's pressed-state animation,
+    // which is enough "instant" feedback. Driving the spinner / now-playing
+    // state from real RNTP events (with a debounced show, see
+    // BUFFERING_SHOW_DELAY_MS) keeps the indicator honest and stable: it
+    // appears only for loads slow enough that the user would otherwise
+    // wonder if the tap registered, and never flashes for fast resumes.
 
     try {
       if (!queueReadyRef.current) {
@@ -557,7 +551,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     // Live-edge resync after a long pause is now handled in play() via
     // TrackPlayer.load() (in-place swap, no MediaSession churn).
     pausedAtRef.current = Date.now();
-    suppressBufferingUntilRef.current = 0;
+    if (bufferingShowTimerRef.current) {
+      clearTimeout(bufferingShowTimerRef.current);
+      bufferingShowTimerRef.current = null;
+    }
     TrackPlayer.pause().catch(() => undefined);
     void safeUpdateStationMetadata();
   }, [cancelReconnect, updateState]);
@@ -596,6 +593,13 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     mountedRef.current = true;
 
+    const cancelPendingBufferingShow = () => {
+      if (bufferingShowTimerRef.current) {
+        clearTimeout(bufferingShowTimerRef.current);
+        bufferingShowTimerRef.current = null;
+      }
+    };
+
     const onPlaybackState = (event?: { state?: TrackPlayerState }) => {
       if (!event?.state) return;
       if (!mountedRef.current) return;
@@ -604,28 +608,36 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         userIntentRef.current = 'idle';
         reconnectAttemptRef.current = 0;
         clearReconnectTimeout();
-        suppressBufferingUntilRef.current = 0;
+        cancelPendingBufferingShow();
         void safeUpdateStationMetadata();
+        updateState(toStatePatch(event.state));
+        return;
       }
       if (event.state === TrackPlayerState.Error && userIntentRef.current !== 'pause') {
-        suppressBufferingUntilRef.current = 0;
+        cancelPendingBufferingShow();
         updateState(toStatePatch(event.state));
         void reconnectRef.current();
         return;
       }
-      // Suppress the Loading/Buffering UI flash during the brief reconnect
-      // window after a resume. The user already sees the optimistic playing
-      // state from play(); flipping to a spinner for ~300–800 ms and back
-      // looks like a glitch. Real buffering longer than the window still
-      // surfaces normally.
-      if (
-        (event.state === TrackPlayerState.Buffering || event.state === TrackPlayerState.Loading) &&
-        userIntentRef.current === 'play' &&
-        Date.now() < suppressBufferingUntilRef.current
-      ) {
-        audioLog('state event suppressed (resume window)', event.state);
+      // Debounced spinner: if RNTP enters Loading/Buffering for a brief moment
+      // during a normal resume, never show the spinner at all. We schedule the
+      // UI update; if Playing arrives first the timer is cancelled above. Only
+      // genuinely slow loads (> BUFFERING_SHOW_DELAY_MS) reach the UI.
+      if (event.state === TrackPlayerState.Buffering || event.state === TrackPlayerState.Loading) {
+        if (bufferingShowTimerRef.current) return; // already pending
+        const patch = toStatePatch(event.state);
+        bufferingShowTimerRef.current = setTimeout(() => {
+          bufferingShowTimerRef.current = null;
+          if (!mountedRef.current) return;
+          if (userIntentRef.current === 'pause') return;
+          updateState(patch);
+        }, BUFFERING_SHOW_DELAY_MS);
         return;
       }
+      // Paused / Stopped / Ready / Ended / None — apply immediately and
+      // cancel any pending buffering show so a stale timer can't flash the
+      // spinner after the user has already paused.
+      cancelPendingBufferingShow();
       updateState(toStatePatch(event.state));
     };
 
@@ -662,6 +674,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       if (reconnectDebounceRef.current) {
         clearTimeout(reconnectDebounceRef.current);
         reconnectDebounceRef.current = null;
+      }
+      if (bufferingShowTimerRef.current) {
+        clearTimeout(bufferingShowTimerRef.current);
+        bufferingShowTimerRef.current = null;
       }
     };
   }, [clearReconnectTimeout, pause, play, syncFromTrackPlayer, updateState]);
