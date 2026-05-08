@@ -196,6 +196,14 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const reconnectRef = useRef<() => Promise<void>>(async () => undefined);
   const doReconnectRef = useRef<() => Promise<void>>(async () => undefined);
   const userIntentRef = useRef<'play' | 'pause' | 'idle'>('idle');
+  // Tracks when the user (or system) paused playback so resume can decide
+  // whether to do a fresh load() to snap back to the live edge of the stream.
+  // Short pauses use plain play() for an instant, flicker-free resume; long
+  // pauses (where audio would be noticeably stale) trigger a reload.
+  const pausedAtRef = useRef<number | null>(null);
+  // After this many ms of pause, we assume the audio in the buffer is too far
+  // behind live to be acceptable for a radio listener and force a reload.
+  const LIVE_EDGE_RESYNC_AFTER_MS = 8000;
 
   const updateState = useCallback((patch: Partial<PlayerStateShape>) => {
     const prev = stateRef.current;
@@ -458,7 +466,25 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         // Setup not yet complete (rare on slow devices) — wait for pre-load.
         audioLog('play: waiting for track pre-load');
         await ensureRadioTrack();
+      } else {
+        // Live-edge resync: if we've been paused long enough that the buffered
+        // audio would be noticeably behind the live broadcast, swap the track
+        // in place with load() so playback reconnects at the live edge. We do
+        // NOT reset() here — load() replaces the current track without tearing
+        // down the MediaSession, so the lock-screen notification stays alive.
+        const pausedAt = pausedAtRef.current;
+        if (pausedAt !== null && Date.now() - pausedAt >= LIVE_EDGE_RESYNC_AFTER_MS) {
+          audioLog('play: pause was long, reloading for live edge');
+          try {
+            await TrackPlayer.load(radioTrack);
+          } catch (loadError) {
+            // load() can fail on some setups; fall back to a full reset/add.
+            audioError('play: load() failed, falling back to ensureRadioTrack', loadError);
+            await ensureRadioTrack({ forceReset: true });
+          }
+        }
       }
+      pausedAtRef.current = null;
       audioLog('play called');
       await TrackPlayer.play();
       audioLog('play success');
@@ -502,17 +528,20 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       },
     });
 
-    // FIX: This is a LIVE radio stream — pause() alone keeps the buffered
-    // position, so resuming after N minutes plays N minutes behind live
-    // ("radio is sounding something else"). Stop the player and invalidate
-    // the queue so the next play() does a fresh load and reconnects at the
-    // live edge of the stream every time.
-    TrackPlayer.stop().catch(() => {
-      // stop() may reject if the queue is already empty — fall back to pause()
-      // so we still release audio focus and update the lock-screen UI.
-      TrackPlayer.pause().catch(() => undefined);
-    });
-    queueReadyRef.current = false;
+    // Use TrackPlayer.pause() (NOT stop) so the native queue and Android
+    // MediaSession stay alive in the PAUSED state. This is what keeps the
+    // lock-screen notification visible and stable — tapping Play from the
+    // lock screen then resumes instantly with no flicker, exactly like
+    // Spotify or any premium audio app. The previous implementation called
+    // stop() to force a fresh live-edge reconnect on resume, but that
+    // emptied the queue and tore down the MediaSession, which caused the
+    // notification to briefly disappear and reappear when the user tapped
+    // Play on the lock screen.
+    //
+    // Live-edge resync after a long pause is now handled in play() via
+    // TrackPlayer.load() (in-place swap, no MediaSession churn).
+    pausedAtRef.current = Date.now();
+    TrackPlayer.pause().catch(() => undefined);
     void safeUpdateStationMetadata();
   }, [cancelReconnect, updateState]);
 

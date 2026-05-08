@@ -4,41 +4,42 @@
 import TrackPlayer, { Event, type AddTrack } from 'react-native-track-player';
 import { radioTrack } from './radioTrack';
 
-// Ensures the native queue contains the radio track before play() is called.
+// Lock-screen / Bluetooth / Auto remote-play handler.
 //
-// Why this matters: the in-app pause() calls TrackPlayer.stop() so resume
-// always reconnects at the live edge of the stream (otherwise users hear
-// audio from N minutes ago after a long pause). stop() empties the queue.
-// When the user then taps Play on the LOCK SCREEN, this headless service —
-// not the in-app play() — is what runs, and it has no React state to know
-// the queue is empty. Calling play() on an empty queue makes the
-// MediaSession drop out of the playing state, which is exactly the
-// "notification flickers / disappears for a moment" symptom users see.
+// The in-app pause() now uses TrackPlayer.pause() (not stop), so the native
+// queue and MediaSession stay alive across pauses. That means in the common
+// case we just call play() here and the user gets an instant, flicker-free
+// resume — the lock-screen notification never disappears, exactly like
+// Spotify or any premium audio app.
 //
-// We unconditionally reset+add before play here so the native queue is
-// always primed, regardless of how it got emptied. add() on a non-empty
-// queue would be a duplicate, hence the reset() first.
-async function ensureQueueAndPlay() {
+// The reset+add fallback only kicks in if play() throws (e.g. the JS app was
+// killed long enough that the native session was reclaimed and the queue is
+// genuinely empty). In that rare case a brief notification flicker is
+// unavoidable because the MediaSession has to be rebuilt from scratch.
+//
+// IMPORTANT: do NOT proactively reset()+add() on every RemotePlay — reset()
+// tears the MediaSession down to NONE and is itself the cause of the
+// notification flicker we're trying to eliminate.
+async function handleRemotePlay() {
+  try {
+    await TrackPlayer.play();
+    return;
+  } catch (playError) {
+    if (__DEV__) console.warn('[TrackPlayer Service] play() failed, rebuilding queue', playError);
+  }
   try {
     await TrackPlayer.reset();
     await TrackPlayer.add(radioTrack as AddTrack);
-  } catch {
-    // reset() / add() can throw if the player isn't set up yet (cold start
-    // from the lock screen with the app fully killed). play() below will
-    // throw too in that case and the user can re-tap, but in practice the
-    // app's eager setup runs before the notification is interactive.
-  }
-  try {
     await TrackPlayer.play();
-  } catch {
-    // No-op — the next state event from RNTP will surface the error to UI.
+  } catch (rebuildError) {
+    if (__DEV__) console.error('[TrackPlayer Service] queue rebuild failed', rebuildError);
   }
 }
 
 export async function trackPlayerService() {
   TrackPlayer.addEventListener(Event.RemotePlay, () => {
     if (__DEV__) console.log('[TrackPlayer Service]', Event.RemotePlay);
-    void ensureQueueAndPlay();
+    void handleRemotePlay();
   });
 
   TrackPlayer.addEventListener(Event.RemotePause, () => {
