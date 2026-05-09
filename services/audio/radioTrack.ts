@@ -2,14 +2,8 @@
 //
 // Exported separately so both the React provider (services/audio/index.ts)
 // AND the headless playback service (services/audio/trackPlayerService.ts)
-// can construct the same RadioTrack object.
-//
-// This is required for the lock-screen Play button to work after the user
-// previously paused: pause() calls TrackPlayer.stop() to drop the buffered
-// position (so resume always reconnects at the live edge), which empties
-// the native queue. The lock-screen RemotePlay handler must therefore be
-// able to reload the track before calling play() — without going back
-// through React.
+// reference the exact same track object. Both paths call load(radioTrack)
+// before play() on every resume to reconnect at the live edge.
 
 import { Image } from 'react-native';
 import { TrackType, type RadioTrack } from './trackPlayerNative';

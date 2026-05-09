@@ -196,19 +196,12 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const reconnectRef = useRef<() => Promise<void>>(async () => undefined);
   const doReconnectRef = useRef<() => Promise<void>>(async () => undefined);
   const userIntentRef = useRef<'play' | 'pause' | 'idle'>('idle');
-  // Tracks when the user paused so play() can decide whether to reload the
-  // stream for live-edge resync (see LIVE_EDGE_RESYNC_AFTER_MS below).
-  const pausedAtRef = useRef<number | null>(null);
-  // ExoPlayer's maxBuffer is 30 s. After that many ms of pause, the buffer is
-  // saturated with post-pause content. Resuming would play 30+ s of stale
-  // radio before eventually reconnecting to the live edge via an unexpected
-  // reconnect path (the one that causes the glitch). Instead we reload the
-  // stream proactively at play() time so the user gets live audio immediately.
-  const LIVE_EDGE_RESYNC_AFTER_MS = 30_000;
   // Set to true while a deliberate live-edge load() sequence is in progress.
   // Intermediate RNTP state events (IDLE/None, Loading, Buffering, Paused)
   // are suppressed while this flag is true so the ONE loading state we set
   // explicitly before load() stays stable until Playing or Error fires.
+  // Also set in the RemotePlay listener so events from the headless service's
+  // load() call are suppressed in the React state handler.
   const liveEdgeLoadingRef = useRef(false);
   // Spinner debounce: brief Loading/Buffering events during a normal resume
   // (typically < 800 ms total) would otherwise flash the spinner on screen
@@ -469,57 +462,36 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     userIntentRef.current = 'play';
     cancelReconnect();
 
-    // Do NOT optimistically flip the UI here. The play button already gives
-    // tactile feedback via haptics + the button's pressed-state animation,
-    // which is enough "instant" feedback. Driving the spinner / now-playing
-    // state from real RNTP events (with a debounced show, see
-    // BUFFERING_SHOW_DELAY_MS) keeps the indicator honest and stable: it
-    // appears only for loads slow enough that the user would otherwise
-    // wonder if the tap registered, and never flashes for fast resumes.
-
     try {
-      if (!queueReadyRef.current) {
-        // Setup not yet complete (rare on slow devices) — wait for pre-load.
-        audioLog('play: waiting for track pre-load');
-        await ensureRadioTrack();
-      } else {
-        const pausedAt = pausedAtRef.current;
-        if (pausedAt !== null && (Date.now() - pausedAt) >= LIVE_EDGE_RESYNC_AFTER_MS) {
-          // ExoPlayer has buffered up to maxBuffer (30 s) of audio from right
-          // after the pause. Playing that stale content would give the listener
-          // 30+ seconds of wrong audio before an unexpected reconnect glitch.
-          // Instead, reload the stream NOW so the first audio the user hears
-          // is live.
-          //
-          // load() briefly puts ExoPlayer through IDLE — the only way to
-          // reconnect for a plain HTTP Icecast stream. We set the loading
-          // state explicitly BEFORE calling it and suppress all intermediate
-          // events (IDLE/None, Buffering, Loading) via liveEdgeLoadingRef
-          // until Playing fires. The user sees ONE clean loading → playing
-          // transition, not a mid-playback surprise glitch.
-          audioLog('play: long pause, reloading for live edge');
-          if (bufferingShowTimerRef.current) {
-            clearTimeout(bufferingShowTimerRef.current);
-            bufferingShowTimerRef.current = null;
-          }
-          updateState({
-            isPlaying: false,
-            isBuffering: true,
-            isReconnecting: true,
-            playbackState: PlayerState.buffering,
-          });
-          liveEdgeLoadingRef.current = true;
-          try {
-            await TrackPlayer.load(radioTrack);
-          } catch (loadError) {
-            // load() failed (unlikely); fall through and let play() try on the
-            // existing stream. If that also fails the outer catch fires reconnect.
-            audioError('play: live-edge load failed, will try play anyway', loadError);
-          }
-        }
-      }
+      // Ensure the player is initialised (noop if already ready).
+      await ensureRadioTrack();
 
-      pausedAtRef.current = null;
+      // Always reconnect to the live edge — never resume from a stale buffer.
+      // load() replaces the ExoPlayer source without tearing down MediaSession
+      // (unlike reset(), which sends STATE_NONE and removes the notification).
+      // We set loading state explicitly here and suppress all intermediate
+      // events (IDLE/None, Loading, Buffering) via liveEdgeLoadingRef until
+      // Playing or Error fires. The user sees one clean loading → playing
+      // transition with no mid-playback glitch.
+      audioLog('play: reloading stream for live edge');
+      if (bufferingShowTimerRef.current) {
+        clearTimeout(bufferingShowTimerRef.current);
+        bufferingShowTimerRef.current = null;
+      }
+      updateState({
+        isPlaying: false,
+        isBuffering: true,
+        isReconnecting: true,
+        playbackState: PlayerState.buffering,
+      });
+      liveEdgeLoadingRef.current = true;
+      try {
+        await TrackPlayer.load(radioTrack);
+      } catch (loadError) {
+        // load() failed (unlikely); fall through and let play() try on the
+        // existing stream. If that also fails the outer catch fires reconnect.
+        audioError('play: live-edge load failed, will try play anyway', loadError);
+      }
 
       // Guard: user may have tapped Pause while load() was in flight.
       // Double cast defeats TypeScript's CFA which incorrectly narrows
@@ -534,7 +506,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       audioLog('play called');
       await TrackPlayer.play();
       audioLog('play success');
-      // Update metadata after play starts — non-blocking for the user.
       void safeUpdateStationMetadata();
 
       // Fallback: if playback state hasn't transitioned to playing after 3 s,
@@ -575,7 +546,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       },
     });
 
-    pausedAtRef.current = Date.now();
     if (bufferingShowTimerRef.current) {
       clearTimeout(bufferingShowTimerRef.current);
       bufferingShowTimerRef.current = null;
@@ -631,9 +601,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       audioLog('state event', event.state);
 
       if (event.state === TrackPlayerState.Playing) {
-        // Clear pausedAt first so a stale timestamp never triggers a spurious
-        // live-edge load() if play() is called again before the next pause.
-        pausedAtRef.current = null;
         // Clear the live-edge load flag so the playing state update goes through.
         liveEdgeLoadingRef.current = false;
         userIntentRef.current = 'idle';
@@ -703,19 +670,16 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       // When the lock-screen Play button is tapped, RNTP fires RemotePlay to
       // BOTH this JS listener AND the headless playback service (trackPlayerService.ts).
       // Both run on the same JS thread. If this listener also calls TrackPlayer
-      // operations (play, load, etc.) it races with the headless service:
-      //
-      //   headless: play() → ExoPlayer: PAUSED → PLAYING
-      //   listener: load() → ExoPlayer: PLAYING → IDLE → BUFFERING → PLAYING
-      //
-      // That PLAYING → IDLE mid-stream transition is the notification flash/glitch.
-      // MediaSession STATE_IDLE briefly clears playback state — controls disappear.
+      // operations it races with the headless service, causing a double load()
+      // and a mid-stream IDLE transition that flashes/removes the notification.
       //
       // The headless service is the sole authority for player operations from
-      // lock-screen events. This listener only syncs React intent so that the
-      // PlaybackState event handler (and reconnect logic) behaves correctly.
+      // lock-screen events. This listener syncs React intent and pre-sets
+      // liveEdgeLoadingRef so the PlaybackState handler suppresses intermediate
+      // events (IDLE/Loading/Buffering) during the headless load() call.
       userIntentRef.current = 'play';
       cancelReconnect();
+      liveEdgeLoadingRef.current = true;
     });
     const remotePauseSub = TrackPlayer.addEventListener(TrackPlayerEvent.RemotePause, () => {
       audioLog('remote-pause (lock screen)');

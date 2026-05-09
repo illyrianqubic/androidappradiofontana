@@ -6,33 +6,24 @@ import { radioTrack } from './radioTrack';
 
 // Lock-screen / Bluetooth / Auto remote-play handler.
 //
-// The in-app pause() now uses TrackPlayer.pause() (not stop), so the native
-// queue and MediaSession stay alive across pauses. That means in the common
-// case we just call play() here and the user gets an instant, flicker-free
-// resume — the lock-screen notification never disappears, exactly like
-// Spotify or any premium audio app.
+// Always reconnects to the live edge via load() before play(). load() replaces
+// the ExoPlayer source (ExoPlayer: PAUSED → LOADING → PLAYING) without tearing
+// the MediaSession down to STATE_NONE — so the notification stays visible
+// throughout. This is how every pause → lock-screen-play cycle lands on the
+// current broadcast, never on buffered/stale audio.
 //
-// The reset+add fallback only kicks in if play() throws (e.g. the JS app was
-// killed long enough that the native session was reclaimed and the queue is
-// genuinely empty). In that rare case a brief notification flicker is
-// unavoidable because the MediaSession has to be rebuilt from scratch.
-//
-// IMPORTANT: do NOT proactively reset()+add() on every RemotePlay — reset()
-// tears the MediaSession down to NONE and is itself the cause of the
-// notification flicker we're trying to eliminate.
+// IMPORTANT: do NOT use reset()+add() here — reset() sends STATE_NONE to
+// MediaSession, which removes the notification and causes the visible flicker.
 async function handleRemotePlay() {
   try {
+    await TrackPlayer.load(radioTrack as AddTrack);
     await TrackPlayer.play();
-    return;
-  } catch (playError) {
-    if (__DEV__) console.warn('[TrackPlayer Service] play() failed, rebuilding queue', playError);
-  }
-  try {
-    await TrackPlayer.reset();
-    await TrackPlayer.add(radioTrack as AddTrack);
-    await TrackPlayer.play();
-  } catch (rebuildError) {
-    if (__DEV__) console.error('[TrackPlayer Service] queue rebuild failed', rebuildError);
+  } catch (error) {
+    if (__DEV__) console.warn('[TrackPlayer Service] load+play failed, falling back to play-only', error);
+    // If load() itself threw (e.g. queue torn down entirely), attempt play()
+    // on whatever is in the queue. If that also fails, the PlaybackError event
+    // will surface the error through the normal reconnect path.
+    TrackPlayer.play().catch(() => undefined);
   }
 }
 
