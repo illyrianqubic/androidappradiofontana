@@ -61,6 +61,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "./plugins/with-adi-registration-asset",
       "expo-router",
       [
         "expo-splash-screen",
