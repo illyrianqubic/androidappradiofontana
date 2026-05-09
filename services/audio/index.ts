@@ -631,8 +631,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       audioLog('state event', event.state);
 
       if (event.state === TrackPlayerState.Playing) {
-        // Clear the live-edge load flag first so the playing state update
-        // goes through unconditionally.
+        // Clear pausedAt first so a stale timestamp never triggers a spurious
+        // live-edge load() if play() is called again before the next pause.
+        pausedAtRef.current = null;
+        // Clear the live-edge load flag so the playing state update goes through.
         liveEdgeLoadingRef.current = false;
         userIntentRef.current = 'idle';
         reconnectAttemptRef.current = 0;
@@ -696,7 +698,24 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     });
     const remotePlaySub = TrackPlayer.addEventListener(TrackPlayerEvent.RemotePlay, () => {
       audioLog('remote-play (lock screen)');
-      void play();
+      // IMPORTANT: do NOT call play() or any TrackPlayer operation here.
+      //
+      // When the lock-screen Play button is tapped, RNTP fires RemotePlay to
+      // BOTH this JS listener AND the headless playback service (trackPlayerService.ts).
+      // Both run on the same JS thread. If this listener also calls TrackPlayer
+      // operations (play, load, etc.) it races with the headless service:
+      //
+      //   headless: play() → ExoPlayer: PAUSED → PLAYING
+      //   listener: load() → ExoPlayer: PLAYING → IDLE → BUFFERING → PLAYING
+      //
+      // That PLAYING → IDLE mid-stream transition is the notification flash/glitch.
+      // MediaSession STATE_IDLE briefly clears playback state — controls disappear.
+      //
+      // The headless service is the sole authority for player operations from
+      // lock-screen events. This listener only syncs React intent so that the
+      // PlaybackState event handler (and reconnect logic) behaves correctly.
+      userIntentRef.current = 'play';
+      cancelReconnect();
     });
     const remotePauseSub = TrackPlayer.addEventListener(TrackPlayerEvent.RemotePause, () => {
       audioLog('remote-pause (lock screen)');
@@ -723,7 +742,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         bufferingShowTimerRef.current = null;
       }
     };
-  }, [clearReconnectTimeout, pause, play, syncFromTrackPlayer, updateState]);
+  }, [cancelReconnect, clearReconnectTimeout, pause, play, syncFromTrackPlayer, updateState]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
