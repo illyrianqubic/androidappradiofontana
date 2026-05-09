@@ -168,12 +168,7 @@ export default function LiveScreen() {
             <Text style={styles.statVal}>24/7</Text>
             <Text style={styles.statLbl}>LIVE</Text>
           </View>
-          <View style={styles.statCard}>
-            <Ionicons name="volume-medium-outline" size={s(22)} color={TEXT_MUTED} />
-            <Text style={styles.statVal}>HQ</Text>
-            <Text style={styles.statLbl}>320KBPS</Text>
-          </View>
-          <View style={styles.statCard}>
+<View style={styles.statCard}>
             <Ionicons name="wifi-outline" size={s(22)} color={TEXT_MUTED} />
             <Text style={styles.statVal}>FM</Text>
             <Text style={styles.statLbl}>98.8</Text>
