@@ -6,24 +6,33 @@ import { radioTrack } from './radioTrack';
 
 // Lock-screen / Bluetooth / Auto remote-play handler.
 //
-// Always reconnects to the live edge via load() before play(). load() replaces
-// the ExoPlayer source (ExoPlayer: PAUSED → LOADING → PLAYING) without tearing
-// the MediaSession down to STATE_NONE — so the notification stays visible
-// throughout. This is how every pause → lock-screen-play cycle lands on the
-// current broadcast, never on buffered/stale audio.
+// We call play() directly WITHOUT a preceding load(). For a live HTTP/Icecast
+// stream the HTTP connection is dropped by the server after a few seconds of
+// pause, so ExoPlayer reconnects to the live edge automatically when play() is
+// called — no stale audio in practice.
 //
-// IMPORTANT: do NOT use reset()+add() here — reset() sends STATE_NONE to
-// MediaSession, which removes the notification and causes the visible flicker.
+// Why NOT load() first: load() forces ExoPlayer through STATE_IDLE before
+// STATE_BUFFERING. RNTP maps STATE_IDLE → MediaSession STATE_NONE, which
+// briefly resets the lock-screen notification (play button disappears, loading
+// indicator flickers). play() transitions PAUSED → BUFFERING → PLAYING with no
+// STATE_IDLE, so the notification goes cleanly: play button → loading → pause.
+//
+// IMPORTANT: do NOT use reset()+add() — reset() sends STATE_NONE to
+// MediaSession, which removes the notification entirely.
 async function handleRemotePlay() {
   try {
-    await TrackPlayer.load(radioTrack as AddTrack);
     await TrackPlayer.play();
   } catch (error) {
-    if (__DEV__) console.warn('[TrackPlayer Service] load+play failed, falling back to play-only', error);
-    // If load() itself threw (e.g. queue torn down entirely), attempt play()
-    // on whatever is in the queue. If that also fails, the PlaybackError event
-    // will surface the error through the normal reconnect path.
-    TrackPlayer.play().catch(() => undefined);
+    // play() failed — the queue may have been torn down (e.g. app killed and
+    // restarted). Fall back to load()+play(); this accepts the brief STATE_IDLE
+    // notification flicker as a recovery edge case.
+    if (__DEV__) console.warn('[TrackPlayer Service] play() failed, reloading track', error);
+    try {
+      await TrackPlayer.load(radioTrack as AddTrack);
+      await TrackPlayer.play();
+    } catch (retryError) {
+      if (__DEV__) console.warn('[TrackPlayer Service] load+play retry also failed', retryError);
+    }
   }
 }
 
