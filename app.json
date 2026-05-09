@@ -7,6 +7,9 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "assets/**/*"
+    ],
     "newArchEnabled": true,
     "updates": {
       "fallbackToCacheTimeout": 0,
@@ -38,6 +41,9 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.radiofontana.app",
+      "assets": [
+        "assets/adi-registration.properties"
+      ],
       "permissions": [
         "android.permission.INTERNET",
         "android.permission.WAKE_LOCK",
