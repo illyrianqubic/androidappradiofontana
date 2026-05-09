@@ -679,7 +679,22 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       // events (IDLE/Loading/Buffering) during the headless load() call.
       userIntentRef.current = 'play';
       cancelReconnect();
+      if (bufferingShowTimerRef.current) {
+        clearTimeout(bufferingShowTimerRef.current);
+        bufferingShowTimerRef.current = null;
+      }
       liveEdgeLoadingRef.current = true;
+      // Mirror the loading state that play() sets explicitly. Without this the
+      // React state stays "paused" while the headless load() is in progress, so
+      // if the user opens the app during buffering they briefly see the play
+      // button instead of the loading indicator. Clearing bufferingShowTimerRef
+      // prevents a stale debounce timer from firing the spinner AFTER Playing.
+      updateState({
+        isPlaying: false,
+        isBuffering: true,
+        isReconnecting: true,
+        playbackState: PlayerState.buffering,
+      });
     });
     const remotePauseSub = TrackPlayer.addEventListener(TrackPlayerEvent.RemotePause, () => {
       audioLog('remote-pause (lock screen)');
