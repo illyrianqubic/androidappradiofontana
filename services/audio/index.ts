@@ -196,6 +196,20 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const reconnectRef = useRef<() => Promise<void>>(async () => undefined);
   const doReconnectRef = useRef<() => Promise<void>>(async () => undefined);
   const userIntentRef = useRef<'play' | 'pause' | 'idle'>('idle');
+  // Tracks when the user paused so play() can decide whether to reload the
+  // stream for live-edge resync (see LIVE_EDGE_RESYNC_AFTER_MS below).
+  const pausedAtRef = useRef<number | null>(null);
+  // ExoPlayer's maxBuffer is 30 s. After that many ms of pause, the buffer is
+  // saturated with post-pause content. Resuming would play 30+ s of stale
+  // radio before eventually reconnecting to the live edge via an unexpected
+  // reconnect path (the one that causes the glitch). Instead we reload the
+  // stream proactively at play() time so the user gets live audio immediately.
+  const LIVE_EDGE_RESYNC_AFTER_MS = 30_000;
+  // Set to true while a deliberate live-edge load() sequence is in progress.
+  // Intermediate RNTP state events (IDLE/None, Loading, Buffering, Paused)
+  // are suppressed while this flag is true so the ONE loading state we set
+  // explicitly before load() stays stable until Playing or Error fires.
+  const liveEdgeLoadingRef = useRef(false);
   // Spinner debounce: brief Loading/Buffering events during a normal resume
   // (typically < 800 ms total) would otherwise flash the spinner on screen
   // for a few hundred ms then disappear, which reads as a glitch. We delay
@@ -468,25 +482,55 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         // Setup not yet complete (rare on slow devices) — wait for pre-load.
         audioLog('play: waiting for track pre-load');
         await ensureRadioTrack();
+      } else {
+        const pausedAt = pausedAtRef.current;
+        if (pausedAt !== null && (Date.now() - pausedAt) >= LIVE_EDGE_RESYNC_AFTER_MS) {
+          // ExoPlayer has buffered up to maxBuffer (30 s) of audio from right
+          // after the pause. Playing that stale content would give the listener
+          // 30+ seconds of wrong audio before an unexpected reconnect glitch.
+          // Instead, reload the stream NOW so the first audio the user hears
+          // is live.
+          //
+          // load() briefly puts ExoPlayer through IDLE — the only way to
+          // reconnect for a plain HTTP Icecast stream. We set the loading
+          // state explicitly BEFORE calling it and suppress all intermediate
+          // events (IDLE/None, Buffering, Loading) via liveEdgeLoadingRef
+          // until Playing fires. The user sees ONE clean loading → playing
+          // transition, not a mid-playback surprise glitch.
+          audioLog('play: long pause, reloading for live edge');
+          if (bufferingShowTimerRef.current) {
+            clearTimeout(bufferingShowTimerRef.current);
+            bufferingShowTimerRef.current = null;
+          }
+          updateState({
+            isPlaying: false,
+            isBuffering: true,
+            isReconnecting: true,
+            playbackState: PlayerState.buffering,
+          });
+          liveEdgeLoadingRef.current = true;
+          try {
+            await TrackPlayer.load(radioTrack);
+          } catch (loadError) {
+            // load() failed (unlikely); fall through and let play() try on the
+            // existing stream. If that also fails the outer catch fires reconnect.
+            audioError('play: live-edge load failed, will try play anyway', loadError);
+          }
+        }
       }
-      // Never call load() or reset() here. This is the key design decision:
-      //
-      // load() puts ExoPlayer through IDLE → BUFFERING → READY. The IDLE
-      // state causes Android MediaSession to clear its playback state, which
-      // makes the lock-screen notification briefly disappear or lose its
-      // controls — the exact glitch the user sees. This is a native-layer
-      // transition that cannot be debounced from JS.
-      //
-      // Instead we call play() and let ExoPlayer manage the live edge itself:
-      // - Short pause (<30 s): buffer has data, resume is instant (no state
-      //   transitions at all).
-      // - Long pause: ExoPlayer plays through the buffer, then when the
-      //   buffer runs dry it reconnects to the HTTP stream. Icecast/Shoutcast
-      //   always sends CURRENT live audio on a new connection, so ExoPlayer
-      //   naturally arrives at the live edge. During that reconnect it goes
-      //   PAUSED → BUFFERING → PLAYING — never touching IDLE. The lock-screen
-      //   notification stays alive. The in-app 450 ms debounce hides the
-      //   spinner for brief reconnects, and shows it honestly for slow ones.
+
+      pausedAtRef.current = null;
+
+      // Guard: user may have tapped Pause while load() was in flight.
+      // Double cast defeats TypeScript's CFA which incorrectly narrows
+      // .current to 'play' after the assignment at the top of play() —
+      // pause() can legitimately change it across the await boundary.
+      const intentAfterLoad = (userIntentRef.current as unknown) as 'play' | 'pause' | 'idle';
+      if (intentAfterLoad === 'pause') {
+        liveEdgeLoadingRef.current = false;
+        return;
+      }
+
       audioLog('play called');
       await TrackPlayer.play();
       audioLog('play success');
@@ -509,6 +553,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         }
       }, 3000);
     } catch (error) {
+      liveEdgeLoadingRef.current = false;
       audioError('play error', error);
       void reconnect();
     }
@@ -530,10 +575,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       },
     });
 
-    // TrackPlayer.pause() keeps the queue and MediaSession alive in PAUSED
-    // state. The lock-screen notification stays visible and stable. Controls
-    // remain interactive. This is the correct approach for any premium audio
-    // app — DO NOT replace this with stop() or reset().
+    pausedAtRef.current = Date.now();
     if (bufferingShowTimerRef.current) {
       clearTimeout(bufferingShowTimerRef.current);
       bufferingShowTimerRef.current = null;
@@ -587,7 +629,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       if (!event?.state) return;
       if (!mountedRef.current) return;
       audioLog('state event', event.state);
+
       if (event.state === TrackPlayerState.Playing) {
+        // Clear the live-edge load flag first so the playing state update
+        // goes through unconditionally.
+        liveEdgeLoadingRef.current = false;
         userIntentRef.current = 'idle';
         reconnectAttemptRef.current = 0;
         clearReconnectTimeout();
@@ -596,12 +642,24 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         updateState(toStatePatch(event.state));
         return;
       }
+
       if (event.state === TrackPlayerState.Error && userIntentRef.current !== 'pause') {
+        liveEdgeLoadingRef.current = false;
         cancelPendingBufferingShow();
         updateState(toStatePatch(event.state));
         void reconnectRef.current();
         return;
       }
+
+      // Suppress intermediate events during a deliberate live-edge load
+      // sequence. We've already set the loading state explicitly; letting
+      // these fire would either revert the loading state (IDLE/None → none)
+      // or create redundant updates before Playing arrives.
+      if (liveEdgeLoadingRef.current) {
+        audioLog('state event suppressed (live-edge load in progress)', event.state);
+        return;
+      }
+
       // Debounced spinner: if RNTP enters Loading/Buffering for a brief moment
       // during a normal resume, never show the spinner at all. We schedule the
       // UI update; if Playing arrives first the timer is cancelled above. Only
@@ -617,6 +675,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         }, BUFFERING_SHOW_DELAY_MS);
         return;
       }
+
       // Paused / Stopped / Ready / Ended / None — apply immediately and
       // cancel any pending buffering show so a stale timer can't flash the
       // spinner after the user has already paused.
@@ -658,6 +717,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         clearTimeout(reconnectDebounceRef.current);
         reconnectDebounceRef.current = null;
       }
+      liveEdgeLoadingRef.current = false;
       if (bufferingShowTimerRef.current) {
         clearTimeout(bufferingShowTimerRef.current);
         bufferingShowTimerRef.current = null;
