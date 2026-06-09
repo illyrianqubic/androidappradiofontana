@@ -114,7 +114,7 @@ function modifyAndroidManifest(manifest, packageName) {
 // ─── Android: generate light icon resources ──────────────────────────────────
 async function generateAndroidLightResources(androidProjectRoot) {
   const resPath = path.join(androidProjectRoot, ANDROID_RES_PATH);
-  const projectRoot = path.resolve(androidProjectRoot, "../..");
+  const projectRoot = path.resolve(androidProjectRoot, "..");
   const lightIconSrc = path.join(projectRoot, "assets/images/applogortvfontana.png");
   const lightForegroundSrc = path.join(projectRoot, "assets/adaptive-icon-foreground.png");
 
