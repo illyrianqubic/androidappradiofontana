@@ -31,16 +31,26 @@ export const colors = {
   textTertiary: '#94a3b8',
   textFaint: '#cbd5e1',
 
+  // ── Article palette (warm editorial tones) ─────────────────────────────────
+  bgScreen: '#F7F8FA',
+  inkDark: '#0B1220',
+  inkSoft: '#3B4456',
+  inkFaint: '#8A93A6',
+  paper: '#FBF9F4',
+  rule: '#E6E1D8',
+
   // ── Legacy compat ────────────────────────────────────────────────────────────
   surfaceSubtleOld: '#FAFAFA',
 } as const;
 
 export const radius = {
+  sm: 8,
+  md: 12,
   card: 16,
   cardLarge: 22,
+  xl: 28,
   button: 12,
   pill: 9999,
-  sm: 8,
 } as const;
 
 export const spacing = {
@@ -85,7 +95,8 @@ export const appIdentity = {
   frequency: '98.8 FM',
   streamUrl: 'https://live.radiostreaming.al:8010/stream.mp3',
   logo: require('../assets/images/logoandroid.png'),
-  lockScreenArtwork: require('../assets/images/media-artwork.png'),
+  lockScreenArtwork: 'https://res.cloudinary.com/dgdtcuctw/image/upload/v1780050578/logoandroid_r5fon8.png',
+  lockScreenArtworkWide: 'https://res.cloudinary.com/dgdtcuctw/image/upload/v1780054402/lockscreen-artwork-wide_cfa0xf.png',
 } as const;
 
 export const elevation = {

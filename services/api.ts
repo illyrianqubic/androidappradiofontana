@@ -209,6 +209,7 @@ export async function fetchLatestPosts(
   category = '',
   search = '',
   limit = 20,
+  offset = 0,
   signal?: AbortSignal,
 ): Promise<Post[]> {
   const categorySlug = resolveCategorySlug(category);
@@ -222,11 +223,12 @@ export async function fetchLatestPosts(
     ? `&& (title match $search || excerpt match $search)`
     : '';
 
-  const query = `*[_type == "post" ${categoryFilter} ${searchFilter}] | order(publishedAt desc)[0...$limit] { ${postProjection} }`;
+  const query = `*[_type == "post" ${categoryFilter} ${searchFilter}] | order(publishedAt desc)[$start...$end] { ${postProjection} }`;
   const data = await sanityFetch<Post[]>(query, {
     categorySlugs,
     search: `*${search.trim()}*`,
-    limit,
+    start: offset,
+    end: offset + limit,
   }, { signal });
 
   return data ?? [];

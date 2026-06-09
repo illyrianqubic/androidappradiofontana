@@ -1,6 +1,9 @@
+import { useMemo } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, radius, spacing } from '../constants/tokens';
+import { fonts, radius, spacing } from '../constants/tokens';
+import { useTheme } from '../providers/ThemeProvider';
+import type { ThemeColors } from '../providers/ThemeProvider';
 import {
   STATIC_PAGE_BOTTOM_BAR_BASE_HEIGHT,
   STATIC_PAGE_HEADER_ROW_HEIGHT,
@@ -31,116 +34,10 @@ const VALUE_PILLS = ['Integritet', 'Transparencë', 'Komunitet', 'Ritëm modern'
 
 const openURL = (url: string) => Linking.openURL(url).catch(() => undefined);
 
-export default function AboutScreen() {
-  const insets = useSafeAreaInsets();
-  const safeBottom = Math.max(insets.bottom, STATIC_PAGE_MIN_BOTTOM_SAFE_AREA);
-  const headerHeight = insets.top + STATIC_PAGE_HEADER_ROW_HEIGHT;
-  const bottomBarHeight = STATIC_PAGE_BOTTOM_BAR_BASE_HEIGHT + safeBottom;
-
-  return (
-    <View style={styles.screen}>
-      <StaticPageHeader title="Rreth Nesh" topInset={insets.top} />
-
-      <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          {
-            paddingTop: headerHeight + spacing.md,
-            paddingBottom: bottomBarHeight + spacing.xl,
-          },
-        ]}
-        scrollIndicatorInsets={{ top: headerHeight, bottom: bottomBarHeight }}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.hero}>
-          <Text style={styles.heroTitle}>Media lokale me standard editorial.</Text>
-          <Text style={styles.heroText}>
-            Radio Fontana lidh ritmin e radios live me lajme të përditshme,
-            rrëfime lokale dhe një përvojë digjitale të ndërtuar për përdorim të përditshëm.
-          </Text>
-
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>Live</Text>
-              <Text style={styles.statLabel}>radio</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>Daily</Text>
-              <Text style={styles.statLabel}>lajme</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>Istog</Text>
-              <Text style={styles.statLabel}>Kosovë</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionKicker}>Kush jemi</Text>
-          <Text style={styles.sectionTitle}>Një platformë që ruan afërsinë lokale me ritëm digjital dhe identitet të qartë.</Text>
-        </View>
-
-        <View style={styles.storyStack}>
-          {STORY_POINTS.map((point) => (
-            <View key={point.index} style={styles.storyCard}>
-              <Text style={styles.storyIndex}>{point.index}</Text>
-              <View style={styles.storyBody}>
-                <Text style={styles.storyTitle}>{point.title}</Text>
-                <Text style={styles.storyText}>{point.text}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.statementCard}>
-          <Text style={styles.statementTitle}>Vlerat tona</Text>
-          <Text style={styles.statementText}>
-            Besimi ndërtohet çdo ditë me raportim të ndershëm, respekt për publikun
-            dhe përmbajtje që i shërben komunitetit.
-          </Text>
-          <View style={styles.pillRow}>
-            {VALUE_PILLS.map((value) => (
-              <View key={value} style={styles.valuePill}>
-                <Text style={styles.valuePillText}>{value}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.legalCard}>
-          <Pressable
-            onPress={() => openURL('https://radiofontana.org/privacy')}
-            style={({ pressed }) => [styles.legalRow, pressed && styles.legalRowPressed]}
-          >
-            <View style={styles.legalTextWrap}>
-              <Text style={styles.legalTitle}>Politika e Privatësisë</Text>
-              <Text style={styles.legalSub}>Si i mbrojmë të dhënat dhe përvojën tuaj.</Text>
-            </View>
-            <Text style={styles.legalAction}>Lexo</Text>
-          </Pressable>
-          <View style={styles.legalSep} />
-          <Pressable
-            onPress={() => openURL('https://radiofontana.org/terms')}
-            style={({ pressed }) => [styles.legalRow, pressed && styles.legalRowPressed]}
-          >
-            <View style={styles.legalTextWrap}>
-              <Text style={styles.legalTitle}>Kushtet e Shërbimit</Text>
-              <Text style={styles.legalSub}>Rregullat bazë për përdorimin e aplikacionit.</Text>
-            </View>
-            <Text style={styles.legalAction}>Kushtet</Text>
-          </Pressable>
-        </View>
-      </ScrollView>
-
-      <StaticPageBottomBar bottomInset={insets.bottom} />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
+const getStyles = (colors: ThemeColors) => StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F6F7F9',
+    backgroundColor: colors.bgScreen,
   },
   content: {
     paddingHorizontal: spacing.md,
@@ -153,25 +50,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    shadowColor: '#0f172a',
+    shadowColor: colors.navy,
     shadowOpacity: 0.05,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
-  },
-  heroRule: {
-    width: 52,
-    height: 4,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primary,
-    marginBottom: spacing.lg,
-  },
-  heroKicker: {
-    color: colors.primary,
-    fontFamily: fonts.uiBold,
-    fontSize: 12,
-    letterSpacing: 1.2,
-    marginBottom: spacing.sm,
   },
   heroTitle: {
     color: colors.text,
@@ -354,3 +237,113 @@ const styles = StyleSheet.create({
     marginLeft: spacing.md,
   },
 });
+
+export default function AboutScreen() {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const safeBottom = Math.max(insets.bottom, STATIC_PAGE_MIN_BOTTOM_SAFE_AREA);
+  const headerHeight = insets.top + STATIC_PAGE_HEADER_ROW_HEIGHT;
+  const bottomBarHeight = STATIC_PAGE_BOTTOM_BAR_BASE_HEIGHT + safeBottom;
+
+  const styles = useMemo(() => getStyles(colors), [colors]);
+
+  return (
+    <View style={styles.screen}>
+      <StaticPageHeader title="Rreth Nesh" topInset={insets.top} />
+
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: headerHeight + spacing.md,
+            paddingBottom: bottomBarHeight + spacing.xl,
+          },
+        ]}
+        scrollIndicatorInsets={{ top: headerHeight, bottom: bottomBarHeight }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.hero}>
+          <Text style={styles.heroTitle}>Media lokale me standard editorial.</Text>
+          <Text style={styles.heroText}>
+            Radio Fontana lidh ritmin e radios live me lajme të përditshme,
+            rrëfime lokale dhe një përvojë digjitale të ndërtuar për përdorim të përditshëm.
+          </Text>
+
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>Live</Text>
+              <Text style={styles.statLabel}>radio</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>Daily</Text>
+              <Text style={styles.statLabel}>lajme</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>Istog</Text>
+              <Text style={styles.statLabel}>Kosovë</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionKicker}>Kush jemi</Text>
+          <Text style={styles.sectionTitle}>Një platformë që ruan afërsinë lokale me ritëm digjital dhe identitet të qartë.</Text>
+        </View>
+
+        <View style={styles.storyStack}>
+          {STORY_POINTS.map((point) => (
+            <View key={point.index} style={styles.storyCard}>
+              <Text style={styles.storyIndex}>{point.index}</Text>
+              <View style={styles.storyBody}>
+                <Text style={styles.storyTitle}>{point.title}</Text>
+                <Text style={styles.storyText}>{point.text}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.statementCard}>
+          <Text style={styles.statementTitle}>Vlerat tona</Text>
+          <Text style={styles.statementText}>
+            Besimi ndërtohet çdo ditë me raportim të ndershëm, respekt për publikun
+            dhe përmbajtje që i shërben komunitetit.
+          </Text>
+          <View style={styles.pillRow}>
+            {VALUE_PILLS.map((value) => (
+              <View key={value} style={styles.valuePill}>
+                <Text style={styles.valuePillText}>{value}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.legalCard}>
+          <Pressable
+            onPress={() => openURL('https://radiofontana.org/privacy')}
+            style={({ pressed }) => [styles.legalRow, pressed && styles.legalRowPressed]}
+          >
+            <View style={styles.legalTextWrap}>
+              <Text style={styles.legalTitle}>Politika e Privatësisë</Text>
+              <Text style={styles.legalSub}>Si i mbrojmë të dhënat dhe përvojën tuaj.</Text>
+            </View>
+            <Text style={styles.legalAction}>Lexo</Text>
+          </Pressable>
+          <View style={styles.legalSep} />
+          <Pressable
+            onPress={() => openURL('https://radiofontana.org/terms')}
+            style={({ pressed }) => [styles.legalRow, pressed && styles.legalRowPressed]}
+          >
+            <View style={styles.legalTextWrap}>
+              <Text style={styles.legalTitle}>Kushtet e Shërbimit</Text>
+              <Text style={styles.legalSub}>Rregullat bazë për përdorimin e aplikacionit.</Text>
+            </View>
+            <Text style={styles.legalAction}>Kushtet</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+
+      <StaticPageBottomBar bottomInset={insets.bottom} />
+    </View>
+  );
+
+}

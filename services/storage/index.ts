@@ -42,6 +42,25 @@ function createQueryCacheStore(): KeyValueStore {
   }
 }
 
+function createAppSettingsStore(): KeyValueStore {
+  try {
+    const mmkv = createMmkv('rf-app-settings');
+    return {
+      getString: (key) => mmkv.getString(key),
+      set: (key, value) => mmkv.set(key, value),
+      delete: (key) => mmkv.delete(key),
+    };
+  } catch {
+    // Expo Go fallback — settings persist only for the session.
+    const fallbackStore = new Map<string, string>();
+    return {
+      getString: (key) => fallbackStore.get(key),
+      set: (key, value) => { fallbackStore.set(key, value); },
+      delete: (key) => { fallbackStore.delete(key); },
+    };
+  }
+}
+
 // B-4: lazy MMKV initialisation — defer the native instantiation until the
 // first read/write (which happens AFTER first paint via the persister hydrate).
 let _store: KeyValueStore | null = null;
@@ -50,8 +69,20 @@ function store(): KeyValueStore {
   return _store;
 }
 
+let _appSettingsStore: KeyValueStore | null = null;
+function appSettingsStore(): KeyValueStore {
+  if (_appSettingsStore === null) _appSettingsStore = createAppSettingsStore();
+  return _appSettingsStore;
+}
+
 export const queryStorage = {
   getItem: (key: string) => store().getString(`${keys.queryCache}.${key}`) ?? null,
   setItem: (key: string, value: string) => store().set(`${keys.queryCache}.${key}`, value),
   removeItem: (key: string) => store().delete(`${keys.queryCache}.${key}`),
+};
+
+export const appSettings = {
+  getItem: (key: string) => appSettingsStore().getString(key) ?? null,
+  setItem: (key: string, value: string) => appSettingsStore().set(key, value),
+  removeItem: (key: string) => appSettingsStore().delete(key),
 };

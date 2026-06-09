@@ -7,5 +7,5 @@ import { Redirect } from 'expo-router';
 // "Unmatched Route" error screen. Since these synthetic links always come from
 // the playback notification, bounce the user straight to the Live radio tab.
 export default function NotFound() {
-  return <Redirect href={'/(tabs)/live' as never} />;
+  return <Redirect href="/(tabs)/live" />;
 }

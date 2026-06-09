@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   InteractionManager,
   Pressable,
   ScrollView,
@@ -14,14 +15,16 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList, type FlashListRef, type ListRenderItemInfo } from '@shopify/flash-list';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { NewsCard } from '../../../components/news/NewsCard';
 import { RelativeTime } from '../../../components/ui/RelativeTime';
 import { RefreshStatusBanner } from '../../../components/ui/RefreshStatusBanner';
 import { SkeletonCard } from '../../../components/news/SkeletonCard';
 import { isBreakingBadgeVisible } from '../../../lib/breakingBadge';
 import { HamburgerButton } from '../../../components/ui/HamburgerButton';
-import { appIdentity, colors, fonts } from '../../../constants/tokens';
+import { appIdentity, fonts } from '../../../constants/tokens';
+import { useTheme } from '../../../providers/ThemeProvider';
+import type { ThemeColors } from '../../../providers/ThemeProvider';
 import { queueImagePrefetch } from '../../../lib/prefetchQueue';
 import {
   buildSanityImageUrl,
@@ -65,6 +68,8 @@ function samePost(a: Post, b: Post): boolean {
 }
 
 const FeaturedCard = memo(function FeaturedCard({ post, onPress }: { post: Post; onPress: (p: Post) => void }) {
+  const { colors } = useTheme();
+  const SF = useMemo(() => getSF(colors), [colors]);
   const imageUri = useMemo(
     () => buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.newsFeatured),
     [post.mainImageUrl],
@@ -131,6 +136,8 @@ const CategoryPill = memo(function CategoryPill({
   onSelect: (tab: NewsCategoryTab) => void;
   onPrefetch: (tab: NewsCategoryTab) => void;
 }) {
+  const { colors } = useTheme();
+  const SP = useMemo(() => getSP(colors), [colors]);
   const handlePress = useCallback(() => onSelect(item), [onSelect, item]);
   const handlePressIn = useCallback(() => onPrefetch(item), [onPrefetch, item]);
   return (
@@ -152,6 +159,8 @@ const SearchInput = memo(function SearchInput({
 }: {
   onSearchChange: (next: string) => void;
 }) {
+  const { colors } = useTheme();
+  const S = useMemo(() => getS(colors), [colors]);
   const [value, setValue] = useState('');
 
   useEffect(() => {
@@ -190,11 +199,13 @@ const SearchInput = memo(function SearchInput({
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const LOADING_ROWS = [1, 2, 3];
+const PAGE_SIZE = 40;
 const REFRESH_MIN_VISIBLE_MS = 600;
 const REFRESH_MAX_WAIT_MS = 3500;
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function NewsIndexScreen() {
+  const { colors, isDark } = useTheme();
   const router = useRouter();
   const { category: categoryParam } = useLocalSearchParams<{ category?: string }>();
   const insets = useSafeAreaInsets();
@@ -205,6 +216,7 @@ export default function NewsIndexScreen() {
   });
   const activeCategorySlugRef = useRef(activeCategory.slug);
   activeCategorySlugRef.current = activeCategory.slug;
+  const S = useMemo(() => getS(colors), [colors]);
 
   // FIX: when navigating from the drawer to ?category=<slug> while this
   // screen is already mounted in the tab stack, the useState initializer
@@ -225,19 +237,16 @@ export default function NewsIndexScreen() {
   const HEADER_H = insets.top + 171;
   const bottomInsetOffset = 4;
 
-  const postsQuery = useQuery({
+  const postsQuery = useInfiniteQuery({
     queryKey: ['news-feed', activeCategory.slug, debouncedSearch],
-    queryFn: ({ signal }) => fetchLatestPosts(activeCategory.slug, debouncedSearch, 40, signal),
-    // Keep stale data for same-key background revalidation (pull-to-refresh,
-    // re-focus). We intentionally do NOT use placeholderData here \u2014 showing a
-    // different category's posts while the new fetch loads is worse than
-    // showing skeletons. isFetching+isPlaceholderData would have caused a
-    // jarring wrong-posts\u2192correct-posts snap; we detect the equivalent
-    // condition via isPlaceholderData below and render skeletons instead.
+    queryFn: ({ pageParam, signal }) =>
+      fetchLatestPosts(activeCategory.slug, debouncedSearch, PAGE_SIZE, pageParam, signal),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      if (lastPage.length < PAGE_SIZE) return undefined;
+      return allPages.length * PAGE_SIZE;
+    },
     staleTime: 5 * 60 * 1000,
-    // H-B11: 5min gcTime so flipping through all 7 category tabs once does
-    // NOT leave 7 \u00d7 60KB feeds resident for half an hour. Re-entering a
-    // category within 5 min still hits cache; longer than that just refetches.
     gcTime: 5 * 60 * 1000,
   });
   const refetchPostsRef = useRef(postsQuery.refetch);
@@ -253,7 +262,7 @@ export default function NewsIndexScreen() {
       queueImagePrefetch(buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.articleHero));
       // AUDIT FIX P2.5: warm route module + post-detail query so the article
       // screen renders the moment the slide animation completes.
-      router.prefetch(`/news/${post.slug}` as never);
+      router.prefetch(`/news/${post.slug}`);
       queryClient.prefetchQuery({
         queryKey: ['post-detail', post.slug],
         queryFn: ({ signal }) => fetchPostBySlug(post.slug, signal),
@@ -263,7 +272,7 @@ export default function NewsIndexScreen() {
       // FIX: was router.replace — that swapped the listing for the article
       // and made back skip lajme entirely. router.push keeps the listing in
       // the back stack so back returns to it (FlashList preserves scroll).
-      router.push({ pathname: '/news/[slug]' as never, params: { slug: post.slug } as never });
+      router.push({ pathname: '/news/[slug]', params: { slug: post.slug } });
     },
     [router, queryClient],
   );
@@ -279,9 +288,10 @@ export default function NewsIndexScreen() {
   // so the fetch is often in-flight or complete by the time the list re-renders.
   const onPrefetchCategory = useCallback((tab: NewsCategoryTab) => {
     if (tab.slug === activeCategorySlugRef.current) return;
-    queryClient.prefetchQuery({
+    queryClient.prefetchInfiniteQuery({
       queryKey: ['news-feed', tab.slug, debouncedSearch],
-      queryFn: ({ signal }) => fetchLatestPosts(tab.slug, debouncedSearch, 40, signal),
+      queryFn: ({ pageParam, signal }) => fetchLatestPosts(tab.slug, debouncedSearch, PAGE_SIZE, pageParam, signal),
+      initialPageParam: 0,
       staleTime: 5 * 60 * 1000,
     });
   }, [queryClient, debouncedSearch]);
@@ -292,9 +302,10 @@ export default function NewsIndexScreen() {
     const handle = InteractionManager.runAfterInteractions(() => {
       for (const tab of NEWS_CATEGORY_TABS) {
         if (tab.slug === '') continue; // already fetched by postsQuery
-        queryClient.prefetchQuery({
+        queryClient.prefetchInfiniteQuery({
           queryKey: ['news-feed', tab.slug, ''],
-          queryFn: ({ signal }) => fetchLatestPosts(tab.slug, '', 40, signal),
+          queryFn: ({ pageParam, signal }) => fetchLatestPosts(tab.slug, '', PAGE_SIZE, pageParam, signal),
+          initialPageParam: 0,
           staleTime: 5 * 60 * 1000,
         });
       }
@@ -337,7 +348,7 @@ export default function NewsIndexScreen() {
   // undefined until the fetch resolves. Show skeletons rather than an empty
   // list or the previous (wrong) category's posts.
   const isSwitchingCategory = postsQuery.isFetching && !postsQuery.data;
-  const posts = postsQuery.data ?? [];
+  const posts = useMemo(() => postsQuery.data?.pages.flat() ?? [], [postsQuery.data]);
 
   useEffect(() => {
     if (posts.length === 0) return;
@@ -350,7 +361,7 @@ export default function NewsIndexScreen() {
       // the UI thread.
       interactionHandle = InteractionManager.runAfterInteractions(() => {
         for (const slug of slugs) {
-          router.prefetch(`/news/${slug}` as never);
+          router.prefetch(`/news/${slug}`);
           queryClient.prefetchQuery({
             queryKey: ['post-detail', slug],
             queryFn: ({ signal }) => fetchPostBySlug(slug, signal),
@@ -420,7 +431,7 @@ export default function NewsIndexScreen() {
       <View style={[S.header, { paddingTop: insets.top }]}>
         {/* Title row */}
         <View style={S.headerTitleRow}>
-          <Image source={appIdentity.logo} contentFit="cover" style={S.headerLogo} />
+          <Image source={isDark ? require('../../../assets/images/darklogortvfontana.png') : require('../../../assets/images/applogortvfontana.png')} contentFit="cover" style={S.headerLogo} />
           <View style={S.headerSpacer} />
           <HamburgerButton />
         </View>
@@ -484,6 +495,27 @@ export default function NewsIndexScreen() {
     );
   }
 
+  const loadMoreFooter = useMemo(() => {
+    if (!postsQuery.hasNextPage && !postsQuery.isFetchingNextPage) return null;
+    return (
+      <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+        {postsQuery.isFetchingNextPage ? (
+          <ActivityIndicator color={colors.primary} />
+        ) : (
+          <Pressable
+            onPress={() => postsQuery.fetchNextPage()}
+            style={({ pressed }) => [
+              S.loadMoreBtn,
+              pressed && S.loadMoreBtnPressed,
+            ]}
+          >
+            <Text style={S.loadMoreText}>Shiko më shumë</Text>
+          </Pressable>
+        )}
+      </View>
+    );
+  }, [postsQuery.hasNextPage, postsQuery.isFetchingNextPage, postsQuery.fetchNextPage, colors.primary]);
+
   // ── Main view ──────────────────────────────────────────────────────────────
   return (
     <View style={S.screen}>
@@ -500,6 +532,7 @@ export default function NewsIndexScreen() {
         renderItem={renderPostItem}
         getItemType={getPostItemType}
         ListHeaderComponent={refreshHeader}
+        ListFooterComponent={loadMoreFooter}
         ListEmptyComponent={emptyState}
         refreshing={isRefreshing}
         onRefresh={onPullToRefresh}
@@ -511,12 +544,12 @@ export default function NewsIndexScreen() {
 }
 
 // ── Styles — featured card ────────────────────────────────────────────────────
-const SF = StyleSheet.create({
+const getSF = (colors: ThemeColors) => StyleSheet.create({
   outer: {
     borderRadius: 12,
     marginBottom: 10,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#0A0F1C',
+    backgroundColor: colors.surface,
+    shadowColor: colors.navy,
     shadowOpacity: 0.055,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
@@ -529,7 +562,7 @@ const SF = StyleSheet.create({
   imageZone: {
     width: '100%',
     aspectRatio: 16 / 9,
-    backgroundColor: '#E6E8EE',
+    backgroundColor: colors.surfaceSubtle,
   },
   image: {
     width: '100%',
@@ -551,38 +584,38 @@ const SF = StyleSheet.create({
   },
   breakingBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: '#DC2626',
+    backgroundColor: colors.primary,
     paddingHorizontal: 6,
     paddingVertical: 3,
     borderRadius: 3,
   },
   breakingText: {
-    color: '#FFFFFF',
+    color: colors.surface,
     fontFamily: fonts.uiBold,
     fontSize: 9,
     letterSpacing: 1.5,
   },
   kicker: {
-    color: '#DC2626',
+    color: colors.primary,
     fontFamily: fonts.uiBold,
     fontSize: 10,
     letterSpacing: 2.0,
   },
   headline: {
-    color: '#0A0F1C',
+    color: colors.text,
     fontFamily: fonts.uiBold,
     fontSize: 19,
     lineHeight: 26,
     letterSpacing: -0.35,
   },
   deck: {
-    color: '#475569',
+    color: colors.textSecondary,
     fontFamily: fonts.uiRegular,
     fontSize: 13,
     lineHeight: 19,
   },
   time: {
-    color: '#64748B',
+    color: colors.textMuted,
     fontFamily: fonts.uiRegular,
     fontSize: 10,
     marginTop: 1,
@@ -590,7 +623,7 @@ const SF = StyleSheet.create({
 });
 
 // ── Styles — category pill ────────────────────────────────────────────────────
-const SP = StyleSheet.create({
+const getSP = (colors: ThemeColors) => StyleSheet.create({
   pill: {
     paddingHorizontal: 14,
     paddingVertical: 7,
@@ -610,14 +643,14 @@ const SP = StyleSheet.create({
     color: colors.textMuted,
   },
   pillTextActive: {
-    color: '#FFFFFF',
+    color: colors.surface,
     fontFamily: fonts.uiBold,
     letterSpacing: 0.1,
   },
 });
 
 // ── Styles — screen ───────────────────────────────────────────────────────────
-const S = StyleSheet.create({
+const getS = (colors: ThemeColors) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.surfaceSubtle,
@@ -706,5 +739,23 @@ const S = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 32,
     lineHeight: 20,
+  },
+  loadMoreBtn: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 999,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  loadMoreBtnPressed: {
+    opacity: 0.75,
+    transform: [{ scale: 0.97 }],
+  },
+  loadMoreText: {
+    fontFamily: fonts.uiBold,
+    fontSize: 13,
+    color: colors.text,
+    letterSpacing: 0.2,
   },
 });

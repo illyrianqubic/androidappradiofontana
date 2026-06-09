@@ -1,15 +1,28 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  createContext,
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   BackHandler,
+  Image,
   Linking,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
   useWindowDimensions,
 } from 'react-native';
+import { appSettings } from '../../services/storage';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -22,7 +35,17 @@ import Animated, {
 } from 'react-native-reanimated';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useDrawer } from '../../providers/DrawerProvider';
-import { colors, fonts, radius, spacing } from '../../constants/tokens';
+import { useTheme } from '../../providers/ThemeProvider';
+import type { ThemeColors } from '../../providers/ThemeProvider';
+import { fonts, radius, spacing } from '../../constants/tokens';
+
+const DrawerStylesContext = createContext<{ S: ReturnType<typeof getS>; colors: ThemeColors } | null>(null);
+
+function useDrawerStyles() {
+  const ctx = useContext(DrawerStylesContext);
+  if (!ctx) throw new Error('useDrawerStyles must be used inside HamburgerDrawerInner');
+  return ctx;
+}
 
 const LAJME_CATEGORIES = [
   { label: 'Politikë', slug: 'politike' },
@@ -44,6 +67,8 @@ const SOCIAL_LINKS = [
 const PANEL_MAX_W = 360;
 const CLOSE_DURATION = 160;
 
+const APP_ICON_KEY = 'app_icon_preference';
+
 export function HamburgerDrawer() {
   // Bug fix: previously this component deferred mounting the drawer tree
   // via InteractionManager.runAfterInteractions and unblocked it lazily on
@@ -64,6 +89,8 @@ export function HamburgerDrawer() {
 }
 
 function HamburgerDrawerInner() {
+  const { colors, isDark, toggleTheme } = useTheme();
+  const S = useMemo(() => getS(colors), [colors]);
   const { isOpen, close, progress } = useDrawer();
   const { width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -73,6 +100,16 @@ function HamburgerDrawerInner() {
   const [isInteractive, setIsInteractive] = useState(false);
   const [lajmeExpanded, setLajmeExpanded] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+
+  const [appIcon, setAppIcon] = useState<'light' | 'dark'>(() => {
+    const saved = appSettings.getItem(APP_ICON_KEY);
+    return saved === 'dark' ? 'dark' : 'light';
+  });
+
+  const selectAppIcon = useCallback((value: 'light' | 'dark') => {
+    setAppIcon(value);
+    appSettings.setItem(APP_ICON_KEY, value);
+  }, []);
 
   const panelWidth = Math.min(Math.round(windowWidth * 0.86), PANEL_MAX_W);
 
@@ -195,175 +232,208 @@ function HamburgerDrawerInner() {
   }, [pathname]);
   const { isHomeActive, isLiveActive, isNewsActive, isAboutActive, isContactActive } = activeStates;
 
-  // While navigating, the entire drawer subtree is unmounted so the UI thread
-  // has nothing to draw — prevents the closing animation from being painted
-  // on top of the destination screen.
-  // (no longer hard-hidden; navigate() now waits for the close animation,
-  //  so by the time router.push runs the panel is already off-screen)
-
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents={isInteractive ? 'auto' : 'none'}>
-      {/* Full-screen tap-to-close. Only mounted while the drawer is interactive
-          so it can never become an invisible touch blocker when isInteractive
-          is stuck in a half-open/half-closed state. */}
-      {isInteractive ? (
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={close}
-          accessible={false}
+    <DrawerStylesContext.Provider value={{ S, colors }}>
+      <View style={StyleSheet.absoluteFill} pointerEvents={isInteractive ? 'auto' : 'none'}>
+        {/* Full-screen tap-to-close. Only mounted while the drawer is interactive
+            so it can never become an invisible touch blocker when isInteractive
+            is stuck in a half-open/half-closed state. */}
+        {isInteractive ? (
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={close}
+            accessible={false}
+          />
+        ) : null}
+
+        <Animated.View
+          style={[S.backdrop, { top: insets.top, bottom: insets.bottom, left: 0, right: 0 }, backdropStyle]}
+          pointerEvents="none"
         />
-      ) : null}
 
-      <Animated.View
-        style={[S.backdrop, { top: insets.top, bottom: insets.bottom, left: 0, right: 0 }, backdropStyle]}
-        pointerEvents="none"
-      />
-
-      <Animated.View
-        style={[S.panelOuter, { top: insets.top, bottom: insets.bottom, right: 0, width: panelWidth }, panelStyle]}
-        pointerEvents={isInteractive ? 'auto' : 'none'}
-      >
-        <View style={S.panelInner}>
-          <ScrollView
-            ref={scrollRef}
-            showsVerticalScrollIndicator={false}
-            bounces={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={S.scrollContent}
-          >
-            <View style={S.sectionCard}>
-              <Text style={S.sectionLabel}>Navigimi</Text>
-              <NavItem
-                icon="home-outline"
-                label="Kryefaqja"
-                detail="Pamja kryesore"
-                path="/(tabs)"
-                active={isHomeActive}
-                onNavigate={navigate}
-              />
-              <NavItem
-                icon="radio-outline"
-                label="Drejtpërdrejt"
-                detail="Radio live"
-                path="/(tabs)/live"
-                active={isLiveActive}
-                onNavigate={navigate}
-              />
-
-              <Pressable
-                onPress={toggleLajme}
-                style={({ pressed }) => [
-                  S.navRow,
-                  isNewsActive && S.navRowActive,
-                  pressed && !isNewsActive && S.rowPressed,
-                ]}
-              >
-                {isNewsActive ? <View style={S.activeRail} /> : null}
-                <View style={[S.navIconBox, isNewsActive && S.navIconBoxActive]}>
-                  <Ionicons name="newspaper-outline" size={18} color={isNewsActive ? colors.primary : colors.textMuted} />
-                </View>
-                <View style={S.navTextWrap}>
-                  <Text style={[S.navLabel, isNewsActive && S.navLabelActive]}>Lajme</Text>
-                  <Text style={S.navDetail}>Kategoritë kryesore</Text>
-                </View>
-                <Ionicons
-                  name={lajmeExpanded ? 'chevron-up' : 'chevron-down'}
-                  size={14}
-                  color={isNewsActive ? colors.primary : colors.textTertiary}
+        <Animated.View
+          style={[S.panelOuter, { top: insets.top, bottom: insets.bottom, right: 0, width: panelWidth }, panelStyle]}
+          pointerEvents={isInteractive ? 'auto' : 'none'}
+        >
+          <View style={S.panelInner}>
+            <ScrollView
+              ref={scrollRef}
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={S.scrollContent}
+            >
+              <View style={S.sectionCard}>
+                <Text style={S.sectionLabel}>Navigimi</Text>
+                <NavItem
+                  icon="home-outline"
+                  label="Kryefaqja"
+                  detail="Pamja kryesore"
+                  path="/(tabs)"
+                  active={isHomeActive}
+                  onNavigate={navigate}
                 />
-              </Pressable>
+                <NavItem
+                  icon="radio-outline"
+                  label="Drejtpërdrejt"
+                  detail="Radio live"
+                  path="/(tabs)/live"
+                  active={isLiveActive}
+                  onNavigate={navigate}
+                />
 
-              {lajmeExpanded ? (
-                <Animated.View
-                  style={S.categoryPanel}
-                  entering={FadeIn.duration(200)}
-                  exiting={FadeOut.duration(150)}
-                  layout={LinearTransition.duration(220)}
+                <Pressable
+                  onPress={toggleLajme}
+                  style={({ pressed }) => [
+                    S.navRow,
+                    isNewsActive && S.navRowActive,
+                    pressed && !isNewsActive && S.rowPressed,
+                  ]}
                 >
-                  <View style={S.categoryHeader}>
-                    <Text style={S.categoryHeaderLabel}>Zgjidh rubrikën</Text>
-                    <CategoryAllButton onNavigate={navigate} />
+                  {isNewsActive ? <View style={S.activeRail} /> : null}
+                  <View style={[S.navIconBox, isNewsActive && S.navIconBoxActive]}>
+                    <Ionicons name="newspaper-outline" size={18} color={isNewsActive ? colors.primary : colors.textMuted} />
                   </View>
-                  <View style={S.categoryGrid}>
-                    {LAJME_CATEGORIES.map((cat) => (
-                      <CategoryRow key={cat.slug} slug={cat.slug} label={cat.label} onNavigate={navigate} />
-                    ))}
+                  <View style={S.navTextWrap}>
+                    <Text style={[S.navLabel, isNewsActive && S.navLabelActive]}>Lajme</Text>
+                    <Text style={S.navDetail}>Kategoritë kryesore</Text>
                   </View>
-                </Animated.View>
-              ) : null}
-            </View>
+                  <Ionicons
+                    name={lajmeExpanded ? 'chevron-up' : 'chevron-down'}
+                    size={14}
+                    color={isNewsActive ? colors.primary : colors.textTertiary}
+                  />
+                </Pressable>
 
-            <View style={S.sectionCard}>
-              <Text style={S.sectionLabel}>Stacioni</Text>
-              <NavItem
-                icon="information-circle-outline"
-                label="Rreth Nesh"
-                detail="Profili i radios"
-                path="/rreth-nesh"
-                active={isAboutActive}
-                onNavigate={navigate}
-              />
-              <NavItem
-                icon="call-outline"
-                label="Na Kontakto"
-                detail="Telefon, email, rrjete"
-                path="/na-kontakto"
-                active={isContactActive}
-                onNavigate={navigate}
-              />
-            </View>
-
-            <View style={S.contactCard}>
-              <Text style={S.sectionLabel}>Studio</Text>
-              <ActionRow label="+383 44 150 027" action="Telefono" url="tel:+38344150027" />
-              <View style={S.softDivider} />
-              <ActionRow label="rtvfontana@gmail.com" action="Email" url="mailto:rtvfontana@gmail.com" />
-              <View style={S.softDivider} />
-              <View style={S.statusRow}>
-                <Text style={S.statusText}>08:00 - 20:00</Text>
-                <Text style={S.statusBadge}>AKTIV</Text>
+                {lajmeExpanded ? (
+                  <Animated.View
+                    style={S.categoryPanel}
+                    entering={FadeIn.duration(200)}
+                    exiting={FadeOut.duration(150)}
+                    layout={LinearTransition.duration(220)}
+                  >
+                    <View style={S.categoryHeader}>
+                      <Text style={S.categoryHeaderLabel}>Zgjidh rubrikën</Text>
+                      <CategoryAllButton onNavigate={navigate} />
+                    </View>
+                    <View style={S.categoryGrid}>
+                      {LAJME_CATEGORIES.map((cat) => (
+                        <CategoryRow key={cat.slug} slug={cat.slug} label={cat.label} onNavigate={navigate} />
+                      ))}
+                    </View>
+                  </Animated.View>
+                ) : null}
               </View>
-            </View>
 
-            <View style={S.socialCard}>
-              <View style={S.socialHeader}>
-                <Text style={S.sectionLabel}>Kanale zyrtare</Text>
-                <Text style={S.socialHint}>4 rrjete</Text>
+              <View style={S.sectionCard}>
+                <Text style={S.sectionLabel}>Stacioni</Text>
+                <NavItem
+                  icon="information-circle-outline"
+                  label="Rreth Nesh"
+                  detail="Profili i radios"
+                  path="/rreth-nesh"
+                  active={isAboutActive}
+                  onNavigate={navigate}
+                />
+                <NavItem
+                  icon="call-outline"
+                  label="Na Kontakto"
+                  detail="Telefon, email, rrjete"
+                  path="/na-kontakto"
+                  active={isContactActive}
+                  onNavigate={navigate}
+                />
               </View>
-              <View style={S.socialGrid}>
-                {SOCIAL_LINKS.map((link) => (
-                  <SocialChip key={link.label} label={link.label} url={link.url} />
-                ))}
+
+              <View style={S.contactCard}>
+                <Text style={S.sectionLabel}>Studio</Text>
+                <ActionRow label="+383 44 150 027" action="Telefono" url="tel:+38344150027" />
+                <View style={S.softDivider} />
+                <ActionRow label="rtvfontana@gmail.com" action="Email" url="mailto:rtvfontana@gmail.com" />
+                <View style={S.softDivider} />
+                <View style={S.statusRow}>
+                  <Text style={S.statusText}>08:00 - 20:00</Text>
+                  <Text style={S.statusBadge}>AKTIV</Text>
+                </View>
               </View>
-            </View>
 
-            <View style={S.legalLinks}>
-              <LegalLink label="Privatësia" url="https://radiofontana.org/privacy" />
-              <Text style={S.legalDot}>·</Text>
-              <LegalLink label="Kushtet" url="https://radiofontana.org/terms" />
-            </View>
-          </ScrollView>
+              <View style={S.sectionCard}>
+                <Text style={S.sectionLabel}>Cilësimet</Text>
+                <Pressable
+                  onPress={toggleTheme}
+                  style={({ pressed }: { pressed: boolean }) => [
+                    S.navRow,
+                    pressed && S.rowPressed,
+                  ]}
+                >
+                  <View style={S.navIconBox}>
+                    <Ionicons name={isDark ? 'moon-outline' : 'sunny-outline'} size={18} color={colors.textMuted} />
+                  </View>
+                  <View style={S.navTextWrap}>
+                    <Text style={S.navLabel}>Tema e Errët</Text>
+                  </View>
+                  <Switch
+                    value={isDark}
+                    onValueChange={toggleTheme}
+                    trackColor={{ false: colors.border, true: colors.primary }}
+                    thumbColor={Platform.OS === 'ios' ? undefined : isDark ? colors.primary : colors.surface}
+                  />
+                </Pressable>
+              </View>
 
-        </View>
-      </Animated.View>
-    </View>
+              <View style={S.sectionCard}>
+                <Text style={S.sectionLabel}>Ikona e aplikacionit</Text>
+                <View style={S.iconPickerRow}>
+                  <Pressable
+                    onPress={() => selectAppIcon('light')}
+                    style={[S.iconPickerBox, appIcon === 'light' && { borderColor: colors.primary }]}
+                  >
+                    <Image source={require('../../assets/images/applogortvfontana.png')} style={S.iconPickerImage} />
+                    {appIcon === 'light' ? (
+                      <View style={[S.iconPickerCheck, { backgroundColor: colors.primary }]}>
+                        <Ionicons name="checkmark" size={12} color="#fff" />
+                      </View>
+                    ) : null}
+                  </Pressable>
+                  <Pressable
+                    onPress={() => selectAppIcon('dark')}
+                    style={[S.iconPickerBox, appIcon === 'dark' && { borderColor: colors.primary }]}
+                  >
+                    <Image source={require('../../assets/images/darklogortvfontana.png')} style={S.iconPickerImage} />
+                    {appIcon === 'dark' ? (
+                      <View style={[S.iconPickerCheck, { backgroundColor: colors.primary }]}>
+                        <Ionicons name="checkmark" size={12} color="#fff" />
+                      </View>
+                    ) : null}
+                  </Pressable>
+                </View>
+              </View>
+
+              <View style={S.socialCard}>
+                <View style={S.socialHeader}>
+                  <Text style={S.sectionLabel}>Kanale zyrtare</Text>
+                  <Text style={S.socialHint}>4 rrjete</Text>
+                </View>
+                <View style={S.socialGrid}>
+                  {SOCIAL_LINKS.map((link) => (
+                    <SocialChip key={link.label} label={link.label} url={link.url} />
+                  ))}
+                </View>
+              </View>
+
+              <View style={S.legalLinks}>
+                <LegalLink label="Privatësia" url="https://radiofontana.org/privacy" />
+                <Text style={S.legalDot}>·</Text>
+                <LegalLink label="Kushtet" url="https://radiofontana.org/terms" />
+              </View>
+            </ScrollView>
+
+          </View>
+        </Animated.View>
+      </View>
+    </DrawerStylesContext.Provider>
   );
 }
-
-// Stable Pressable style fns (defined once at module level so they aren't
-// reallocated per render — React.memo on each row component then has a chance
-// to actually skip re-renders when its props haven't changed).
-const navRowStyleFor = (active: boolean) =>
-  ({ pressed }: { pressed: boolean }) => [
-    S.navRow,
-    active && S.navRowActive,
-    pressed && !active && S.rowPressed,
-  ];
-const actionRowStyle = ({ pressed }: { pressed: boolean }) => [S.actionRow, pressed && S.rowPressed];
-const categoryAllStyle = ({ pressed }: { pressed: boolean }) => [S.categoryAllButton, pressed && S.categoryAllButtonPressed];
-const categoryRowStyle = ({ pressed }: { pressed: boolean }) => [S.categoryRow, pressed && S.categoryRowPressed];
-const socialChipStyle = ({ pressed }: { pressed: boolean }) => [S.socialChip, pressed && S.socialChipPressed];
-const legalLinkStyle = ({ pressed }: { pressed: boolean }) => [S.legalLink, pressed && S.legalLinkPressed];
 
 const openLink = (url: string) => Linking.openURL(url).catch(() => undefined);
 
@@ -382,8 +452,13 @@ const NavItem = memo(function NavItem({
   active?: boolean;
   onNavigate: (path: string) => void;
 }) {
+  const { S, colors } = useDrawerStyles();
   const handlePress = useCallback(() => onNavigate(path), [onNavigate, path]);
-  const pressableStyle = useMemo(() => navRowStyleFor(active), [active]);
+  const pressableStyle = useMemo(() => ({ pressed }: { pressed: boolean }) => [
+    S.navRow,
+    active && S.navRowActive,
+    pressed && !active && S.rowPressed,
+  ], [S, active]);
   return (
     <Pressable onPress={handlePress} style={pressableStyle}>
       {active ? <View style={S.activeRail} /> : null}
@@ -407,9 +482,10 @@ const ActionRow = memo(function ActionRow({
   action: string;
   url: string;
 }) {
+  const { S } = useDrawerStyles();
   const handlePress = useCallback(() => openLink(url), [url]);
   return (
-    <Pressable onPress={handlePress} style={actionRowStyle}>
+    <Pressable onPress={handlePress} style={({ pressed }: { pressed: boolean }) => [S.actionRow, pressed && S.rowPressed]}>
       <Text numberOfLines={1} style={S.actionLabel}>{label}</Text>
       <Text style={S.actionText}>{action}</Text>
     </Pressable>
@@ -421,9 +497,10 @@ const CategoryAllButton = memo(function CategoryAllButton({
 }: {
   onNavigate: (path: string) => void;
 }) {
+  const { S } = useDrawerStyles();
   const handlePress = useCallback(() => onNavigate('/(tabs)/news'), [onNavigate]);
   return (
-    <Pressable onPress={handlePress} style={categoryAllStyle}>
+    <Pressable onPress={handlePress} style={({ pressed }: { pressed: boolean }) => [S.categoryAllButton, pressed && S.categoryAllButtonPressed]}>
       <Text style={S.categoryAllText}>Të gjitha</Text>
     </Pressable>
   );
@@ -438,9 +515,10 @@ const CategoryRow = memo(function CategoryRow({
   label: string;
   onNavigate: (path: string) => void;
 }) {
+  const { S } = useDrawerStyles();
   const handlePress = useCallback(() => onNavigate(`/(tabs)/news?category=${slug}`), [onNavigate, slug]);
   return (
-    <Pressable onPress={handlePress} style={categoryRowStyle}>
+    <Pressable onPress={handlePress} style={({ pressed }: { pressed: boolean }) => [S.categoryRow, pressed && S.categoryRowPressed]}>
       <View style={S.categoryAccent} />
       <Text style={S.categoryLabel}>{label}</Text>
     </Pressable>
@@ -448,31 +526,33 @@ const CategoryRow = memo(function CategoryRow({
 });
 
 const SocialChip = memo(function SocialChip({ label, url }: { label: string; url: string }) {
+  const { S } = useDrawerStyles();
   const handlePress = useCallback(() => openLink(url), [url]);
   return (
-    <Pressable onPress={handlePress} style={socialChipStyle}>
+    <Pressable onPress={handlePress} style={({ pressed }: { pressed: boolean }) => [S.socialChip, pressed && S.socialChipPressed]}>
       <Text style={S.socialLabel}>{label}</Text>
     </Pressable>
   );
 });
 
 const LegalLink = memo(function LegalLink({ label, url }: { label: string; url: string }) {
+  const { S } = useDrawerStyles();
   const handlePress = useCallback(() => openLink(url), [url]);
   return (
-    <Pressable onPress={handlePress} style={legalLinkStyle}>
+    <Pressable onPress={handlePress} style={({ pressed }: { pressed: boolean }) => [S.legalLink, pressed && S.legalLinkPressed]}>
       <Text style={S.legalLinkText}>{label}</Text>
     </Pressable>
   );
 });
 
-const S = StyleSheet.create({
+const getS = (colors: ThemeColors) => StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(15,23,42,0.42)',
   },
   panelOuter: {
     position: 'absolute',
-    backgroundColor: '#F6F7F9',
+    backgroundColor: colors.surfaceSubtle,
     shadowColor: colors.navy,
     shadowOpacity: 0.20,
     shadowRadius: 24,
@@ -482,7 +562,7 @@ const S = StyleSheet.create({
   },
   panelInner: {
     flex: 1,
-    backgroundColor: '#F6F7F9',
+    backgroundColor: colors.surfaceSubtle,
   },
   scrollContent: {
     paddingHorizontal: spacing.sm,
@@ -571,7 +651,7 @@ const S = StyleSheet.create({
     marginRight: spacing.xs,
     padding: spacing.sm,
     borderRadius: 20,
-    backgroundColor: '#FBFCFE',
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     shadowColor: '#0f172a',
@@ -777,13 +857,35 @@ const S = StyleSheet.create({
     fontFamily: fonts.uiRegular,
     fontSize: 11,
   },
-  copyright: {
-    color: colors.textFaint,
-    fontFamily: fonts.uiRegular,
-    fontSize: 10,
-    letterSpacing: 0.2,
-    marginTop: spacing.md,
-    textAlign: 'center',
-    paddingHorizontal: spacing.md,
+  iconPickerRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.xs,
+  },
+  iconPickerBox: {
+    width: 72,
+    height: 72,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  iconPickerImage: {
+    width: 60,
+    height: 60,
+    borderRadius: radius.sm,
+  },
+  iconPickerCheck: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

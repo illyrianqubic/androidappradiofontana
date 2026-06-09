@@ -211,6 +211,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   // network loads still surface the spinner once the window elapses.
   const BUFFERING_SHOW_DELAY_MS = 450;
   const bufferingShowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // AUDIT FIX: store the play() fallback timeout so rapid play/pause toggles
+  // don't accumulate orphaned timers. Each fires and reads stateRef/mountedRef.
+  const playFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const updateState = useCallback((patch: Partial<PlayerStateShape>) => {
     const prev = stateRef.current;
@@ -404,45 +407,41 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     reconnectAttemptRef.current += 1;
     audioLog('reconnect scheduled', { attempt, delay });
 
-    const start = Date.now();
-    const tick = () => {
+    // AUDIT FIX: replaced busy-wait ticker (recursive setTimeout every 200 ms)
+    // with a single setTimeout for the full delay. A 30 s delay previously
+    // created ~150 timeout callbacks, burning JS thread time and creating GC
+    // pressure.
+    reconnectTimeoutRef.current = setTimeout(() => {
+      reconnectTimeoutRef.current = null;
       if (!mountedRef.current || userIntentRef.current === 'pause') return;
-      const elapsed = Date.now() - start;
-
-      if (elapsed >= delay) {
-        reconnectTimeoutRef.current = null;
-        void (async () => {
-          try {
-            await ensureRadioTrack({ forceReset: true });
-            audioLog('play called from reconnect');
-            await TrackPlayer.play();
-            void safeUpdateStationMetadata();
-            audioLog('play success from reconnect');
-            updateState({
-              isReady: true,
-              isBuffering: true,
-              isReconnecting: true,
-              playbackState: PlayerState.connecting,
-            });
-          } catch (error) {
-            audioError('reconnect play error', error);
-            updateState({
-              playbackState: PlayerState.error,
-              metadata: {
-                title: 'Gabim në stream',
-                artist: 'Po rilidhet automatikisht',
-              },
-            });
-            void reconnectRef.current();
-          }
-        })();
-        return;
-      }
-
-      reconnectTimeoutRef.current = setTimeout(tick, Math.min(200, delay - elapsed));
-    };
-
-    tick();
+      void (async () => {
+        try {
+          await ensureRadioTrack({ forceReset: true });
+          audioLog('play called from reconnect');
+          await TrackPlayer.play();
+          void safeUpdateStationMetadata();
+          audioLog('play success from reconnect');
+          if (!mountedRef.current) return;
+          updateState({
+            isReady: true,
+            isBuffering: true,
+            isReconnecting: true,
+            playbackState: PlayerState.connecting,
+          });
+        } catch (error) {
+          audioError('reconnect play error', error);
+          if (!mountedRef.current) return;
+          updateState({
+            playbackState: PlayerState.error,
+            metadata: {
+              title: 'Gabim në stream',
+              artist: 'Po rilidhet automatikisht',
+            },
+          });
+          void reconnectRef.current();
+        }
+      })();
+    }, delay);
   }, [clearReconnectTimeout, ensureRadioTrack, updateState]);
 
   useEffect(() => {
@@ -510,7 +509,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
       // Fallback: if playback state hasn't transitioned to playing after 3 s,
       // something is silently stuck — log and trigger a reconnect.
-      setTimeout(() => {
+      // AUDIT FIX: store the timer so pause() and unmount can clear it. Rapid
+      // play/pause toggles previously stacked multiple orphaned timers.
+      playFallbackTimerRef.current = setTimeout(() => {
+        playFallbackTimerRef.current = null;
         if (!mountedRef.current) return;
         if (userIntentRef.current === 'pause') return;
         const cur = stateRef.current;
@@ -549,6 +551,12 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     if (bufferingShowTimerRef.current) {
       clearTimeout(bufferingShowTimerRef.current);
       bufferingShowTimerRef.current = null;
+    }
+    // AUDIT FIX: clear the play fallback timer so a rapid pause after play()
+    // doesn't leave an orphaned timeout that triggers a spurious reconnect.
+    if (playFallbackTimerRef.current) {
+      clearTimeout(playFallbackTimerRef.current);
+      playFallbackTimerRef.current = null;
     }
     TrackPlayer.pause().catch(() => undefined);
     void safeUpdateStationMetadata();
@@ -719,6 +727,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       if (bufferingShowTimerRef.current) {
         clearTimeout(bufferingShowTimerRef.current);
         bufferingShowTimerRef.current = null;
+      }
+      // AUDIT FIX: clear any orphaned play fallback timer on unmount.
+      if (playFallbackTimerRef.current) {
+        clearTimeout(playFallbackTimerRef.current);
+        playFallbackTimerRef.current = null;
       }
     };
   }, [cancelReconnect, clearReconnectTimeout, pause, play, syncFromTrackPlayer, updateState]);

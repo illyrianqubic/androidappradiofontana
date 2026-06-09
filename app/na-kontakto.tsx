@@ -1,6 +1,9 @@
+import { useMemo } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, radius, spacing } from '../constants/tokens';
+import { fonts, radius, spacing } from '../constants/tokens';
+import { useTheme } from '../providers/ThemeProvider';
+import type { ThemeColors } from '../providers/ThemeProvider';
 import {
   STATIC_PAGE_BOTTOM_BAR_BASE_HEIGHT,
   STATIC_PAGE_HEADER_ROW_HEIGHT,
@@ -49,11 +52,177 @@ const SOCIAL_ITEMS = [
 
 const openURL = (url: string) => Linking.openURL(url).catch(() => undefined);
 
+const getS = (colors: ThemeColors) =>
+  StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: colors.bgScreen,
+    },
+    scroll: {
+      paddingHorizontal: spacing.md,
+    },
+    hero: {
+      borderRadius: 24,
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.xl,
+      marginBottom: spacing.xl,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      shadowColor: colors.navy,
+      shadowOpacity: 0.05,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 2,
+    },
+    heroTitle: {
+      color: colors.text,
+      fontFamily: fonts.uiBold,
+      fontSize: 22,
+      lineHeight: 28,
+      letterSpacing: -0.4,
+    },
+    heroSub: {
+      marginTop: spacing.md,
+      color: colors.textMuted,
+      fontFamily: fonts.uiMedium,
+      fontSize: 15,
+      lineHeight: 23,
+    },
+    availabilityCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      padding: spacing.lg,
+      marginBottom: spacing.xl,
+      borderRadius: 22,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    availabilityText: {
+      flex: 1,
+    },
+    availabilityTitle: {
+      color: colors.text,
+      fontFamily: fonts.uiBold,
+      fontSize: 16,
+    },
+    availabilitySub: {
+      marginTop: 3,
+      color: colors.textMuted,
+      fontFamily: fonts.uiRegular,
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    openBadge: {
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: radius.pill,
+      backgroundColor: colors.redTint,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.redBorder,
+    },
+    openBadgeText: {
+      color: colors.primary,
+      fontFamily: fonts.uiBold,
+      fontSize: 11,
+      letterSpacing: 0.6,
+    },
+    section: {
+      marginBottom: spacing.xl,
+    },
+    sectionKicker: {
+      color: colors.primary,
+      fontFamily: fonts.uiBold,
+      fontSize: 12,
+      letterSpacing: 1.3,
+      textTransform: 'uppercase',
+      marginBottom: spacing.sm,
+      marginLeft: 2,
+    },
+    contactList: {
+      gap: spacing.sm,
+    },
+    contactCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      padding: spacing.md,
+      borderRadius: 20,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderLeftWidth: 3,
+      borderLeftColor: colors.primary,
+    },
+    cardPressed: {
+      backgroundColor: colors.surfaceSubtle,
+    },
+    contactBody: {
+      flex: 1,
+    },
+    contactLabel: {
+      color: colors.textMuted,
+      fontFamily: fonts.uiMedium,
+      fontSize: 12,
+    },
+    contactValue: {
+      marginTop: 2,
+      color: colors.text,
+      fontFamily: fonts.uiBold,
+      fontSize: 16,
+      lineHeight: 21,
+    },
+    contactHelper: {
+      marginTop: 2,
+      color: colors.textTertiary,
+      fontFamily: fonts.uiRegular,
+      fontSize: 12,
+      lineHeight: 17,
+    },
+    contactAction: {
+      minWidth: 66,
+      textAlign: 'right',
+      color: colors.primary,
+      fontFamily: fonts.uiBold,
+      fontSize: 13,
+    },
+    socialGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+    },
+    socialButton: {
+      minWidth: '46%',
+      flex: 1,
+      minHeight: 52,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 18,
+      paddingHorizontal: spacing.md,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    socialPressed: {
+      backgroundColor: colors.surfaceSubtle,
+    },
+    socialLabel: {
+      color: colors.text,
+      fontFamily: fonts.uiBold,
+      fontSize: 14,
+    },
+  });
+
 export default function ContactScreen() {
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const safeBottom = Math.max(insets.bottom, STATIC_PAGE_MIN_BOTTOM_SAFE_AREA);
   const topBarH = insets.top + STATIC_PAGE_HEADER_ROW_HEIGHT;
   const bottomBarH = STATIC_PAGE_BOTTOM_BAR_BASE_HEIGHT + safeBottom;
+
+  const S = useMemo(() => getS(colors), [colors]);
 
   return (
     <View style={S.screen}>
@@ -128,187 +297,5 @@ export default function ContactScreen() {
       <StaticPageBottomBar bottomInset={insets.bottom} />
     </View>
   );
-}
 
-const S = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: '#F6F7F9',
-  },
-  scroll: {
-    paddingHorizontal: spacing.md,
-  },
-  hero: {
-    borderRadius: 24,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.xl,
-    marginBottom: spacing.xl,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.05,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  heroRule: {
-    width: 52,
-    height: 4,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primary,
-    marginBottom: spacing.lg,
-  },
-  heroKicker: {
-    color: colors.primary,
-    fontFamily: fonts.uiBold,
-    fontSize: 12,
-    letterSpacing: 1.2,
-    marginBottom: spacing.sm,
-  },
-  heroTitle: {
-    color: colors.text,
-    fontFamily: fonts.uiBold,
-    fontSize: 22,
-    lineHeight: 28,
-    letterSpacing: -0.4,
-  },
-  heroSub: {
-    marginTop: spacing.md,
-    color: colors.textMuted,
-    fontFamily: fonts.uiMedium,
-    fontSize: 15,
-    lineHeight: 23,
-  },
-  availabilityCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.lg,
-    marginBottom: spacing.xl,
-    borderRadius: 22,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  availabilityText: {
-    flex: 1,
-  },
-  availabilityTitle: {
-    color: colors.text,
-    fontFamily: fonts.uiBold,
-    fontSize: 16,
-  },
-  availabilitySub: {
-    marginTop: 3,
-    color: colors.textMuted,
-    fontFamily: fonts.uiRegular,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  openBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: radius.pill,
-    backgroundColor: colors.redTint,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.redBorder,
-  },
-  openBadgeText: {
-    color: colors.primary,
-    fontFamily: fonts.uiBold,
-    fontSize: 11,
-    letterSpacing: 0.6,
-  },
-  section: {
-    marginBottom: spacing.xl,
-  },
-  sectionKicker: {
-    color: colors.primary,
-    fontFamily: fonts.uiBold,
-    fontSize: 12,
-    letterSpacing: 1.3,
-    textTransform: 'uppercase',
-    marginBottom: spacing.sm,
-    marginLeft: 2,
-  },
-  contactList: {
-    gap: spacing.sm,
-  },
-  contactCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.md,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.primary,
-  },
-  cardPressed: {
-    backgroundColor: colors.surfaceSubtle,
-  },
-  contactBody: {
-    flex: 1,
-  },
-  contactLabel: {
-    color: colors.textMuted,
-    fontFamily: fonts.uiMedium,
-    fontSize: 12,
-  },
-  contactValue: {
-    marginTop: 2,
-    color: colors.text,
-    fontFamily: fonts.uiBold,
-    fontSize: 16,
-    lineHeight: 21,
-  },
-  contactHelper: {
-    marginTop: 2,
-    color: colors.textTertiary,
-    fontFamily: fonts.uiRegular,
-    fontSize: 12,
-    lineHeight: 17,
-  },
-  contactAction: {
-    minWidth: 66,
-    textAlign: 'right',
-    color: colors.primary,
-    fontFamily: fonts.uiBold,
-    fontSize: 13,
-  },
-  socialGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  socialButton: {
-    minWidth: '46%',
-    flex: 1,
-    minHeight: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 18,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  socialPressed: {
-    backgroundColor: colors.surfaceSubtle,
-  },
-  socialLabel: {
-    color: colors.text,
-    fontFamily: fonts.uiBold,
-    fontSize: 14,
-  },
-  copyright: {
-    color: colors.textTertiary,
-    fontFamily: fonts.uiRegular,
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: 'center',
-  },
-});
+}

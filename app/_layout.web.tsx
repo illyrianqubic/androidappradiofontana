@@ -20,6 +20,7 @@ import { HamburgerDrawer } from '../components/ui/HamburgerDrawer';
 import { AudioProvider } from '../services/audio';
 import { DrawerProvider } from '../providers/DrawerProvider';
 import { queryStorage } from '../services/storage';
+import { ThemeProvider, useTheme } from '../providers/ThemeProvider';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -122,6 +123,15 @@ const PERSIST_OPTIONS = {
 const ROOT_STACK_SCREEN_OPTIONS = { headerShown: false, animation: 'fade' } as const;
 
 export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <RootLayoutInner />
+    </ThemeProvider>
+  );
+}
+
+function RootLayoutInner() {
+  const { isDark } = useTheme();
   const [showLaunchSplash, setShowLaunchSplash] = useState(true);
   const [nativeSplashHidden, setNativeSplashHidden] = useState(false);
 
@@ -152,7 +162,7 @@ export default function RootLayout() {
         <PersistQueryClientProvider client={queryClient} persistOptions={PERSIST_OPTIONS}>
           <AudioProvider>
             <DrawerProvider>
-              <StatusBar style="dark" />
+              <StatusBar style={isDark ? 'light' : 'dark'} />
 
               <Stack screenOptions={ROOT_STACK_SCREEN_OPTIONS}>
                 <Stack.Screen name="(tabs)" />

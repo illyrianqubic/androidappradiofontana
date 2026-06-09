@@ -1,6 +1,8 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BackHandler,
+  Dimensions,
+  Modal,
   Pressable,
   Share,
   StyleSheet,
@@ -10,9 +12,16 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import Animated, {
+  Extrapolation,
+  interpolate,
+  runOnJS,
+  type SharedValue,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 // A-3: deep import skips loading all other icon sets' glyph maps.
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -30,7 +39,9 @@ import {
 
 import { HamburgerButton } from '../../../components/ui/HamburgerButton';
 import { SkeletonCard } from '../../../components/news/SkeletonCard';
-import { appIdentity, colors, fonts, spacing } from '../../../constants/tokens';
+import { appIdentity, fonts, spacing } from '../../../constants/tokens';
+import { useTheme } from '../../../providers/ThemeProvider';
+import type { ThemeColors } from '../../../providers/ThemeProvider';
 import { ms, s, vs } from '../../../lib/responsive';
 import { queueImagePrefetch } from '../../../lib/prefetchQueue';
 import { isBreakingBadgeVisible } from '../../../lib/breakingBadge';
@@ -43,6 +54,8 @@ import {
   type Post,
   type PortableTextBlock,
 } from '../../../services/api';
+import { appSettings } from '../../../services/storage';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 
 // AUDIT FIX P1.2: Merriweather is loaded lazily on the article screen
 // only — saves the cold-start cost of fetching/parsing 3 serif weights for
@@ -74,12 +87,8 @@ const ARTICLE_NAV_H = 60;
 const BODY_PADDING_H = spacing.lg + 4; // 24px
 
 // Premium reading palette overrides — tuned for long-form
-const INK = '#0B1220';        // body text
-const INK_SOFT = '#3B4456';   // captions, byline
-const INK_FAINT = '#8A93A6';  // metadata
-const RULE = '#E6E1D8';       // warm ivory rules
-const PAPER = '#FBF9F4';      // header section warm paper
-const ACCENT = colors.primary; // brand red
+
+
 
 // Approximate average words-per-minute for Albanian readers
 const WPM = 220;
@@ -101,6 +110,7 @@ function renderBodyBlock(
   block: PortableTextBlock,
   index: number,
   state: BodyBlockState,
+  styles: ReturnType<typeof getStyles>,
 ): React.ReactNode {
   // Inline image: full-bleed (negative horizontal margins extend past the
   // article column padding so the image kisses both screen edges)
@@ -172,7 +182,7 @@ function renderBodyBlock(
     state.firstParagraphRendered = true;
     return (
       <Text key={`${block._key}-${index}`} style={styles.firstParagraph}>
-        {renderEditorialLead(text)}
+        {renderEditorialLead(text, styles)}
       </Text>
     );
   }
@@ -186,7 +196,7 @@ function renderBodyBlock(
 
 // "ROMA — Lajmi i fundit ka..." style. Take the first 1–3 short capitalisable
 // words (max 28 chars) and render them as a small-caps lead-in.
-function renderEditorialLead(text: string): React.ReactNode {
+function renderEditorialLead(text: string, styles: ReturnType<typeof getStyles>): React.ReactNode {
   const words = text.split(/\s+/);
   let leadWords: string[] = [];
   let leadLen = 0;
@@ -259,6 +269,8 @@ const ArticleBody = memo(function ArticleBody({
   blocks: PortableTextBlock[];
   excerpt: string | undefined;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const total = blocks.length;
   const [renderedCount, setRenderedCount] = useState(() =>
     Math.min(ARTICLE_BODY_INITIAL, total),
@@ -285,24 +297,28 @@ const ArticleBody = memo(function ArticleBody({
   if (total > 0) {
     const bodyState: BodyBlockState = { firstParagraphRendered: false };
     const visible = renderedCount >= total ? blocks : blocks.slice(0, renderedCount);
-    return <>{visible.map((b, i) => renderBodyBlock(b, i, bodyState))}</>;
+    return <>{visible.map((b, i) => renderBodyBlock(b, i, bodyState, styles))}</>;
   }
   if (excerpt) {
-    return <Text style={styles.firstParagraph}>{renderEditorialLead(excerpt)}</Text>;
+    return <Text style={styles.firstParagraph}>{renderEditorialLead(excerpt, styles)}</Text>;
   }
   return null;
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function ArticleDetailScreen() {
+  const { colors, isDark } = useTheme();
   const router = useRouter();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ slug: string }>();
   const rawSlug = params.slug;
   const slug = Array.isArray(rawSlug) ? rawSlug[0] : rawSlug;
   const [linkCopied, setLinkCopied] = useState(false);
+  const [lightboxVisible, setLightboxVisible] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { selected: selectedReaction, toggle: toggleReaction } = useArticleReaction(slug ?? '');
 
   const postQuery = useQuery({
     queryKey: ['post-detail', slug],
@@ -403,13 +419,13 @@ export default function ArticleDetailScreen() {
   const onOpenRelatedPost = useCallback(
     (nextPost: Post) => {
       queueImagePrefetch(buildSanityImageUrl(nextPost.mainImageUrl, sanityImageWidths.articleHero));
-      router.prefetch(`/news/${nextPost.slug}` as never);
+      router.prefetch(`/news/${nextPost.slug}`);
       queryClient.prefetchQuery({
         queryKey: ['post-detail', nextPost.slug],
         queryFn: ({ signal }) => fetchPostBySlug(nextPost.slug, signal),
         staleTime: ARTICLE_STALE_TIME_MS,
       });
-      router.replace({ pathname: '/news/[slug]' as never, params: { slug: nextPost.slug } as never });
+      router.replace({ pathname: '/news/[slug]', params: { slug: nextPost.slug } });
     },
     [queryClient, router],
   );
@@ -448,7 +464,7 @@ export default function ArticleDetailScreen() {
   // Always navigate to the Lajme (news index) regardless of how the article
   // was opened — from home, from the news list, or from a related article.
   const onBack = useCallback(() => {
-    router.navigate('/(tabs)/news' as never);
+    router.navigate('/(tabs)/news');
   }, [router]);
 
   useEffect(() => {
@@ -472,12 +488,12 @@ export default function ArticleDetailScreen() {
           <View style={styles.articleNavSlot}>
             <Pressable onPress={onBack} hitSlop={12}>
               <View style={styles.articleNavButton}>
-                <Ionicons name="chevron-back" size={20} color={INK} />
+                <Ionicons name="chevron-back" size={20} color={colors.inkDark} />
               </View>
             </Pressable>
           </View>
           <View style={styles.articleNavCenter}>
-            <Image source={appIdentity.logo} contentFit="cover" style={styles.articleNavLogo} />
+            <Image source={isDark ? require('../../../assets/images/darklogortvfontana.png') : require('../../../assets/images/applogortvfontana.png')} contentFit="cover" style={styles.articleNavLogo} />
           </View>
           <View style={styles.articleNavSlot}>
             <HamburgerButton />
@@ -525,7 +541,7 @@ export default function ArticleDetailScreen() {
       <View style={styles.screen}>
         {articleNav}
         <View style={[styles.emptyStateWrap, { paddingTop: navBarHeight + 12, paddingBottom: insets.bottom + spacing.xl }]}>
-          <Ionicons name="document-outline" size={52} color={RULE} />
+          <Ionicons name="document-outline" size={52} color={colors.rule} />
           <Text style={styles.emptyStateTitle}>Artikulli nuk u gjet</Text>
           <Text style={styles.emptyStateSubtitle}>Provo përsëri pas pak ose kthehu te lista e lajmeve.</Text>
         </View>
@@ -545,19 +561,22 @@ export default function ArticleDetailScreen() {
       >
         {/* ── Hero ────────────────────────────────────────────────────── */}
         <View style={styles.heroContainer}>
-          <Image
-            source={heroImageUri ? { uri: heroImageUri } : undefined}
-            placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
-            contentFit="cover"
-            transition={0}
-            style={StyleSheet.absoluteFillObject}
-          />
+          <Pressable onPress={() => setLightboxVisible(true)} style={StyleSheet.absoluteFillObject}>
+            <Image
+              source={heroImageUri ? { uri: heroImageUri } : undefined}
+              placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
+              contentFit="cover"
+              transition={0}
+              style={StyleSheet.absoluteFillObject}
+            />
+          </Pressable>
           {/* Subtle bottom fade to paper colour so the image transitions
               gracefully into the article header section. */}
           <LinearGradient
-            colors={['transparent', 'transparent', 'rgba(251,249,244,0.0)', PAPER]}
+            colors={['transparent', 'transparent', 'rgba(251,249,244,0.0)', colors.paper]}
             locations={[0, 0.55, 0.85, 1]}
             style={StyleSheet.absoluteFillObject}
+            pointerEvents="none"
           />
         </View>
 
@@ -605,6 +624,9 @@ export default function ArticleDetailScreen() {
                 the first frame under budget without an animation gate. */}
             <ArticleBody blocks={articleBody} excerpt={post.excerpt} />
 
+            {/* ── Emoji reactions ───────────────────────────────────── */}
+            <ReactionBar selected={selectedReaction} onToggle={toggleReaction} />
+
             {/* ── Share strip ───────────────────────────────────────── */}
             <View style={styles.shareStrip}>
               <Text style={styles.shareStripLabel}>Më pëlqeu? Ndaje me të tjerët.</Text>
@@ -625,16 +647,16 @@ export default function ArticleDetailScreen() {
                 />
                 <ShareIcon
                   icon={linkCopied ? 'checkmark' : 'link-outline'}
-                  bg={linkCopied ? '#FFEAEA' : '#F4F1EB'}
-                  iconColor={linkCopied ? ACCENT : INK}
+                  bg={linkCopied ? colors.redTint : colors.surfaceSubtle}
+                  iconColor={linkCopied ? colors.primary : colors.inkDark}
                   onPress={onCopyLink}
                   ariaLabel={linkCopied ? 'Kopjuar' : 'Kopjo linkun'}
                   border
                 />
                 <ShareIcon
                   icon="share-social-outline"
-                  bg="#F4F1EB"
-                  iconColor={INK}
+                  bg={colors.surfaceSubtle}
+                  iconColor={colors.inkDark}
                   onPress={onShareNative}
                   ariaLabel="Ndaj"
                   border
@@ -662,6 +684,14 @@ export default function ArticleDetailScreen() {
           </View>
         ) : null}
       </Animated.ScrollView>
+
+      <ShareFab onPress={onShareNative} scrollY={scrollY} />
+
+      <ImageLightbox
+        uri={heroImageUri}
+        visible={lightboxVisible}
+        onClose={() => setLightboxVisible(false)}
+      />
     </View>
   );
 }
@@ -682,6 +712,8 @@ function ShareIcon({
   ariaLabel: string;
   border?: boolean;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   return (
     <Pressable
       onPress={onPress}
@@ -709,6 +741,8 @@ const RelatedItem = memo(function RelatedItem({
   isLast: boolean;
   onPress: (post: Post) => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const thumbUri = useMemo(
     () => buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.articleRelated),
     [post.mainImageUrl],
@@ -762,11 +796,295 @@ const RelatedItem = memo(function RelatedItem({
   (prev.post.categories?.[0] ?? 'Lajme') === (next.post.categories?.[0] ?? 'Lajme'),
 );
 
+// ── Emoji reactions ──────────────────────────────────────────────────────────
+const REACTION_EMOJIS = [
+  { emoji: '👍', key: 'thumbsup' },
+  { emoji: '❤️', key: 'heart' },
+  { emoji: '😮', key: 'wow' },
+  { emoji: '😢', key: 'sad' },
+] as const;
+
+type ReactionKey = (typeof REACTION_EMOJIS)[number]['key'];
+
+function useArticleReaction(slug: string) {
+  const storageKey = `reaction_${slug}`;
+  const [selected, setSelected] = useState<ReactionKey | null>(() => {
+    const saved = appSettings.getItem(storageKey);
+    if (saved && REACTION_EMOJIS.some((r) => r.key === saved)) {
+      return saved as ReactionKey;
+    }
+    return null;
+  });
+
+  const toggle = useCallback(
+    (key: ReactionKey) => {
+      const next = selected === key ? null : key;
+      setSelected(next);
+      if (next) {
+        appSettings.setItem(storageKey, next);
+      } else {
+        appSettings.removeItem(storageKey);
+      }
+    },
+    [selected, storageKey],
+  );
+
+  return { selected, toggle };
+}
+
+const ReactionBar = memo(function ReactionBar({
+  selected,
+  onToggle,
+}: {
+  selected: ReactionKey | null;
+  onToggle: (key: ReactionKey) => void;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16, justifyContent: 'center' }}>
+      {REACTION_EMOJIS.map(({ emoji, key }) => (
+        <ReactionButton
+          key={key}
+          emoji={emoji}
+          reactionKey={key}
+          selected={selected === key}
+          onToggle={onToggle}
+          colors={colors}
+        />
+      ))}
+    </View>
+  );
+});
+
+const ReactionButton = memo(function ReactionButton({
+  emoji,
+  reactionKey,
+  selected,
+  onToggle,
+  colors,
+}: {
+  emoji: string;
+  reactionKey: ReactionKey;
+  selected: boolean;
+  onToggle: (key: ReactionKey) => void;
+  colors: ThemeColors;
+}) {
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePress = useCallback(() => {
+    scale.value = withSequence(
+      withSpring(1.35, { stiffness: 400, damping: 12 }),
+      withSpring(1, { stiffness: 400, damping: 12 }),
+    );
+    onToggle(reactionKey);
+  }, [onToggle, reactionKey, scale]);
+
+  return (
+    <Animated.View style={animatedStyle}>
+      <Pressable
+        onPress={handlePress}
+        style={{
+          width: 48,
+          height: 48,
+          borderRadius: 24,
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderWidth: 2,
+          borderColor: selected ? colors.primary : colors.border,
+          backgroundColor: selected ? colors.redTint : 'transparent',
+        }}
+      >
+        <Text style={{ fontSize: 22 }}>{emoji}</Text>
+      </Pressable>
+    </Animated.View>
+  );
+});
+
+// ── Floating share FAB ───────────────────────────────────────────────────────
+const ShareFab = memo(function ShareFab({
+  onPress,
+  scrollY,
+}: {
+  onPress: () => void;
+  scrollY: SharedValue<number>;
+}) {
+  const { colors } = useTheme();
+  const style = useAnimatedStyle(() => ({
+    opacity: interpolate(scrollY.value, [0, 100], [0, 1], Extrapolation.CLAMP),
+    transform: [
+      {
+        scale: interpolate(scrollY.value, [0, 100], [0.8, 1], Extrapolation.CLAMP),
+      },
+    ],
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        {
+          position: 'absolute',
+          right: 16,
+          bottom: 24,
+          zIndex: 20,
+        },
+        style,
+      ]}
+    >
+      <Pressable
+        onPress={onPress}
+        style={{
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          backgroundColor: colors.primary,
+          alignItems: 'center',
+          justifyContent: 'center',
+          shadowColor: colors.primary,
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 3 },
+          elevation: 4,
+        }}
+      >
+        <Ionicons name="share-social-outline" size={24} color="#FFFFFF" />
+      </Pressable>
+    </Animated.View>
+  );
+});
+
+// ── Image lightbox ───────────────────────────────────────────────────────────
+const LIGHTBOX_W = Dimensions.get('window').width;
+const LIGHTBOX_H = Dimensions.get('window').height;
+
+const lightboxStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: '#000000',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  container: {
+    width: LIGHTBOX_W,
+    height: LIGHTBOX_H * 0.6,
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+  },
+  closeBtn: {
+    position: 'absolute',
+    top: 48,
+    right: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
+
+const ImageLightbox = memo(function ImageLightbox({
+  uri,
+  visible,
+  onClose,
+}: {
+  uri: string | undefined;
+  visible: boolean;
+  onClose: () => void;
+}) {
+  const scale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
+
+  useEffect(() => {
+    if (visible) {
+      scale.value = 1;
+      savedScale.value = 1;
+      translateX.value = 0;
+      translateY.value = 0;
+      savedTranslateX.value = 0;
+      savedTranslateY.value = 0;
+    }
+  }, [visible]);
+
+  const pinchGesture = Gesture.Pinch()
+    .onUpdate((e) => {
+      scale.value = Math.min(Math.max(savedScale.value * e.scale, 1), 2);
+    })
+    .onEnd(() => {
+      savedScale.value = scale.value;
+    });
+
+  const panGesture = Gesture.Pan()
+    .onUpdate((e) => {
+      if (scale.value <= 1.05) {
+        translateY.value = Math.max(0, e.translationY);
+        translateX.value = 0;
+      } else {
+        translateX.value = savedTranslateX.value + e.translationX;
+        translateY.value = savedTranslateY.value + e.translationY;
+      }
+    })
+    .onEnd((e) => {
+      if (scale.value <= 1.05 && e.translationY > 80) {
+        runOnJS(onClose)();
+      } else {
+        savedTranslateX.value = translateX.value;
+        savedTranslateY.value = translateY.value;
+      }
+    });
+
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
+      scale.value = withTiming(1);
+      savedScale.value = 1;
+      translateX.value = withTiming(0);
+      translateY.value = withTiming(0);
+      savedTranslateX.value = 0;
+      savedTranslateY.value = 0;
+    });
+
+  const composed = Gesture.Simultaneous(pinchGesture, panGesture, doubleTapGesture);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+  }));
+
+  if (!visible) return null;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={lightboxStyles.overlay}>
+        <GestureDetector gesture={composed}>
+          <Animated.View style={[lightboxStyles.container, animatedStyle]}>
+            <Image source={uri ? { uri } : undefined} style={lightboxStyles.image} />
+          </Animated.View>
+        </GestureDetector>
+        <Pressable style={lightboxStyles.closeBtn} onPress={onClose}>
+          <Ionicons name="close" size={28} color="#fff" />
+        </Pressable>
+      </View>
+    </Modal>
+  );
+});
+
 // ── StyleSheet ───────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
+const getStyles = (colors: ThemeColors) => StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
   },
 
   // ── Sticky nav ─────────────────────────────────────────────────────────
@@ -779,9 +1097,9 @@ const styles = StyleSheet.create({
   },
   articleNavSolid: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: RULE,
+    borderBottomColor: colors.rule,
   },
   articleNavRow: {
     flexDirection: 'row',
@@ -808,7 +1126,7 @@ const styles = StyleSheet.create({
     borderRadius: s(19),
     backgroundColor: 'rgba(255,255,255,0.92)',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: RULE,
+    borderColor: colors.rule,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -820,7 +1138,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: ACCENT,
+    backgroundColor: colors.primary,
   },
 
   // ── Scroll content ─────────────────────────────────────────────────────
@@ -837,7 +1155,7 @@ const styles = StyleSheet.create({
 
   // ── Article header (warm paper) ────────────────────────────────────────
   headerSection: {
-    backgroundColor: PAPER,
+    backgroundColor: colors.paper,
     paddingHorizontal: BODY_PADDING_H,
     paddingTop: spacing.xl,
     paddingBottom: spacing.xl,
@@ -851,13 +1169,13 @@ const styles = StyleSheet.create({
     fontFamily: fonts.uiBold,
     fontSize: 11,
     letterSpacing: 2.4,
-    color: ACCENT,
+    color: colors.primary,
   },
   breakingChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    backgroundColor: ACCENT,
+    backgroundColor: colors.primary,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 4,
@@ -866,17 +1184,17 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
   },
   breakingText: {
     fontFamily: fonts.uiBold,
     fontSize: 10,
     letterSpacing: 1.6,
-    color: '#FFFFFF',
+    color: colors.surface,
   },
   headline: {
     fontFamily: fonts.articleBold, // AUDIT FIX P6.22: Black weight no longer loaded
-    color: INK,
+    color: colors.inkDark,
     fontSize: ms(30),
     lineHeight: ms(38),
     letterSpacing: -0.6,
@@ -884,14 +1202,14 @@ const styles = StyleSheet.create({
   },
   excerpt: {
     fontFamily: fonts.articleItalic,
-    color: INK_SOFT,
+    color: colors.inkSoft,
     fontSize: ms(17),
     lineHeight: ms(27),
     marginBottom: 18,
   },
   bylineRule: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: RULE,
+    backgroundColor: colors.rule,
     marginVertical: 6,
   },
   bylineRow: {
@@ -912,13 +1230,13 @@ const styles = StyleSheet.create({
     fontFamily: fonts.uiRegular,
     fontSize: 10,
     letterSpacing: 2,
-    color: INK_FAINT,
+    color: colors.inkFaint,
   },
   bylineAuthor: {
     fontFamily: fonts.uiBold,
     fontSize: 11,
     letterSpacing: 1.6,
-    color: INK,
+    color: colors.inkDark,
     flexShrink: 1,
   },
   bylineMeta: {
@@ -930,18 +1248,18 @@ const styles = StyleSheet.create({
     width: 3,
     height: 3,
     borderRadius: 1.5,
-    backgroundColor: INK_FAINT,
+    backgroundColor: colors.inkFaint,
   },
   bylineMetaText: {
     fontFamily: fonts.uiRegular,
     fontSize: 11,
     letterSpacing: 0.6,
-    color: INK_FAINT,
+    color: colors.inkFaint,
   },
 
   // ── Body section (white) ───────────────────────────────────────────────
   bodySection: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     paddingHorizontal: BODY_PADDING_H,
     paddingTop: spacing.xl + 4,
     paddingBottom: spacing.xl,
@@ -953,14 +1271,14 @@ const styles = StyleSheet.create({
   },
   firstParagraph: {
     fontFamily: fonts.articleRegular,
-    color: INK,
+    color: colors.inkDark,
     fontSize: ms(18),
     lineHeight: ms(31),
     marginBottom: 18,
   },
   paragraph: {
     fontFamily: fonts.articleRegular,
-    color: INK,
+    color: colors.inkDark,
     fontSize: ms(17),
     lineHeight: ms(30),
     marginBottom: 18,
@@ -969,11 +1287,11 @@ const styles = StyleSheet.create({
     fontFamily: fonts.uiBold,
     fontSize: ms(13),
     letterSpacing: 1.6,
-    color: INK,
+    color: colors.inkDark,
   },
   leadDash: {
     fontFamily: fonts.articleRegular,
-    color: INK_SOFT,
+    color: colors.inkSoft,
     fontSize: ms(17),
   },
   bulletRow: {
@@ -986,13 +1304,13 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: ACCENT,
+    backgroundColor: colors.primary,
     marginTop: ms(12),
   },
   bulletText: {
     flex: 1,
     fontFamily: fonts.articleRegular,
-    color: INK,
+    color: colors.inkDark,
     fontSize: ms(17),
     lineHeight: ms(28),
   },
@@ -1005,19 +1323,19 @@ const styles = StyleSheet.create({
   h2Rule: {
     width: 48,
     height: 2,
-    backgroundColor: ACCENT,
+    backgroundColor: colors.primary,
     marginBottom: 12,
   },
   h2: {
     fontFamily: fonts.articleBold,
-    color: INK,
+    color: colors.inkDark,
     fontSize: ms(22),
     lineHeight: ms(30),
     letterSpacing: -0.2,
   },
   h3: {
     fontFamily: fonts.uiBold,
-    color: INK,
+    color: colors.inkDark,
     fontSize: 12,
     letterSpacing: 1.8,
     textTransform: 'uppercase',
@@ -1030,18 +1348,18 @@ const styles = StyleSheet.create({
     marginVertical: 18,
     paddingLeft: 18,
     borderLeftWidth: 3,
-    borderLeftColor: ACCENT,
+    borderLeftColor: colors.primary,
   },
   pullQuoteMark: {
     fontFamily: fonts.articleBold, // AUDIT FIX P6.22: Black weight no longer loaded
-    color: ACCENT,
+    color: colors.primary,
     fontSize: 36,
     lineHeight: 36,
     marginBottom: -6,
   },
   pullQuoteText: {
     fontFamily: fonts.articleItalic,
-    color: INK,
+    color: colors.inkDark,
     fontSize: ms(20),
     lineHeight: ms(30),
   },
@@ -1062,10 +1380,10 @@ const styles = StyleSheet.create({
     fontFamily: fonts.articleItalic,
     fontSize: 13,
     lineHeight: 19,
-    color: INK_SOFT,
+    color: colors.inkSoft,
   },
   captionDash: {
-    color: ACCENT,
+    color: colors.primary,
     fontFamily: fonts.articleBold,
   },
 
@@ -1075,11 +1393,11 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: RULE,
+    borderColor: colors.rule,
   },
   shareStripLabel: {
     fontFamily: fonts.articleItalic,
-    color: INK_SOFT,
+    color: colors.inkSoft,
     fontSize: 14,
     marginBottom: 16,
   },
@@ -1096,12 +1414,12 @@ const styles = StyleSheet.create({
   },
   shareIconBordered: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: RULE,
+    borderColor: colors.rule,
   },
 
   // ── Related ───────────────────────────────────────────────────────────
   relatedSection: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     paddingHorizontal: BODY_PADDING_H,
     paddingTop: 24,
     paddingBottom: 0,
@@ -1111,7 +1429,7 @@ const styles = StyleSheet.create({
   },
   relatedHeadline: {
     fontFamily: fonts.articleBold,
-    color: INK,
+    color: colors.inkDark,
     fontSize: ms(22),
     letterSpacing: -0.2,
     marginBottom: 12,
@@ -1121,9 +1439,9 @@ const styles = StyleSheet.create({
   },
   relatedCard: {
     borderRadius: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     overflow: 'hidden',
-    shadowColor: '#000',
+    shadowColor: colors.navy,
     shadowOpacity: 0.07,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
@@ -1145,12 +1463,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   relatedCardCatBadge: {
-    backgroundColor: '#FFF1F2',
+    backgroundColor: colors.redTint,
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderWidth: 1,
-    borderColor: '#FECDD3',
+    borderColor: colors.redBorder,
   },
   relatedCardCatText: {
     color: '#DC2626',
@@ -1160,7 +1478,7 @@ const styles = StyleSheet.create({
   },
   relatedCardTitle: {
     fontFamily: fonts.articleBold,
-    color: INK,
+    color: colors.inkDark,
     fontSize: ms(15),
     lineHeight: ms(21),
     letterSpacing: -0.1,
@@ -1168,11 +1486,11 @@ const styles = StyleSheet.create({
   relatedCardMeta: {
     fontFamily: fonts.uiRegular,
     fontSize: 11,
-    color: INK_FAINT,
+    color: colors.inkFaint,
   },
   relatedSep: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: RULE,
+    backgroundColor: colors.rule,
     marginBottom: 14,
   },
 
@@ -1198,16 +1516,17 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   emptyStateTitle: {
-    color: INK,
+    color: colors.inkDark,
     fontFamily: fonts.articleBold,
     fontSize: 22,
     textAlign: 'center',
   },
   emptyStateSubtitle: {
-    color: INK_FAINT,
+    color: colors.inkFaint,
     fontFamily: fonts.articleRegular,
     fontSize: 15,
     lineHeight: 22,
     textAlign: 'center',
   },
+
 });

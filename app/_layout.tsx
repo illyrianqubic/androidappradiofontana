@@ -1,5 +1,5 @@
 import { Component, useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, StyleSheet, Text, View } from 'react-native';
+import { AppState, Platform, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -27,8 +27,9 @@ import { LaunchSplash } from '../components/ui/LaunchSplash';
 import { HamburgerDrawer } from '../components/ui/HamburgerDrawer';
 import { AudioProvider } from '../services/audio';
 import { DrawerProvider } from '../providers/DrawerProvider';
-import { queryStorage } from '../services/storage';
-import { colors } from '../constants/tokens';
+import { appSettings, queryStorage } from '../services/storage';
+import { ThemeProvider, useTheme } from '../providers/ThemeProvider';
+import * as StoreReview from 'expo-store-review';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -73,7 +74,7 @@ class RootErrorBoundary extends Component<{ children: React.ReactNode }, EBState
   }
 }
 const ebStyles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  wrap: { flex: 1, backgroundColor: '#ffffff', justifyContent: 'center', alignItems: 'center', padding: 24 },
   title: { fontSize: 16, fontWeight: 'bold', color: '#dc2626', marginBottom: 12 },
   msg: { fontSize: 13, color: '#374151', textAlign: 'center', lineHeight: 20 },
 });
@@ -222,11 +223,7 @@ const PERSIST_OPTIONS = {
   },
 } as const;
 
-const ROOT_STACK_SCREEN_OPTIONS = {
-  headerShown: false,
-  animation: 'fade',
-  contentStyle: { backgroundColor: colors.surface },
-} as const;
+
 
 // +not-found should never be visible — it just <Redirect>s to home. Disabling
 // the animation prevents a brief flash of an empty fade transition when the
@@ -250,10 +247,27 @@ const initialStartupState: StartupState = {
 };
 
 export default function RootLayout() {
+  return (
+    <RootErrorBoundary>
+      <ThemeProvider>
+        <RootLayoutInner />
+      </ThemeProvider>
+    </RootErrorBoundary>
+  );
+}
+
+function RootLayoutInner() {
+  const { colors, isDark } = useTheme();
   // M24: single state object so the three startup transitions don't each
   // produce an independent root re-render.
   const [startup, setStartup] = useState<StartupState>(initialStartupState);
   const { showLaunchSplash, nativeSplashHidden, contentReady } = startup;
+
+  const ROOT_STACK_SCREEN_OPTIONS = {
+    headerShown: false,
+    animation: 'fade',
+    contentStyle: { backgroundColor: colors.surface },
+  } as const;
 
   // Mark the root/Home visual shell as safe to reveal. A warm home-hero cache
   // can settle quickly, and the fallback keeps this gate network-independent so
@@ -333,8 +347,8 @@ export default function RootLayout() {
   // AUDIT FIX P1.2: only Inter is loaded at root — saves ~200 ms cold start
   // (4 fewer font HTTP fetches + glyph-table parses on first install). The
   // article screen (app/(tabs)/news/[slug].tsx) lazy-loads Merriweather on
-  // its own mount via expo-font/loadAsync; while loading it falls back to
-  // the system serif which is visually close enough during the brief load.
+  // its own mount via expo-font/loadAsync; while loading it falls back to the
+  // system serif which is visually close enough during the brief load.
   const [interLoaded, interFontError] = useFonts({
     InterVariable: Inter_400Regular,
     InterVariableMedium: Inter_500Medium,
@@ -359,12 +373,42 @@ export default function RootLayout() {
     setStartup((s) => ({ ...s, showLaunchSplash: false }));
   }, []);
 
+  // Rate-app prompt: count opens and request a review after 5 launches.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    try {
+      const count = parseInt(appSettings.getItem('app_open_count') ?? '0', 10);
+      appSettings.setItem('app_open_count', String(count + 1));
+    } catch {
+      // Silently ignore storage errors.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    if (showLaunchSplash) return;
+    void (async () => {
+      try {
+        const count = parseInt(appSettings.getItem('app_open_count') ?? '0', 10);
+        const alreadyShown = appSettings.getItem('rate_prompt_shown') === 'true';
+        if (count >= 5 && !alreadyShown) {
+          const available = await StoreReview.isAvailableAsync();
+          if (available) {
+            await StoreReview.requestReview();
+          }
+          appSettings.setItem('rate_prompt_shown', 'true');
+        }
+      } catch {
+        // Silently ignore — rate prompt is best-effort.
+      }
+    })();
+  }, [showLaunchSplash]);
+
   if (!interLoaded && !interFontError) {
-    return <View style={{ flex: 1, backgroundColor: '#ffffff' }} />;
+    return <View style={{ flex: 1, backgroundColor: colors.bgScreen }} />;
   }
 
   return (
-    <RootErrorBoundary>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <PersistQueryClientProvider
@@ -373,7 +417,7 @@ export default function RootLayout() {
         >
           <AudioProvider>
             <DrawerProvider>
-              <StatusBar style="dark" />
+              <StatusBar style={isDark ? 'light' : 'dark'} />
 
               <Stack screenOptions={ROOT_STACK_SCREEN_OPTIONS}>
                 <Stack.Screen name="(tabs)" />
@@ -395,6 +439,5 @@ export default function RootLayout() {
         </PersistQueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
-    </RootErrorBoundary>
   );
 }

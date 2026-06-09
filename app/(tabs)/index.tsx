@@ -16,6 +16,7 @@ import type { NavigationState } from '@react-navigation/native';
 // A-3: deep import skips loading all other icon sets' glyph maps.
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList, type ListRenderItemInfo } from '@shopify/flash-list';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -38,7 +39,9 @@ import { RefreshStatusBanner } from '../../components/ui/RefreshStatusBanner';
 import { isBreakingBadgeVisible } from '../../lib/breakingBadge';
 import { SkeletonCard } from '../../components/news/SkeletonCard';
 
-import { appIdentity, colors, fonts } from '../../constants/tokens';
+import { appIdentity, fonts, radius, elevation } from '../../constants/tokens';
+import { useTheme } from '../../providers/ThemeProvider';
+import type { ThemeColors } from '../../providers/ThemeProvider';
 import { ms, s } from '../../lib/responsive';
 import { queueImagePrefetch } from '../../lib/prefetchQueue';
 import {
@@ -66,6 +69,12 @@ function isSkeletonItem(item: LatestGridItem): item is { _skeleton: string } {
 // ── Weather ────────────────────────────────────────────────────────────────────
 type WeatherResponse = {
   current: { temperature_2m: number; weathercode: number; windspeed_10m: number };
+  daily: {
+    time: string[];
+    temperature_2m_max: number[];
+    temperature_2m_min: number[];
+    weathercode: number[];
+  };
 };
 
 function wInfo(code: number): { label: string; icon: keyof typeof Ionicons.glyphMap } {
@@ -79,9 +88,27 @@ function wInfo(code: number): { label: string; icon: keyof typeof Ionicons.glyph
   return                  { label: 'Stuhi',             icon: 'thunderstorm-outline' };
 }
 
+type ForecastDay = { label: string; max: number; min: number; code: number };
+
+function getForecast(data: WeatherResponse | undefined): ForecastDay[] {
+  if (!data?.daily) return [];
+  const { time, temperature_2m_max, temperature_2m_min, weathercode } = data.daily;
+  const labels = ['Sot', 'Nesër', 'Pasnesër'];
+  const days: ForecastDay[] = [];
+  for (let i = 0; i < Math.min(3, time.length); i++) {
+    days.push({
+      label: labels[i] ?? time[i] ?? '',
+      max: Math.round(temperature_2m_max[i] ?? 0),
+      min: Math.round(temperature_2m_min[i] ?? 0),
+      code: weathercode[i] ?? 0,
+    });
+  }
+  return days;
+}
+
 async function fetchWeatherIstog(signal?: AbortSignal): Promise<WeatherResponse> {
   const res = await fetch(
-    'https://api.open-meteo.com/v1/forecast?latitude=42.78&longitude=20.48&current=temperature_2m,weathercode,windspeed_10m&timezone=Europe%2FBelgrade',
+    'https://api.open-meteo.com/v1/forecast?latitude=42.78&longitude=20.48&current=temperature_2m,weathercode,windspeed_10m&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=Europe%2FBelgrade',
     { signal },
   );
   if (!res.ok) throw new Error('weather');
@@ -90,6 +117,8 @@ async function fetchWeatherIstog(signal?: AbortSignal): Promise<WeatherResponse>
 
 // ── WeatherWidget ──────────────────────────────────────────────────────────────
 const WeatherWidget = memo(function WeatherWidget() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   // M30: pause weather polling when the app is backgrounded so the 15-min
   // timer doesn't wake the JS thread (and trigger a persisted-cache write)
   // while the user is in another app.
@@ -133,6 +162,7 @@ const WeatherWidget = memo(function WeatherWidget() {
   if (isError) return null;
 
   const info = data ? wInfo(data.current.weathercode) : null;
+  const forecast = data ? getForecast(data) : [];
 
   return (
     <View style={styles.weatherCard}>
@@ -153,7 +183,7 @@ const WeatherWidget = memo(function WeatherWidget() {
           {isLoading || !data ? (
             <View style={styles.weatherIconPlaceholder} />
           ) : (
-            <Ionicons name={info!.icon} size={36} color="#1a1a1a" />
+            <Ionicons name={info!.icon} size={36} color={colors.inkDark} />
           )}
         </View>
 
@@ -167,7 +197,7 @@ const WeatherWidget = memo(function WeatherWidget() {
             <View style={styles.weatherRight}>
               <Text style={styles.weatherCondition}>{info?.label}</Text>
               <View style={styles.weatherWindRow}>
-                <Ionicons name="flag-outline" size={12} color="#9ca3af" />
+                <Ionicons name="flag-outline" size={12} color={colors.textMuted} />
                 <Text style={styles.weatherWind}>
                   {Math.round(data.current.windspeed_10m)} km/h erë
                 </Text>
@@ -175,6 +205,19 @@ const WeatherWidget = memo(function WeatherWidget() {
             </View>
           </Animated.View>
         )}
+
+        {/* 3-day forecast row */}
+        {!(isLoading || !data) && forecast.length > 0 ? (
+          <Animated.View style={[styles.weatherForecastRow, revealStyle]}>
+            {forecast.map((day) => (
+              <View key={day.label} style={styles.weatherForecastDay}>
+                <Text style={styles.weatherForecastLabel}>{day.label}</Text>
+                <Ionicons name={wInfo(day.code).icon} size={20} color={colors.textSecondary} />
+                <Text style={styles.weatherForecastTemp}>{day.min}° / {day.max}°</Text>
+              </View>
+            ))}
+          </Animated.View>
+        ) : null}
       </View>
     </View>
   );
@@ -212,6 +255,8 @@ const BreakingTicker = memo(function BreakingTicker({ headlines }: { headlines: 
 }, headlinesEqual);
 
 function BreakingTickerInner({ headlines }: { headlines: BreakingItem[] }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const router = useRouter();
   const isFocused = useIsFocused();
   const reducedMotion = useReducedMotion();
@@ -230,6 +275,10 @@ function BreakingTickerInner({ headlines }: { headlines: BreakingItem[] }) {
   const translateX = useSharedValue(0);
   const viewportWidthRef = useRef(0);
   const textWidthRef = useRef(0);
+  // AUDIT FIX: track measured text width in state so the visible Animated.View
+  // can be sized exactly to the text. Without this, numberOfLines={1} inside a
+  // flex-constrained parent can truncate with ellipsis, cutting off the title.
+  const [textWidth, setTextWidth] = useState(0);
 
   // Reset to index 0 when the breaking-headlines set changes (e.g. after a refresh).
   const prevHeadlineIdsRef = useRef('');
@@ -246,7 +295,7 @@ function BreakingTickerInner({ headlines }: { headlines: BreakingItem[] }) {
   const onPressTicker = useCallback(() => {
     const slug = currentHeadline?.slug;
     if (!slug) return;
-    router.push(`/(tabs)/news/${slug}` as never);
+    router.push(`/(tabs)/news/${slug}`);
   }, [router, currentHeadline]);
 
   // Forward-declare startAnim ref so advanceToNext can call it for the single-headline loop.
@@ -327,6 +376,7 @@ function BreakingTickerInner({ headlines }: { headlines: BreakingItem[] }) {
     const w = line.width;
     if (w === textWidthRef.current) return;
     textWidthRef.current = w;
+    setTextWidth(w);
     if (viewportWidthRef.current) startAnim();
   }, [startAnim]);
 
@@ -337,7 +387,7 @@ function BreakingTickerInner({ headlines }: { headlines: BreakingItem[] }) {
   if (!currentHeadline) return null;
 
   return (
-    <View style={styles.breakingStrip}>
+    <Pressable onPress={onPressTicker} hitSlop={4} style={styles.breakingStrip}>
       <View style={styles.breakingLabel}>
         <Text style={styles.breakingLabelText}>LAJM I FUNDIT</Text>
       </View>
@@ -356,21 +406,34 @@ function BreakingTickerInner({ headlines }: { headlines: BreakingItem[] }) {
         </Text>
       </View>
 
-      <Pressable
-        onPress={onPressTicker}
-        hitSlop={4}
+      <View
         style={styles.breakingViewport}
         onLayout={onViewportLayout}
       >
-        {/* numberOfLines={1} keeps the text single-line; animation scrolls the
-            full title using the width from the measurement clone above. */}
-        <Animated.View style={[styles.breakingTickerRow, animStyle]}>
-          <Text style={styles.breakingTickerText} numberOfLines={1}>
+        {/* Animated.View is sized to the measured text width plus a small buffer
+            so the text never wraps or truncates. The viewport overflow hides any
+            excess; the translateX animation scrolls the full title across. */}
+        <Animated.View style={[styles.breakingTickerRow, animStyle, { width: textWidth + 8 }]}>
+          <Text style={styles.breakingTickerText}>
             {currentHeadline.title}
           </Text>
         </Animated.View>
-      </Pressable>
-    </View>
+        <LinearGradient
+          colors={['rgba(185,28,28,0)', colors.primaryDeep]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.tickerFadeLeft}
+          pointerEvents="none"
+        />
+        <LinearGradient
+          colors={[colors.primaryDeep, 'rgba(185,28,28,0)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.tickerFadeRight}
+          pointerEvents="none"
+        />
+      </View>
+    </Pressable>
   );
 }
 
@@ -399,13 +462,18 @@ const HeroCard = memo(function HeroCard({
   heroImageUri: string | null;
   onPress: (post: Post) => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const cat = hero.categories?.[0] ?? 'Lajme';
 
   return (
     <View style={styles.heroOuter}>
       <Pressable
         onPress={() => onPress(hero)}
-        style={styles.heroCard}
+        style={({ pressed }) => [
+          styles.heroCard,
+          pressed && { transform: [{ scale: 0.97 }], opacity: 0.92 },
+        ]}
       >
         <View pointerEvents="none" style={styles.heroAccentRail} />
         {/* Image — cinematic 16:10, no overlays */}
@@ -425,6 +493,11 @@ const HeroCard = memo(function HeroCard({
 
         {/* White editorial content — red left border is the premium signature */}
         <View style={styles.heroContent}>
+          <LinearGradient
+            colors={[colors.surface, colors.surfaceSubtle]}
+            style={StyleSheet.absoluteFillObject}
+            pointerEvents="none"
+          />
           {isBreakingBadgeVisible(hero.breaking, hero.publishedAt) ? (
             <View style={styles.heroBadge}>
               <Text style={styles.heroBadgeText}>LAJM I FUNDIT</Text>
@@ -450,6 +523,8 @@ const HeroCard = memo(function HeroCard({
 
 // ── LocalCard (compact overlay card for horizontal rail) ──────────────────────
 const LocalCard = memo(function LocalCard({ post, onPress }: { post: Post; onPress: (p: Post) => void }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const imageUri = useMemo(
     () => buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.feedThumb),
     [post.mainImageUrl],
@@ -459,7 +534,10 @@ const LocalCard = memo(function LocalCard({ post, onPress }: { post: Post; onPre
     <View style={styles.localOuter}>
       <Pressable
         onPress={() => onPress(post)}
-        style={styles.localCard}
+        style={({ pressed }) => [
+          styles.localCard,
+          pressed && { transform: [{ scale: 0.97 }], opacity: 0.92 },
+        ]}
       >
         <View style={styles.localImageWrap}>
           <Image
@@ -490,6 +568,8 @@ const LocalCard = memo(function LocalCard({ post, onPress }: { post: Post; onPre
 
 // ── LocalNewsHeader ─────────────────────────────────────────────────────────
 const LocalNewsHeader = memo(function LocalNewsHeader() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   return (
     <View style={styles.localHeader}>
       <View style={styles.localTitleGroup}>
@@ -506,6 +586,8 @@ const LatestNewsHeader = memo(function LatestNewsHeader({
 }: {
   onSeeAll?: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   return (
     <View style={styles.latestHeader}>
       <View style={styles.latestTopRow}>
@@ -534,6 +616,8 @@ const GridItem = memo(function GridItem({
   isLeft: boolean;
   onPress: (p: Post) => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const imageUri = useMemo(
     () => buildSanityImageUrl(item.mainImageUrl, sanityImageWidths.feedCard),
     [item.mainImageUrl],
@@ -547,7 +631,10 @@ const GridItem = memo(function GridItem({
     <View style={[styles.gridColumn, isLeft ? styles.gridColLeft : styles.gridColRight]}>
       <Pressable
         onPress={() => onPress(item)}
-        style={styles.gridCard}
+        style={({ pressed }) => [
+          styles.gridCard,
+          pressed && { transform: [{ scale: 0.97 }], opacity: 0.92 },
+        ]}
       >
           {/* 16:9 image — text never overlaid */}
           <View style={styles.gridImgWrap}>
@@ -592,6 +679,8 @@ const SearchResultCard = memo(function SearchResultCard({
   item: Post;
   onPress: (p: Post) => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   // M27: thumbnails standardized at 480px wide.
   const imageUri = useMemo(
     () => (item.mainImageUrl ? buildSanityImageUrl(item.mainImageUrl, sanityImageWidths.feedThumb) : undefined),
@@ -599,7 +688,10 @@ const SearchResultCard = memo(function SearchResultCard({
   );
   return (
     <Pressable
-      style={styles.searchResultCard}
+      style={({ pressed }) => [
+        styles.searchResultCard,
+        pressed && { transform: [{ scale: 0.97 }], opacity: 0.92 },
+      ]}
       onPress={() => onPress(item)}
     >
       <Image
@@ -629,9 +721,6 @@ const SearchResultCard = memo(function SearchResultCard({
 );
 
 // ── RadioLiveBanner ────────────────────────────────────────────────────────────
-const BANNER_RED = '#dc2626';
-const BANNER_NAVY = '#0f172a';
-
 // Heights and phase offsets for the 5 animated equalizer bars.
 const BANNER_BAR_HEIGHTS = [7, 13, 20, 13, 7] as const;
 const BANNER_BAR_OFFSETS = [0, 0.17, 0.33, 0.50, 0.67] as const;
@@ -646,6 +735,8 @@ const BannerEqBar = memo(function BannerEqBar({
   offset: number;
   phase: SharedValue<number>;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const style = useAnimatedStyle(() => {
     'worklet';
     const sv = (Math.sin((phase.value + offset) * Math.PI * 2) + 1) * 0.5;
@@ -655,6 +746,8 @@ const BannerEqBar = memo(function BannerEqBar({
 });
 
 const RadioLiveBanner = memo(function RadioLiveBanner({ onPress }: { onPress: () => void }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const isFocused = useIsFocused();
   const reducedMotion = useReducedMotion();
   const shouldAnimate = isFocused && !reducedMotion;
@@ -730,7 +823,7 @@ const RadioLiveBanner = memo(function RadioLiveBanner({ onPress }: { onPress: ()
           {/* ── Right: play CTA ────────────────────────────── */}
           <View style={styles.radioRight}>
             <View style={styles.radioPlayCircle}>
-              <Ionicons name="play" size={s(18)} color={BANNER_NAVY} style={styles.radioPlayIconNudge} />
+              <Ionicons name="play" size={s(18)} color={colors.navy} style={styles.radioPlayIconNudge} />
             </View>
             <Text style={styles.radioPlayLabel}>DËGJO</Text>
           </View>
@@ -744,6 +837,8 @@ const RadioLiveBanner = memo(function RadioLiveBanner({ onPress }: { onPress: ()
 
 // ── HomeScreen ─────────────────────────────────────────────────────────────────
 export default function HomeScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -825,7 +920,7 @@ export default function HomeScreen() {
     refetchInterval: 60_000,
     staleTime: 5 * 60 * 1000,
   });
-  const latestQuery   = useQuery({ queryKey: ['home-latest'],   queryFn: ({ signal }) => fetchLatestPosts('', '', 18, signal), enabled: enableLatest, staleTime: 2 * 60 * 1000 });
+  const latestQuery   = useQuery({ queryKey: ['home-latest'],   queryFn: ({ signal }) => fetchLatestPosts('', '', 18, 0, signal), enabled: enableLatest, staleTime: 2 * 60 * 1000 });
   const localQuery    = useQuery({ queryKey: ['home-local'],    queryFn: ({ signal }) => fetchLocalPosts(12, signal), enabled: enableLocal, staleTime: 5 * 60 * 1000 });
   const refetchHero = heroQuery.refetch;
   const refetchBreaking = breakingQuery.refetch;
@@ -896,7 +991,7 @@ export default function HomeScreen() {
       // We use the real fetchPostBySlug (not Promise.resolve(post)) because
       // the listing object lacks `body[]` — seeding it would let
       // useQuery treat the cached value as fresh and skip the body fetch.
-      router.prefetch(`/news/${post.slug}` as never);
+      router.prefetch(`/news/${post.slug}`);
       // PROFILING FIX (round 2): staleTime Infinity makes a second prefetch
       // for the same slug a no-op while data exists or a fetch is in-flight,
       // and lets useQuery on the article screen treat the result as fresh
@@ -961,7 +1056,7 @@ export default function HomeScreen() {
     const t = setTimeout(() => {
       interactionHandle = InteractionManager.runAfterInteractions(() => {
         for (const slug of slugs) {
-          router.prefetch(`/news/${slug}` as never);
+          router.prefetch(`/news/${slug}`);
           queryClient.prefetchQuery({
             queryKey: ['post-detail', slug],
             queryFn: ({ signal }) => fetchPostBySlug(slug, signal),
@@ -980,7 +1075,10 @@ export default function HomeScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [bannerVisible, setBannerVisible] = useState(false);
   const refreshRunRef = useRef(0);
-  const [refreshResetKey, setRefreshResetKey] = useState(0);
+  // AUDIT FIX: removed refreshResetKey — changing FlashList `key` on every
+  // pull-to-refresh destroyed the recycled view pool and forced a full
+  // unmount/remount. FlashList handles refresh natively via `refreshing`.
+  // const [refreshResetKey, setRefreshResetKey] = useState(0);
   const onPullToRefresh = useCallback(async () => {
     const runId = refreshRunRef.current + 1;
     refreshRunRef.current = runId;
@@ -1002,7 +1100,7 @@ export default function HomeScreen() {
       if (refreshRunRef.current === runId) {
         setIsRefreshing(false);
         setBannerVisible(false);
-        setRefreshResetKey((key) => key + 1);
+        // AUDIT FIX: removed setRefreshResetKey — see above.
       }
     }
   }, [queryClient, refetchBreaking, refetchHero, refetchLatest, refetchLocal]);
@@ -1019,11 +1117,11 @@ export default function HomeScreen() {
   }, []);
 
   const onPressLive = useCallback(() => {
-    router.navigate('/(tabs)/live' as never);
+    router.navigate('/(tabs)/live');
   }, [router]);
 
   const onOpenNewsPage = useCallback(() => {
-    router.navigate('/(tabs)/news' as never);
+    router.navigate('/(tabs)/news');
   }, [router]);
 
   // ── Render helpers ──────────────────────────────────────────────────────────
@@ -1039,7 +1137,7 @@ export default function HomeScreen() {
       }
       return <GridItem item={item} isLeft={isLeft} onPress={onPressPost} />;
     },
-    [onPressPost],
+    [onPressPost, styles],
   );
 
   // FlashList item-type discriminator — keeps the recycler from reusing a
@@ -1094,7 +1192,10 @@ export default function HomeScreen() {
       </View>
       );
     },
-    [hero, heroImageUri, heroQuery.isLoading, bannerVisible, onPressPost, onOpenNewsPage, onPressLive, latestData.length],
+    // AUDIT FIX: removed `latestData.length` — the memoized JSX never reads
+    // `latestData`, so every time the latest-posts query resolved the entire
+    // header (HeroCard, WeatherWidget, RadioLiveBanner) recomputed unnecessarily.
+    [hero, heroImageUri, heroQuery.isLoading, bannerVisible, onPressPost, onOpenNewsPage, onPressLive, styles],
   );
 
   // ── List footer: Lokale → Footer ──────────────────────────────────────────
@@ -1131,7 +1232,7 @@ export default function HomeScreen() {
       </View>
       );
     },
-    [localData, onPressPost],
+    [localData, onPressPost, styles],
   );
 
   // H15: stable contentContainerStyle reference.
@@ -1169,7 +1270,7 @@ export default function HomeScreen() {
         {filteredData.length} rezultat{filteredData.length !== 1 ? 'e' : ''}
       </Text>
     ),
-    [filteredData.length],
+    [filteredData.length, styles],
   );
   const searchOverlayContentStyle = useMemo(
     () => ({
@@ -1203,7 +1304,7 @@ export default function HomeScreen() {
           </View>
         ) : (
           <View style={styles.headerRow}>
-            <Image source={appIdentity.logo} contentFit="cover" priority="high" style={styles.headerLogo} />
+            <Image source={require('../../assets/images/applogortvfontana.png')} contentFit="contain" priority="high" style={styles.headerLogo} />
             <View style={styles.headerSpacer} />
             <View style={styles.headerActions}>
               <Pressable onPress={onHeaderSearch} style={styles.headerIconBtn} hitSlop={8}>
@@ -1242,7 +1343,7 @@ export default function HomeScreen() {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.searchEmpty}>
-              <Ionicons name="search-outline" size={44} color="#D1D5DB" />
+              <Ionicons name="search-outline" size={44} color={colors.textFaint} />
               <Text style={styles.searchEmptyTitle}>Asnjë rezultat</Text>
               <Text style={styles.searchEmptyText}>
                 Nuk u gjet asnjë artikull për "{searchQuery}"
@@ -1270,7 +1371,6 @@ export default function HomeScreen() {
 
       {/* Main content */}
       <FlashList
-        key={`home-refresh-${refreshResetKey}`}
         data={gridData}
         numColumns={2}
         keyExtractor={gridKeyExtractor}
@@ -1292,10 +1392,10 @@ export default function HomeScreen() {
 }
 
 // ── StyleSheet ─────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
+const getStyles = (colors: ThemeColors) => StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F2F4F7',
+    backgroundColor: colors.bgScreen,
   },
   flexFill: {
     flex: 1,
@@ -1324,10 +1424,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   headerLogo: {
-    width: 46,
-    height: 46,
-    borderRadius: 11,
-    backgroundColor: colors.surfaceSubtle,
+    width: 56,
+    height: 56,
+    borderRadius: 14,
   },
   headerSpacer: {
     flex: 1,
@@ -1343,7 +1442,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.surfaceSubtle,
   },
   searchRow: {
     height: 66,
@@ -1358,7 +1457,7 @@ const styles = StyleSheet.create({
     height: 38,
     borderRadius: 10,
     paddingHorizontal: 10,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.surfaceSubtle,
     fontFamily: fonts.uiRegular,
     fontSize: 15,
     color: colors.text,
@@ -1374,7 +1473,7 @@ const styles = StyleSheet.create({
   },
   breakingStrip: {
     flex: 1,
-    backgroundColor: '#B91C1C',
+    backgroundColor: colors.primaryDeep,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -1383,7 +1482,7 @@ const styles = StyleSheet.create({
     height: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#DC2626',
+    backgroundColor: colors.primary,
     borderRightWidth: 1,
     borderRightColor: 'rgba(255,255,255,0.18)',
   },
@@ -1426,6 +1525,20 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: 9999,
   },
+  tickerFadeLeft: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 20,
+  },
+  tickerFadeRight: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 20,
+  },
   breakingMeasureContainer: {
     position: 'absolute',
     left: -10000,
@@ -1451,12 +1564,8 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
     marginBottom: 14,
     borderRadius: s(22),
-    backgroundColor: BANNER_NAVY,
-    shadowColor: '#000000',
-    shadowOpacity: 0.36,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 10,
+    backgroundColor: colors.navy,
+    ...elevation.card,
     overflow: 'hidden',
   },
   radioCardInner: {
@@ -1469,7 +1578,7 @@ const styles = StyleSheet.create({
     bottom: -s(18),
     fontSize: s(96),
     fontFamily: fonts.uiBold,
-    color: '#FFFFFF',
+    color: colors.surface,
     opacity: 0.04,
     letterSpacing: -3,
     lineHeight: s(96),
@@ -1482,7 +1591,7 @@ const styles = StyleSheet.create({
     width: 4,
     borderTopRightRadius: 4,
     borderBottomRightRadius: 4,
-    backgroundColor: BANNER_RED,
+    backgroundColor: colors.primary,
   },
   radioContent: {
     flexDirection: 'row',
@@ -1507,8 +1616,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: s(5),
-    backgroundColor: BANNER_RED,
-    borderRadius: 999,
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
     paddingHorizontal: s(9),
     paddingVertical: s(4),
   },
@@ -1516,10 +1625,10 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: 2.5,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
   },
   radioLiveLabel: {
-    color: '#FFFFFF',
+    color: colors.surface,
     fontFamily: fonts.uiBold,
     fontSize: ms(9),
     letterSpacing: 1.4,
@@ -1535,7 +1644,7 @@ const styles = StyleSheet.create({
   radioName: {
     fontFamily: fonts.uiBold,
     fontSize: ms(25),
-    color: '#FFFFFF',
+    color: colors.surface,
     letterSpacing: -0.7,
     lineHeight: ms(29),
     marginBottom: s(8),
@@ -1560,7 +1669,7 @@ const styles = StyleSheet.create({
   bannerEqBar: {
     width: 2.5,
     borderRadius: 2,
-    backgroundColor: BANNER_RED,
+    backgroundColor: colors.primary,
   },
   radioRight: {
     alignItems: 'center',
@@ -1570,10 +1679,10 @@ const styles = StyleSheet.create({
     width: s(50),
     height: s(50),
     borderRadius: s(25),
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#FFFFFF',
+    shadowColor: colors.navyTint,
     shadowOpacity: 0.18,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 4 },
@@ -1614,7 +1723,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: fonts.uiBold,
     fontSize: 18,
-    letterSpacing: -0.4,
+    letterSpacing: -0.6,
   },
   seeAll: {
     color: colors.primary,
@@ -1652,16 +1761,16 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 3.5,
-    backgroundColor: '#DC2626',
+    backgroundColor: colors.primary,
   },
   latestKicker: {
-    color: '#DC2626',
+    color: colors.primary,
     fontFamily: fonts.uiBold,
-    fontSize: 10.5,
-    letterSpacing: 2.4,
+    fontSize: 11,
+    letterSpacing: 2.0,
   },
   latestDate: {
-    color: '#7A8294',
+    color: colors.textMuted,
     fontFamily: fonts.uiMedium,
     fontSize: 11,
     letterSpacing: 0.3,
@@ -1673,21 +1782,21 @@ const styles = StyleSheet.create({
   latestTitle: {
     color: colors.text,
     fontFamily: fonts.uiBold,
-    fontSize: 20,
-    letterSpacing: -0.4,
+    fontSize: 22,
+    letterSpacing: -0.6,
   },
   latestCountChip: {
     minWidth: 28,
     height: 22,
     paddingHorizontal: 8,
     borderRadius: 11,
-    backgroundColor: '#0A0F1C',
+    backgroundColor: colors.inkDark,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
   },
   latestCountText: {
-    color: '#FFFFFF',
+    color: colors.surface,
     fontFamily: fonts.uiBold,
     fontSize: 11,
     letterSpacing: -0.2,
@@ -1700,7 +1809,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   latestSubhead: {
-    color: '#5C6478',
+    color: colors.textTertiary,
     fontFamily: fonts.uiRegular,
     fontSize: 13,
     lineHeight: 18,
@@ -1721,12 +1830,12 @@ const styles = StyleSheet.create({
   },
   latestRuleHeavy: {
     height: 2,
-    backgroundColor: '#0A0F1C',
+    backgroundColor: colors.inkDark,
     marginBottom: 3,
   },
   latestRuleHair: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#0A0F1C',
+    backgroundColor: colors.inkDark,
     opacity: 0.6,
   },
 
@@ -1740,14 +1849,14 @@ const styles = StyleSheet.create({
   latestCloserRule: {
     width: 56,
     height: 2,
-    backgroundColor: '#0A0F1C',
+    backgroundColor: colors.inkDark,
     marginBottom: 14,
   },
   latestCloserLabel: {
-    color: '#7A8294',
+    color: colors.textMuted,
     fontFamily: fonts.uiBold,
-    fontSize: 10,
-    letterSpacing: 2.4,
+    fontSize: 11,
+    letterSpacing: 2.0,
     marginBottom: 18,
   },
   latestCloserCta: {
@@ -1757,9 +1866,9 @@ const styles = StyleSheet.create({
     paddingLeft: 22,
     paddingRight: 6,
     paddingVertical: 6,
-    backgroundColor: '#0A0F1C',
-    borderRadius: 999,
-    shadowColor: '#0A0F1C',
+    backgroundColor: colors.inkDark,
+    borderRadius: radius.pill,
+    shadowColor: colors.navy,
     shadowOpacity: 0.18,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
@@ -1770,7 +1879,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.985 }],
   },
   latestCloserCtaText: {
-    color: '#FFFFFF',
+    color: colors.surface,
     fontFamily: fonts.uiBold,
     fontSize: 13.5,
     letterSpacing: -0.2,
@@ -1779,12 +1888,12 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#DC2626',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   latestCloserSub: {
-    color: '#7A8294',
+    color: colors.textMuted,
     fontFamily: fonts.articleItalic,
     fontSize: 11.5,
     lineHeight: 16,
@@ -1794,16 +1903,12 @@ const styles = StyleSheet.create({
 
   // ── Hero card ───────────────────────────────────────────────────────────────
   heroOuter: {
-    borderRadius: 18,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#0F172A',
-    shadowOpacity: 0.10,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
+    borderRadius: radius.card,
+    backgroundColor: colors.surface,
+    ...elevation.cardStrong,
   },
   heroCard: {
-    borderRadius: 18,
+    borderRadius: radius.card,
     overflow: 'hidden',
   },
   heroAccentRail: {
@@ -1812,13 +1917,13 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     width: 3,
-    backgroundColor: '#DC2626',
+    backgroundColor: colors.primary,
     zIndex: 2,
   },
   heroImageWrap: {
     width: '100%',
     aspectRatio: 3 / 2,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: colors.border,
   },
   heroImage: {
     width: '100%',
@@ -1833,7 +1938,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(10,15,28,0.07)',
   },
   heroSkeleton: {
-    borderRadius: 18,
+    borderRadius: radius.card,
   },
   heroContent: {
     paddingLeft: 18,
@@ -1847,32 +1952,32 @@ const styles = StyleSheet.create({
     top: 10,
     right: 14,
     zIndex: 1,
-    backgroundColor: '#DC2626',
+    backgroundColor: colors.primary,
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 3,
   },
   heroBadgeText: {
-    color: '#FFFFFF',
+    color: colors.surface,
     fontFamily: fonts.uiBold,
     fontSize: 9,
     letterSpacing: 1.5,
   },
   heroKicker: {
-    color: '#DC2626',
+    color: colors.primary,
     fontFamily: fonts.uiBold,
-    fontSize: 10.5,
-    letterSpacing: 2.2,
+    fontSize: 11,
+    letterSpacing: 2.0,
   },
   heroHeadline: {
-    color: '#0F172A',
+    color: colors.navy,
     fontFamily: fonts.uiBold,
     fontSize: 23,
     lineHeight: 30,
     letterSpacing: -0.5,
   },
   heroDeck: {
-    color: '#475569',
+    color: colors.inkSoft,
     fontFamily: fonts.uiRegular,
     fontSize: 14,
     lineHeight: 20,
@@ -1883,25 +1988,21 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   heroMetaText: {
-    color: '#64748B',
+    color: colors.inkFaint,
     fontFamily: fonts.uiRegular,
     fontSize: 10.5,
   },
 
   // ── Weather card ────────────────────────────────────────────────────────────
   weatherCard: {
-    borderRadius: 20,
+    borderRadius: radius.xl,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    ...elevation.card,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: colors.border,
   },
   weatherInner: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     padding: 20,
     minHeight: 126,
     position: 'relative',
@@ -1941,16 +2042,16 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: 2.5,
-    backgroundColor: '#d1d5db',
+    backgroundColor: colors.textFaint,
   },
   weatherCity: {
-    color: '#111111',
+    color: colors.inkDark,
     fontFamily: fonts.uiBold,
     fontSize: 16,
     letterSpacing: -0.2,
   },
   weatherSub: {
-    color: '#9ca3af',
+    color: colors.textMuted,
     fontFamily: fonts.uiRegular,
     fontSize: 11,
     letterSpacing: 0.1,
@@ -1959,12 +2060,12 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: colors.surfaceSubtle,
   },
   weatherDataSkeleton: {
     height: 50,
-    borderRadius: 12,
-    backgroundColor: '#f3f4f6',
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceSubtle,
   },
   weatherDataRow: {
     flexDirection: 'row',
@@ -1974,10 +2075,10 @@ const styles = StyleSheet.create({
   weatherDivider: {
     width: 1,
     height: 36,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: colors.border,
   },
   weatherTemp: {
-    color: '#111111',
+    color: colors.inkDark,
     fontFamily: fonts.uiBold,
     fontSize: ms(50, 0.5),
     letterSpacing: -2,
@@ -1987,7 +2088,7 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   weatherCondition: {
-    color: '#374151',
+    color: colors.textSecondary,
     fontFamily: fonts.uiMedium,
     fontSize: 14,
     letterSpacing: -0.1,
@@ -1998,9 +2099,35 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   weatherWind: {
-    color: '#9ca3af',
+    color: colors.textMuted,
     fontFamily: fonts.uiRegular,
     fontSize: 12,
+  },
+  weatherForecastRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  weatherForecastDay: {
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
+  },
+  weatherForecastLabel: {
+    fontFamily: fonts.uiBold,
+    fontSize: 11,
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  weatherForecastTemp: {
+    fontFamily: fonts.uiMedium,
+    fontSize: 12,
+    color: colors.textSecondary,
   },
 
   // ── Local cards (horizontal compact overlay) ────────────────────────────────
@@ -2028,12 +2155,8 @@ const styles = StyleSheet.create({
     width: s(155),
     borderRadius: 10,
     marginRight: 10,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#0A0F1C',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+    backgroundColor: colors.surface,
+    ...elevation.card,
   },
   localCard: {
     borderRadius: 10,
@@ -2042,7 +2165,7 @@ const styles = StyleSheet.create({
   localImageWrap: {
     width: '100%',
     aspectRatio: 16 / 9,
-    backgroundColor: '#E6E8EE',
+    backgroundColor: colors.surfaceElevated,
   },
   localImage: {
     width: '100%',
@@ -2063,20 +2186,20 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   localCatText: {
-    color: '#DC2626',
+    color: colors.primary,
     fontFamily: fonts.uiBold,
     fontSize: 8,
     letterSpacing: 1.6,
   },
   localTitle: {
-    color: '#0A0F1C',
+    color: colors.inkDark,
     fontFamily: fonts.uiBold,
     fontSize: 12.5,
     lineHeight: 17,
     letterSpacing: -0.15,
   },
   localTime: {
-    color: '#64748B',
+    color: colors.inkFaint,
     fontFamily: fonts.uiRegular,
     fontSize: 9,
     marginTop: 1,
@@ -2094,22 +2217,18 @@ const styles = StyleSheet.create({
     paddingLeft: 5,
   },
   gridSkeleton: {
-    borderRadius: 12,
+    borderRadius: radius.md,
   },
   gridCard: {
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
     overflow: 'hidden',
-    shadowColor: '#0F172A',
-    shadowOpacity: 0.065,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    ...elevation.card,
   },
   gridImgWrap: {
     width: '100%',
     aspectRatio: 16 / 9,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: colors.border,
   },
   gridImg: {
     width: '100%',
@@ -2117,7 +2236,7 @@ const styles = StyleSheet.create({
   },
   gridBody: {
     borderLeftWidth: 2,
-    borderLeftColor: '#DC2626',
+    borderLeftColor: colors.primary,
     paddingLeft: 11,
     paddingRight: 10,
     paddingTop: 10,
@@ -2129,13 +2248,13 @@ const styles = StyleSheet.create({
     top: 8,
     right: 10,
     zIndex: 1,
-    backgroundColor: '#DC2626',
+    backgroundColor: colors.primary,
     paddingHorizontal: 5,
     paddingVertical: 2,
     borderRadius: 3,
   },
   gridBadgeText: {
-    color: '#FFFFFF',
+    color: colors.surface,
     fontFamily: fonts.uiBold,
     fontSize: 8,
     letterSpacing: 1.3,
@@ -2152,14 +2271,14 @@ const styles = StyleSheet.create({
     letterSpacing: 1.4,
   },
   gridCatText: {
-    color: '#DC2626',
+    color: colors.primary,
     fontFamily: fonts.uiBold,
     fontSize: 8.5,
     letterSpacing: 1.8,
     flex: 1,
   },
   gridTitle: {
-    color: '#0F172A',
+    color: colors.navy,
     fontFamily: fonts.uiBold,
     fontSize: 13,
     lineHeight: 18,
@@ -2167,7 +2286,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   gridTime: {
-    color: '#64748B',
+    color: colors.inkFaint,
     fontFamily: fonts.uiRegular,
     fontSize: 9.5,
   },
@@ -2211,13 +2330,13 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 3.5,
-    backgroundColor: '#DC2626',
+    backgroundColor: colors.primary,
   },
   localKicker: {
-    color: '#DC2626',
+    color: colors.primary,
     fontFamily: fonts.uiBold,
-    fontSize: 10.5,
-    letterSpacing: 2.4,
+    fontSize: 11,
+    letterSpacing: 2.0,
   },
   localTitleRow: {
     marginBottom: 5,
@@ -2225,26 +2344,26 @@ const styles = StyleSheet.create({
   localHeaderTitle: {
     color: colors.text,
     fontFamily: fonts.uiBold,
-    fontSize: 20,
-    letterSpacing: -0.4,
+    fontSize: 22,
+    letterSpacing: -0.6,
   },
   localSubRow: {
     marginBottom: 12,
   },
   localSubhead: {
-    color: '#5C6478',
+    color: colors.textTertiary,
     fontFamily: fonts.uiRegular,
     fontSize: 13,
     lineHeight: 18,
   },
   localRuleHeavy: {
     height: 2,
-    backgroundColor: '#0A0F1C',
+    backgroundColor: colors.inkDark,
     marginBottom: 3,
   },
   localRuleHair: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#0A0F1C',
+    backgroundColor: colors.inkDark,
     opacity: 0.6,
     marginBottom: 14,
   },
@@ -2296,11 +2415,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     marginBottom: 10,
     overflow: 'hidden',
-    shadowColor: colors.navy,
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+    ...elevation.card,
   },
   searchResultPressed: {
     backgroundColor: colors.redTint,
@@ -2320,9 +2435,9 @@ const styles = StyleSheet.create({
   searchResultCat: {
     color: colors.primary,
     fontFamily: fonts.uiBold,
-    fontSize: 10,
+    fontSize: 11,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 2.0,
   },
   searchResultTitle: {
     color: colors.text,

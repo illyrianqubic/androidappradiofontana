@@ -15,6 +15,7 @@ export type StationMetadata = {
   title: string;
   artist: string;
   album: string;
+  artwork?: string;
 };
 
 export type RadioTrack = StationMetadata & {
@@ -107,12 +108,19 @@ function requireTrackPlayerModule() {
   return module;
 }
 
+// AUDIT FIX: cache the resolved package so every TrackPlayer.play(), pause(),
+// reset(), etc. doesn't re-require the module. In rapid reconnect loops this
+// removes unnecessary bridge/module-system overhead.
+let _cachedTrackPlayerPackage: TrackPlayerPackage | undefined;
+
 function loadTrackPlayerPackage(): TrackPlayerPackage {
+  if (_cachedTrackPlayerPackage) return _cachedTrackPlayerPackage;
   requireTrackPlayerModule();
   // Lazy require keeps RNTP's Capability enum from reading NativeModules at
   // app startup in an old dev client, but uses RNTP's own wrapper once linked.
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  return require('react-native-track-player') as TrackPlayerPackage;
+  _cachedTrackPlayerPackage = require('react-native-track-player') as TrackPlayerPackage;
+  return _cachedTrackPlayerPackage;
 }
 
 export function getPlaybackCapabilities() {

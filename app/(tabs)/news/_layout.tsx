@@ -15,7 +15,8 @@ export default function NewsStackLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        animation: 'none',
+        animation: 'slide_from_right',
+        animationDuration: 200,
         contentStyle: { backgroundColor: colors.surface },
       }}
     >

@@ -1,10 +1,13 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo } from 'react';
 import { Tabs } from 'expo-router';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 // A-3: deep import skips loading all other icon sets' glyph maps.
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts } from '../../constants/tokens';
+import { fonts } from '../../constants/tokens';
+import { useTheme } from '../../providers/ThemeProvider';
+import type { ThemeColors } from '../../providers/ThemeProvider';
 
 const TAB_ROUTES = ['index', 'live', 'news'] as const;
 type TabRoute = (typeof TAB_ROUTES)[number];
@@ -27,8 +30,10 @@ const TAB_LABELS: Record<TabRoute, string> = {
 };
 
 function CustomTabBar({ state, navigation }: BottomTabBarProps) {
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const safeBottom = Math.max(insets.bottom, 10);
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   return (
     <View style={[styles.tabBar, { paddingBottom: safeBottom, height: 64 + safeBottom }]}>
@@ -54,7 +59,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
           // passing screen:'index' so the news stack pops any open article back to the
           // listing before switching, without touching the root stack at all.
           if (name === 'news') {
-            navigation.navigate('news', { screen: 'index' } as never);
+            navigation.navigate('news', { screen: 'index' });
             return;
           }
 
@@ -96,6 +101,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
 }
 
 export default function TabsLayout() {
+  const { colors } = useTheme();
   return (
     <Tabs
       tabBar={(props) => <CustomTabBar {...props} />}
@@ -116,14 +122,14 @@ export default function TabsLayout() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: ThemeColors) => StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
     backgroundColor: colors.surface,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: 'rgba(15,23,42,0.10)',
     elevation: 0,
-    shadowColor: '#000',
+    shadowColor: colors.navy,
     shadowOpacity: 0.04,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: -2 },

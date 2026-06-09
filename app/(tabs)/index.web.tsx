@@ -37,7 +37,7 @@ type LatestGridItem = Post | { _skeleton: string };
 type QuickLink = {
   icon: string;
   title: string;
-  route: '/programi' | '/na-kontakto' | '/rreth-nesh';
+  route: '/na-kontakto' | '/rreth-nesh';
 };
 
 function isSkeletonItem(item: LatestGridItem): item is { _skeleton: string } {
@@ -143,7 +143,7 @@ export default function HomeScreen() {
   const breakingQuery = useQuery({ queryKey: ['home-breaking'], queryFn: ({ signal }) => fetchBreakingPosts(signal) });
   const latestQuery = useQuery({
     queryKey: ['home-latest'],
-    queryFn: ({ signal }) => fetchLatestPosts('', '', 18, signal),
+    queryFn: ({ signal }) => fetchLatestPosts('', '', 18, 0, signal),
   });
   const popularQuery = useQuery({
     queryKey: ['home-popular'],
@@ -160,14 +160,14 @@ export default function HomeScreen() {
 
   const onPressPost = useCallback(
     (post: Post) => {
-      router.push({ pathname: '/(tabs)/news/[slug]' as never, params: { slug: post.slug } as never });
+      router.push({ pathname: '/(tabs)/news/[slug]', params: { slug: post.slug } });
     },
     [router],
   );
 
   const onOpenQuickLink = useCallback(
     (route: QuickLink['route']) => {
-      router.push(route as never);
+      router.push(route);
     },
     [router],
   );
@@ -187,11 +187,11 @@ export default function HomeScreen() {
   }, [breakingQuery, heroQuery, latestQuery, popularQuery]);
 
   const onHeaderSearch = useCallback(() => {
-    router.push('/(tabs)/news' as never);
+    router.push('/(tabs)/news');
   }, [router]);
 
   const onHeaderMenu = useCallback(() => {
-    router.push('/na-kontakto' as never);
+    router.push('/na-kontakto');
   }, [router]);
 
   const heroImageUri = useMemo(
@@ -458,9 +458,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   headerLogo: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
+    width: 48,
+    height: 48,
+    borderRadius: 11,
     backgroundColor: colors.surfaceSubtle,
   },
   headerActions: {

@@ -6,7 +6,7 @@
     "scheme": "radiofontana",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "assetBundlePatterns": [
       "assets/**/*"
     ],
@@ -16,9 +16,9 @@
       "url": "https://u.expo.dev/afce0836-d64a-4c6e-9f33-7a0a4d0ae957"
     },
     "splash": {
-      "image": "./assets/images/logoandroid.png",
+      "image": "./assets/images/darklogortvfontana.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0B1220"
     },
     "ios": {
       "supportsTablet": false,
@@ -66,10 +66,10 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/logoandroid.png",
-          "imageWidth": 184,
+          "image": "./assets/images/darklogortvfontana.png",
+          "imageWidth": 280,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#0B1220"
         }
       ],
       [
