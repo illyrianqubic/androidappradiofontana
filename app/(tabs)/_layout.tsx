@@ -43,7 +43,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
 
         const focused = state.index === index;
         const iconName = focused ? ICONS_ACTIVE[name] : ICONS_INACTIVE[name];
-        const iconColor = focused ? colors.navy : 'rgba(15,23,42,0.35)';
+        const iconColor = focused ? colors.navy : colors.textMuted;
 
         const onPress = () => {
           import('expo-haptics')
@@ -127,7 +127,7 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: colors.surface,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(15,23,42,0.10)',
+    borderTopColor: colors.borderSubtle,
     elevation: 0,
     shadowColor: colors.navy,
     shadowOpacity: 0.04,
@@ -150,7 +150,7 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     width: 70,
     height: 3,
     borderRadius: 3,
-    backgroundColor: 'rgba(15,23,42,0.07)',
+    backgroundColor: colors.borderSubtle,
   },
   indicatorPillActive: {
     backgroundColor: colors.navy,
@@ -166,7 +166,7 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: fonts.uiMedium,
     fontSize: 10.5,
     letterSpacing: 0.3,
-    color: 'rgba(15,23,42,0.35)',
+    color: colors.textMuted,
   },
   labelFocused: {
     fontFamily: fonts.uiBold,

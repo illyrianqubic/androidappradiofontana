@@ -479,21 +479,6 @@ export default function NewsIndexScreen() {
   );
   const postKeyExtractor = useCallback((item: Post) => item._id, []);
   const loadingKeyExtractor = useCallback((item: number) => String(item), []);
-  // ── Loading / category-switch state ───────────────────────────────────────
-  if (initialLoading || isSwitchingCategory) {
-    return (
-      <View style={S.screen}>
-        {stickyHeader}
-        <FlashList
-          data={LOADING_ROWS}
-          keyExtractor={loadingKeyExtractor}
-          contentContainerStyle={listContentContainerStyle}
-          renderItem={renderLoadingItem}
-          maintainVisibleContentPosition={DISABLE_MAINTAIN_VISIBLE_CONTENT_POSITION}
-        />
-      </View>
-    );
-  }
 
   const loadMoreFooter = useMemo(() => {
     if (!postsQuery.hasNextPage && !postsQuery.isFetchingNextPage) return null;
@@ -520,25 +505,35 @@ export default function NewsIndexScreen() {
   return (
     <View style={S.screen}>
       {stickyHeader}
-      <FlashList
-        key={`news-refresh-${refreshResetKey}`}
-        ref={listRef}
-        data={posts}
-        keyExtractor={postKeyExtractor}
-        drawDistance={500}
-        showsVerticalScrollIndicator={false}
-        scrollEnabled
-        contentContainerStyle={listContentContainerStyle}
-        renderItem={renderPostItem}
-        getItemType={getPostItemType}
-        ListHeaderComponent={refreshHeader}
-        ListFooterComponent={loadMoreFooter}
-        ListEmptyComponent={emptyState}
-        refreshing={isRefreshing}
-        onRefresh={onPullToRefresh}
-        progressViewOffset={0}
-        maintainVisibleContentPosition={DISABLE_MAINTAIN_VISIBLE_CONTENT_POSITION}
-      />
+      {initialLoading || isSwitchingCategory ? (
+        <FlashList
+          data={LOADING_ROWS}
+          keyExtractor={loadingKeyExtractor}
+          contentContainerStyle={listContentContainerStyle}
+          renderItem={renderLoadingItem}
+          maintainVisibleContentPosition={DISABLE_MAINTAIN_VISIBLE_CONTENT_POSITION}
+        />
+      ) : (
+        <FlashList
+          key={`news-refresh-${refreshResetKey}`}
+          ref={listRef}
+          data={posts}
+          keyExtractor={postKeyExtractor}
+          drawDistance={500}
+          showsVerticalScrollIndicator={false}
+          scrollEnabled
+          contentContainerStyle={listContentContainerStyle}
+          renderItem={renderPostItem}
+          getItemType={getPostItemType}
+          ListHeaderComponent={refreshHeader}
+          ListFooterComponent={loadMoreFooter}
+          ListEmptyComponent={emptyState}
+          refreshing={isRefreshing}
+          onRefresh={onPullToRefresh}
+          progressViewOffset={0}
+          maintainVisibleContentPosition={DISABLE_MAINTAIN_VISIBLE_CONTENT_POSITION}
+        />
+      )}
     </View>
   );
 }

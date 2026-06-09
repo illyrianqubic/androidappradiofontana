@@ -22,7 +22,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { appSettings } from '../../services/storage';
+import { setAppIcon, getSavedAppIcon, saveAppIconPreference } from '../../services/app-icon';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -67,8 +67,6 @@ const SOCIAL_LINKS = [
 const PANEL_MAX_W = 360;
 const CLOSE_DURATION = 160;
 
-const APP_ICON_KEY = 'app_icon_preference';
-
 export function HamburgerDrawer() {
   // Bug fix: previously this component deferred mounting the drawer tree
   // via InteractionManager.runAfterInteractions and unblocked it lazily on
@@ -101,15 +99,27 @@ function HamburgerDrawerInner() {
   const [lajmeExpanded, setLajmeExpanded] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
-  const [appIcon, setAppIcon] = useState<'light' | 'dark'>(() => {
-    const saved = appSettings.getItem(APP_ICON_KEY);
-    return saved === 'dark' ? 'dark' : 'light';
+  const [appIcon, setAppIconState] = useState<'light' | 'dark'>(() => {
+    const saved = getSavedAppIcon();
+    return saved;
   });
 
+  const syncThemeAndIcon = useCallback(async (value: 'light' | 'dark') => {
+    setAppIconState(value);
+    saveAppIconPreference(value);
+    // Sync theme to match icon
+    if (value === 'light' && isDark) {
+      toggleTheme();
+    } else if (value === 'dark' && !isDark) {
+      toggleTheme();
+    }
+    // Apply native icon change (best-effort)
+    await setAppIcon(value);
+  }, [isDark, toggleTheme]);
+
   const selectAppIcon = useCallback((value: 'light' | 'dark') => {
-    setAppIcon(value);
-    appSettings.setItem(APP_ICON_KEY, value);
-  }, []);
+    void syncThemeAndIcon(value);
+  }, [syncThemeAndIcon]);
 
   const panelWidth = Math.min(Math.round(windowWidth * 0.86), PANEL_MAX_W);
 
@@ -370,11 +380,18 @@ function HamburgerDrawerInner() {
                     <Ionicons name={isDark ? 'moon-outline' : 'sunny-outline'} size={18} color={colors.textMuted} />
                   </View>
                   <View style={S.navTextWrap}>
-                    <Text style={S.navLabel}>Tema e Errët</Text>
+                    <Text style={S.navLabel}>{isDark ? 'Tema e Errët' : 'Tema e Çelur'}</Text>
                   </View>
                   <Switch
                     value={isDark}
-                    onValueChange={toggleTheme}
+                    onValueChange={() => {
+                      toggleTheme();
+                      // Sync icon to match theme
+                      const nextIcon = isDark ? 'light' : 'dark';
+                      setAppIconState(nextIcon);
+                      saveAppIconPreference(nextIcon);
+                      void setAppIcon(nextIcon);
+                    }}
                     trackColor={{ false: colors.border, true: colors.primary }}
                     thumbColor={Platform.OS === 'ios' ? undefined : isDark ? colors.primary : colors.surface}
                   />

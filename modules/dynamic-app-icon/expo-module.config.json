@@ -1,0 +1,9 @@
+{
+  "platforms": ["android", "apple"],
+  "apple": {
+    "modules": ["DynamicAppIconModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.dynamicappicon.DynamicAppIconModule"]
+  }
+}

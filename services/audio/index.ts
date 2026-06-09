@@ -23,7 +23,7 @@ import {
   TrackPlayerState,
 } from './trackPlayerNative';
 import { radioTrack, stationMetadata } from './radioTrack';
-import { appIdentity } from '../../constants/tokens';
+import { appSettings } from '../storage';
 
 
 const reconnectDelaysMs = [1000, 2000, 4000, 8000, 16000, 30000];
@@ -42,7 +42,13 @@ const PlayerState = {
 // media notification largeIcon (square thumbnail on the left). Passing a raw
 // require() number works for React Native views but Android's MediaSession
 // needs an actual URI string to render the thumbnail correctly.
-const logoUri = Image.resolveAssetSource(appIdentity.logo).uri;
+function getNotificationLogoUri(): string {
+  const isDark = appSettings.getItem('app_theme') !== 'light';
+  const logoSource = isDark
+    ? require('../../assets/images/darklogortvfontana.png')
+    : require('../../assets/images/applogortvfontana.png');
+  return Image.resolveAssetSource(logoSource).uri;
+}
 
 type NowPlayingMetadata = {
   title: string;
@@ -267,7 +273,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         appKilledPlaybackBehavior: AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
         alwaysPauseOnInterruption: true,
         stopForegroundGracePeriod: 30,
-        largeIcon: logoUri,
+        largeIcon: getNotificationLogoUri(),
       },
       capabilities: playbackCapabilities,
       notificationCapabilities: playbackCapabilities,

@@ -20,7 +20,8 @@ import Animated, {
 import { RelativeTime } from '../../components/ui/RelativeTime';
 import { SkeletonCard } from '../../components/news/SkeletonCard';
 import { isBreakingBadgeVisible } from '../../lib/breakingBadge';
-import { appIdentity, colors, elevation, fonts, radius } from '../../constants/tokens';
+import { colors, elevation, fonts, radius } from '../../constants/tokens';
+import { useTheme } from '../../providers/ThemeProvider';
 import {
   buildSanityImageUrl,
   defaultThumbhash,
@@ -121,6 +122,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
+  const { isDark } = useTheme();
 
   const headerHeight = insets.top + 58;
   const topInsetOffset = headerHeight + 14;
@@ -399,7 +401,9 @@ export default function HomeScreen() {
     <View style={styles.screen}>
       <View style={[styles.headerShell, { paddingTop: insets.top + 6 }]}>
         <View style={[styles.headerRow, { height: headerHeight - insets.top - 6 }]}>
-          <Image source={appIdentity.logo} contentFit="cover" style={styles.headerLogo} />
+          <Image source={isDark
+            ? require('../../assets/images/darklogortvfontana.png')
+            : require('../../assets/images/applogortvfontana.png')} contentFit="cover" style={styles.headerLogo} />
 
           <View style={styles.headerActions}>
             <Pressable onPress={onHeaderSearch} style={styles.headerIconButton}>

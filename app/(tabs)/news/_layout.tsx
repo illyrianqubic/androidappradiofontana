@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router';
-import { colors } from '../../../constants/tokens';
+import { useTheme } from '../../../providers/ThemeProvider';
 
 // Expo Router restores the last route inside a nested Stack on cold start
 // (and when the parent tab navigator first mounts the screen). Without an
@@ -11,13 +11,14 @@ export const unstable_settings = {
 };
 
 export default function NewsStackLayout() {
+  const { colors } = useTheme();
   return (
     <Stack
       screenOptions={{
         headerShown: false,
         animation: 'slide_from_right',
         animationDuration: 200,
-        contentStyle: { backgroundColor: colors.surface },
+        contentStyle: { backgroundColor: colors.bgScreen },
       }}
     >
       <Stack.Screen name="index" />

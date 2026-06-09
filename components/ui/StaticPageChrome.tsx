@@ -1,7 +1,10 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo } from 'react';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { colors, fonts } from '../../constants/tokens';
+import { fonts } from '../../constants/tokens';
+import { useTheme } from '../../providers/ThemeProvider';
+import type { ThemeColors } from '../../providers/ThemeProvider';
 
 export const STATIC_PAGE_HEADER_ROW_HEIGHT = 66;
 export const STATIC_PAGE_BOTTOM_BAR_BASE_HEIGHT = 64;
@@ -14,6 +17,8 @@ type StaticPageHeaderProps = {
 
 export function StaticPageHeader({ title, topInset }: StaticPageHeaderProps) {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   return (
     <View style={[styles.header, { paddingTop: topInset }]}>
@@ -39,6 +44,8 @@ type StaticPageBottomBarProps = {
 };
 
 export function StaticPageBottomBar({ bottomInset }: StaticPageBottomBarProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const safeBottom = Math.max(bottomInset, STATIC_PAGE_MIN_BOTTOM_SAFE_AREA);
 
   return (
@@ -51,7 +58,7 @@ export function StaticPageBottomBar({ bottomInset }: StaticPageBottomBarProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: ThemeColors) => StyleSheet.create({
   header: {
     position: 'absolute',
     top: 0,
@@ -60,7 +67,7 @@ const styles = StyleSheet.create({
     zIndex: 40,
     backgroundColor: colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(15,23,42,0.10)',
+    borderBottomColor: colors.borderSubtle,
     shadowColor: colors.navy,
     shadowOpacity: 0.08,
     shadowRadius: 12,
@@ -108,7 +115,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.surface,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(15,23,42,0.10)',
+    borderTopColor: colors.borderSubtle,
     shadowColor: colors.navy,
     shadowOpacity: 0.04,
     shadowRadius: 8,
@@ -120,6 +127,6 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 999,
     marginTop: 11,
-    backgroundColor: 'rgba(15,23,42,0.16)',
+    backgroundColor: colors.textMuted,
   },
 });

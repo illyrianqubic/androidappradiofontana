@@ -41,6 +41,7 @@ const darkColors: ThemeColors = {
 type ThemeContextValue = {
   theme: Theme;
   toggleTheme: () => void;
+  setTheme: (theme: Theme) => void;
   isDark: boolean;
   colors: ThemeColors;
 };
@@ -50,7 +51,7 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
     const saved = appSettings.getItem(THEME_KEY);
-    return saved === 'dark' ? 'dark' : 'light';
+    return saved === 'light' ? 'light' : 'dark';
   });
 
   useEffect(() => {
@@ -61,11 +62,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   }, []);
 
+  const setThemeExplicit = useCallback((t: Theme) => {
+    setTheme(t);
+  }, []);
+
   const isDark = theme === 'dark';
   const colors = isDark ? darkColors : lightColors;
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, isDark, colors }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme: setThemeExplicit, isDark, colors }}>
       {children}
     </ThemeContext.Provider>
   );

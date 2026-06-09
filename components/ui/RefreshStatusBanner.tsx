@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   StyleSheet,
@@ -14,7 +14,9 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { colors, fonts } from '../../constants/tokens';
+import { fonts } from '../../constants/tokens';
+import { useTheme } from '../../providers/ThemeProvider';
+import type { ThemeColors } from '../../providers/ThemeProvider';
 
 type RefreshStatusBannerProps = {
   visible: boolean;
@@ -32,6 +34,9 @@ export const RefreshStatusBanner = memo(function RefreshStatusBanner({
   subtitle,
   style,
 }: RefreshStatusBannerProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
+
   const [shouldRender, setShouldRender] = useState(visible);
   // Track shouldRender in a ref so the effect doesn't re-run (and cancel animations)
   // when setShouldRender triggers a re-render. Without this, the exit animation's
@@ -111,13 +116,13 @@ export const RefreshStatusBanner = memo(function RefreshStatusBanner({
   );
 });
 
-const styles = StyleSheet.create({
+const getStyles = (colors: ThemeColors) => StyleSheet.create({
   wrap: {
     minHeight: 58,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(220,38,38,0.16)',
-    backgroundColor: '#FFF7F7',
+    borderColor: colors.redBorder,
+    backgroundColor: colors.redTint,
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginBottom: 14,
@@ -131,9 +136,9 @@ const styles = StyleSheet.create({
     borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(220,38,38,0.20)',
+    borderColor: colors.redBorder,
   },
   copy: {
     flex: 1,

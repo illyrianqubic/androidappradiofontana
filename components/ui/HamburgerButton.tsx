@@ -4,13 +4,15 @@ import Animated, {
   useAnimatedStyle,
 } from 'react-native-reanimated';
 import { useDrawer } from '../../providers/DrawerProvider';
-import { colors } from '../../constants/tokens';
+import { useTheme } from '../../providers/ThemeProvider';
+import type { ThemeColors } from '../../providers/ThemeProvider';
 
 export function HamburgerButton() {
   const { isOpen, toggle, progress } = useDrawer();
+  const { colors } = useTheme();
 
   // The icon morph reads the same SharedValue that DrawerProvider drives
-  // synchronously on press \u2014 zero React-render dependency, zero risk of the
+  // synchronously on press — zero React-render dependency, zero risk of the
   // icon being out of sync with the panel.
 
   const topStyle = useAnimatedStyle(() => ({
@@ -18,7 +20,7 @@ export function HamburgerButton() {
       { translateY: progress.value * 7 },
       { rotate: `${progress.value * 45}deg` },
     ],
-    backgroundColor: interpolateColor(progress.value, [0, 1], ['#111827', colors.primary]),
+    backgroundColor: interpolateColor(progress.value, [0, 1], [colors.inkDark, colors.primary]),
   }));
 
   const midStyle = useAnimatedStyle(() => ({
@@ -30,7 +32,7 @@ export function HamburgerButton() {
       { translateY: progress.value * -7 },
       { rotate: `${progress.value * -45}deg` },
     ],
-    backgroundColor: interpolateColor(progress.value, [0, 1], ['#111827', colors.primary]),
+    backgroundColor: interpolateColor(progress.value, [0, 1], [colors.inkDark, colors.primary]),
   }));
 
   return (
@@ -44,7 +46,7 @@ export function HamburgerButton() {
       accessibilityRole="button"
       accessibilityLabel={isOpen ? 'Mbyll menûnë' : 'Hap menûnë'}
       accessibilityState={{ expanded: isOpen }}
-      style={({ pressed }) => [styles.button, isOpen && styles.buttonActive, pressed && styles.buttonPressed]}
+      style={({ pressed }) => [styles.button, isOpen && { backgroundColor: colors.redTint }, pressed && styles.buttonPressed]}
       hitSlop={8}
     >
       <Animated.View style={[styles.line, topStyle]} />
@@ -62,10 +64,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
-    backgroundColor: '#F8FAFC',
-  },
-  buttonActive: {
-    backgroundColor: '#fef2f2',
+    backgroundColor: 'transparent',
   },
   buttonPressed: {
     opacity: 0.8,
@@ -74,6 +73,5 @@ const styles = StyleSheet.create({
     width: 20,
     height: 2,
     borderRadius: 1,
-    backgroundColor: '#111827',
   },
 });

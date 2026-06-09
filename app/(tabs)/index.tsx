@@ -837,7 +837,7 @@ const RadioLiveBanner = memo(function RadioLiveBanner({ onPress }: { onPress: ()
 
 // ── HomeScreen ─────────────────────────────────────────────────────────────────
 export default function HomeScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const router = useRouter();
   const navigation = useNavigation();
@@ -1304,7 +1304,7 @@ export default function HomeScreen() {
           </View>
         ) : (
           <View style={styles.headerRow}>
-            <Image source={require('../../assets/images/applogortvfontana.png')} contentFit="contain" priority="high" style={styles.headerLogo} />
+            <Image source={isDark ? require('../../assets/images/darklogortvfontana.png') : require('../../assets/images/applogortvfontana.png')} contentFit="contain" priority="high" style={styles.headerLogo} />
             <View style={styles.headerSpacer} />
             <View style={styles.headerActions}>
               <Pressable onPress={onHeaderSearch} style={styles.headerIconBtn} hitSlop={8}>

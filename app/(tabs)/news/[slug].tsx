@@ -464,7 +464,15 @@ export default function ArticleDetailScreen() {
   // Always navigate to the Lajme (news index) regardless of how the article
   // was opened — from home, from the news list, or from a related article.
   const onBack = useCallback(() => {
-    router.navigate('/(tabs)/news');
+    // Defer navigation to avoid synchronous-unmount crash when the press
+    // handler fires while React is in the middle of a commit phase.
+    setTimeout(() => {
+      if (router.canGoBack && router.canGoBack()) {
+        router.back();
+      } else {
+        router.navigate('/(tabs)/news');
+      }
+    }, 0);
   }, [router]);
 
   useEffect(() => {
@@ -505,7 +513,7 @@ export default function ArticleDetailScreen() {
         </View>
       </View>
     ),
-    [articleNavStyle, onBack, progressBarStyle],
+    [articleNavStyle, onBack, progressBarStyle, isDark, colors],
   );
   const scrollContentStyle = useMemo(
     () => [styles.scrollContent, { paddingTop: navBarHeight, paddingBottom: insets.bottom + 24 }],

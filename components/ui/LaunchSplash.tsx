@@ -11,11 +11,23 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { appIdentity } from '../../constants/tokens';
+import { appSettings } from '../../services/storage';
 
 // ─── constants ────────────────────────────────────────────────────────────────
 // Must stay in sync with the expo-splash-screen plugin imageWidth in app.json.
 const LOGO_SIZE = 280;
+
+function getLaunchLogo() {
+  const isDark = appSettings.getItem('app_theme') !== 'light';
+  return isDark
+    ? require('../../assets/images/darklogortvfontana.png')
+    : require('../../assets/images/applogortvfontana.png');
+}
+
+function getLaunchBackground() {
+  const isDark = appSettings.getItem('app_theme') !== 'light';
+  return isDark ? '#0B1220' : '#FFFFFF';
+}
 
 const COLD_START_MIN_SPLASH_MS = 3200;
 const COLD_START_MAX_SPLASH_MS = 4200;
@@ -75,10 +87,10 @@ export function LaunchSplash({ onComplete, isContentReady = false }: LaunchSplas
   const screenStyle = useAnimatedStyle(() => ({ opacity: screenOpacity.value }));
 
   return (
-    <Animated.View style={[styles.screen, screenStyle]}>
+    <Animated.View style={[styles.screen, { backgroundColor: getLaunchBackground() }, screenStyle]}>
       <View style={styles.logoWrap} pointerEvents="none">
         <Image
-          source={require('../../assets/images/darklogortvfontana.png')}
+          source={getLaunchLogo()}
           contentFit="contain"
           style={styles.logo}
           cachePolicy="memory"
@@ -92,7 +104,6 @@ export function LaunchSplash({ onComplete, isContentReady = false }: LaunchSplas
 const styles = StyleSheet.create({
   screen: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#0B1220',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 120,
