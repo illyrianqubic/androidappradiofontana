@@ -1,5 +1,6 @@
 import { Component, useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Platform, StyleSheet, Text, View } from 'react-native';
+import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -63,21 +64,21 @@ class RootErrorBoundary extends Component<{ children: React.ReactNode }, EBState
   }
   render() {
     if (this.state.error) {
-      return (
-        <View style={ebStyles.wrap}>
-          <Text style={ebStyles.title}>App crashed on startup</Text>
-          <Text style={ebStyles.msg}>{this.state.error}</Text>
-        </View>
-      );
+      return <ErrorFallback error={this.state.error} />;
     }
     return this.props.children as React.ReactElement;
   }
 }
-const ebStyles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#ffffff', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  title: { fontSize: 16, fontWeight: 'bold', color: '#dc2626', marginBottom: 12 },
-  msg: { fontSize: 13, color: '#374151', textAlign: 'center', lineHeight: 20 },
-});
+
+function ErrorFallback({ error }: { error: string }) {
+  const { colors } = useTheme();
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+      <Text style={{ fontSize: 16, fontWeight: 'bold', color: colors.primary, marginBottom: 12 }}>App crashed on startup</Text>
+      <Text style={{ fontSize: 13, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 }}>{error}</Text>
+    </View>
+  );
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -363,6 +364,27 @@ function RootLayoutInner() {
     }
   }, [interLoaded, interFontError, nativeSplashHidden]);
 
+  const contentOpacity = useSharedValue(0);
+  const reducedMotion = useReducedMotion();
+
+  const onLaunchSplashExitStart = useCallback(() => {
+    if (reducedMotion) {
+      contentOpacity.value = 1;
+      return;
+    }
+    const t = setTimeout(() => {
+      contentOpacity.value = withTiming(1, {
+        duration: 350,
+        easing: Easing.out(Easing.quad),
+      });
+    }, 100);
+    return () => clearTimeout(t);
+  }, [contentOpacity, reducedMotion]);
+
+  const contentAnimStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+  }));
+
   const onLaunchSplashComplete = useCallback(() => {
     // PERF: previously called `router.replace('/(tabs)')` here, but the
     // (tabs) stack is already mounted as the initial route. The replace
@@ -419,21 +441,27 @@ function RootLayoutInner() {
             <DrawerProvider>
               <StatusBar style={isDark ? 'light' : 'dark'} />
 
-              <Stack screenOptions={ROOT_STACK_SCREEN_OPTIONS}>
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="rreth-nesh" />
-                <Stack.Screen name="na-kontakto" />
-                {/* Catch-all for OS-delivered deep links the app does not handle
-                    (e.g. radiofontana://notification.click on Samsung One UI).
-                    The +not-found route silently redirects to home. */}
-                <Stack.Screen name="+not-found" options={NOT_FOUND_SCREEN_OPTIONS} />
-              </Stack>
+              <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
+                <Stack screenOptions={ROOT_STACK_SCREEN_OPTIONS}>
+                  <Stack.Screen name="(tabs)" />
+                  <Stack.Screen name="rreth-nesh" />
+                  <Stack.Screen name="na-kontakto" />
+                  {/* Catch-all for OS-delivered deep links the app does not handle
+                      (e.g. radiofontana://notification.click on Samsung One UI).
+                      The +not-found route silently redirects to home. */}
+                  <Stack.Screen name="+not-found" options={NOT_FOUND_SCREEN_OPTIONS} />
+                </Stack>
+
+                <HamburgerDrawer />
+              </Animated.View>
 
               {showLaunchSplash ? (
-                <LaunchSplash onComplete={onLaunchSplashComplete} isContentReady={contentReady} />
+                <LaunchSplash
+                  onComplete={onLaunchSplashComplete}
+                  onExitStart={onLaunchSplashExitStart}
+                  isContentReady={contentReady}
+                />
               ) : null}
-
-              <HamburgerDrawer />
             </DrawerProvider>
           </AudioProvider>
         </PersistQueryClientProvider>

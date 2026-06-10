@@ -18,7 +18,7 @@ export function LiveBadge({ label = 'LIVE', variant = 'solid', withDot = false }
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   const variantStyle = VARIANT_MAP[variant](colors);
-  const textVariantStyle = TEXT_VARIANT_MAP[variant];
+  const textVariantStyle = TEXT_VARIANT_MAP[variant](colors);
 
   return (
     <View style={[styles.base, variantStyle]}>
@@ -43,10 +43,10 @@ const VARIANT_MAP: Record<LiveBadgeVariant, (colors: ThemeColors) => { backgroun
   }),
 };
 
-const TEXT_VARIANT_MAP: Record<LiveBadgeVariant, { color: string }> = {
-  solid: { color: '#ffffff' },
-  outlined: { color: '#dc2626' },
-  'transparent-over-image': { color: '#ffffff' },
+const TEXT_VARIANT_MAP: Record<LiveBadgeVariant, (colors: ThemeColors) => { color: string }> = {
+  solid: (colors) => ({ color: colors.surface }),
+  outlined: (colors) => ({ color: colors.primary }),
+  'transparent-over-image': () => ({ color: '#ffffff' }),
 };
 
 const getStyles = (colors: ThemeColors) => StyleSheet.create({

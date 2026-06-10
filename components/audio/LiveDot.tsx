@@ -10,13 +10,14 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { colors } from '../../constants/tokens';
+import { useTheme } from '../../providers/ThemeProvider';
 
 type LiveDotProps = {
   size?: number;
 };
 
 export function LiveDot({ size = 8 }: LiveDotProps) {
+  const { colors } = useTheme();
   const reducedMotion = useReducedMotion();
   const pulse = useSharedValue(0);
 
@@ -42,6 +43,20 @@ export function LiveDot({ size = 8 }: LiveDotProps) {
   }));
 
   const rippleSize = size + 8;
+
+  const styles = StyleSheet.create({
+    wrapper: {
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    ripple: {
+      position: 'absolute',
+      backgroundColor: colors.primary,
+    },
+    dot: {
+      backgroundColor: colors.primary,
+    },
+  });
 
   return (
     <View style={[styles.wrapper, { width: rippleSize, height: rippleSize }]}>
@@ -69,17 +84,3 @@ export function LiveDot({ size = 8 }: LiveDotProps) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrapper: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  ripple: {
-    position: 'absolute',
-    backgroundColor: colors.primary,
-  },
-  dot: {
-    backgroundColor: colors.primary,
-  },
-});

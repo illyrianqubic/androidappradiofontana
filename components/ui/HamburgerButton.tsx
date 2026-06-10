@@ -25,6 +25,7 @@ export function HamburgerButton() {
 
   const midStyle = useAnimatedStyle(() => ({
     opacity: 1 - progress.value,
+    backgroundColor: interpolateColor(progress.value, [0, 1], [colors.inkDark, colors.primary]),
   }));
 
   const botStyle = useAnimatedStyle(() => ({

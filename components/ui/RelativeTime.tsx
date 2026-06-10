@@ -1,6 +1,7 @@
 import { memo, useEffect, useState } from 'react';
 import { Text, type TextStyle } from 'react-native';
-import { colors, fonts } from '../../constants/tokens';
+import { fonts } from '../../constants/tokens';
+import { useTheme } from '../../providers/ThemeProvider';
 
 type RelativeTimeProps = {
   timestamp: string;
@@ -64,6 +65,8 @@ function formatRelative(timestamp: string, nowMs: number) {
 }
 
 export const RelativeTime = memo(function RelativeTime({ timestamp, style }: RelativeTimeProps) {
+  const { colors } = useTheme();
+
   // H17: store the formatted label string directly. The minute-tick updates
   // every subscribed instance, but most timestamps stay in the same bucket
   // ("3 orë më parë") for many ticks. Comparing the new label against the
@@ -86,11 +89,11 @@ export const RelativeTime = memo(function RelativeTime({ timestamp, style }: Rel
     });
   }, [timestamp]);
 
+  const baseStyle: TextStyle = {
+    fontFamily: fonts.uiRegular,
+    fontSize: 12,
+    color: colors.textMuted,
+  };
+
   return <Text style={[baseStyle, style]}>{label}</Text>;
 });
-
-const baseStyle: TextStyle = {
-  fontFamily: fonts.uiRegular,
-  fontSize: 12,
-  color: colors.textMuted,
-};

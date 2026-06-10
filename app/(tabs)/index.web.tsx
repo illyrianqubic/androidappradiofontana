@@ -20,8 +20,8 @@ import Animated, {
 import { RelativeTime } from '../../components/ui/RelativeTime';
 import { SkeletonCard } from '../../components/news/SkeletonCard';
 import { isBreakingBadgeVisible } from '../../lib/breakingBadge';
-import { colors, elevation, fonts, radius } from '../../constants/tokens';
-import { useTheme } from '../../providers/ThemeProvider';
+import { elevation, fonts, radius } from '../../constants/tokens';
+import { useTheme, type ThemeColors } from '../../providers/ThemeProvider';
 import {
   buildSanityImageUrl,
   defaultThumbhash,
@@ -58,6 +58,45 @@ function headlinesEqual(
   }
   return true;
 }
+
+const breakingStyles = StyleSheet.create({
+  breakingStrip: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#dc2626',
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 44,
+  },
+  breakingFixedLabelWrap: {
+    paddingHorizontal: 12,
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(255,255,255,0.28)',
+    justifyContent: 'center',
+    height: '100%',
+  },
+  breakingFixedLabelText: {
+    color: '#FFFFFF',
+    fontFamily: fonts.uiBold,
+    fontSize: 12,
+    letterSpacing: 0.4,
+  },
+  breakingTickerViewport: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  breakingTickerTrack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  breakingTickerText: {
+    color: '#FFFFFF',
+    fontFamily: fonts.uiMedium,
+    fontSize: 13,
+    lineHeight: 20,
+    paddingVertical: 10,
+  },
+});
 
 const BreakingTicker = memo(function BreakingTicker({ headlines }: { headlines: string[] }) {
   const marqueeText = useMemo(() => headlines.join('   •   '), [headlines]);
@@ -97,19 +136,19 @@ const BreakingTicker = memo(function BreakingTicker({ headlines }: { headlines: 
   }, []);
 
   return (
-    <View style={styles.breakingStrip}>
-      <View style={styles.breakingFixedLabelWrap}>
-        <Text numberOfLines={1} style={styles.breakingFixedLabelText}>
+    <View style={breakingStyles.breakingStrip}>
+      <View style={breakingStyles.breakingFixedLabelWrap}>
+        <Text numberOfLines={1} style={breakingStyles.breakingFixedLabelText}>
           BREAKING
         </Text>
       </View>
 
-      <View style={styles.breakingTickerViewport}>
-        <Animated.View style={[styles.breakingTickerTrack, tickerStyle]}>
-          <Text onLayout={onMeasureSegment} numberOfLines={1} style={styles.breakingTickerText}>
+      <View style={breakingStyles.breakingTickerViewport}>
+        <Animated.View style={[breakingStyles.breakingTickerTrack, tickerStyle]}>
+          <Text onLayout={onMeasureSegment} numberOfLines={1} style={breakingStyles.breakingTickerText}>
             {`🔴 ${marqueeText}     `}
           </Text>
-          <Text numberOfLines={1} style={styles.breakingTickerText}>
+          <Text numberOfLines={1} style={breakingStyles.breakingTickerText}>
             {`🔴 ${marqueeText}     `}
           </Text>
         </Animated.View>
@@ -122,7 +161,8 @@ export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
-  const { isDark } = useTheme();
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const headerHeight = insets.top + 58;
   const topInsetOffset = headerHeight + 14;
@@ -402,8 +442,8 @@ export default function HomeScreen() {
       <View style={[styles.headerShell, { paddingTop: insets.top + 6 }]}>
         <View style={[styles.headerRow, { height: headerHeight - insets.top - 6 }]}>
           <Image source={isDark
-            ? require('../../assets/images/darklogortvfontana.png')
-            : require('../../assets/images/applogortvfontana.png')} contentFit="cover" style={styles.headerLogo} />
+            ? require('../../assets/images/logo-white-transparent.png')
+            : require('../../assets/images/logo-blue-transparent.png')} contentFit="contain" style={styles.headerLogo} />
 
           <View style={styles.headerActions}>
             <Pressable onPress={onHeaderSearch} style={styles.headerIconButton}>
@@ -435,10 +475,10 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: ThemeColors) => StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
   },
   headerShell: {
     position: 'absolute',
@@ -446,10 +486,10 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 40,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    shadowColor: '#000000',
+    borderBottomColor: colors.border,
+    shadowColor: colors.navy,
     shadowOpacity: 0.05,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
@@ -462,10 +502,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   headerLogo: {
-    width: 48,
-    height: 48,
-    borderRadius: 11,
-    backgroundColor: colors.surfaceSubtle,
+    width: 60,
+    height: 60,
   },
   headerActions: {
     flexDirection: 'row',
@@ -478,7 +516,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surfaceSubtle,
   },
   listContent: {
     paddingHorizontal: 16,
@@ -489,7 +527,7 @@ const styles = StyleSheet.create({
   heroCard: {
     borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     ...elevation.card,
   },
   heroSkeleton: {
@@ -498,7 +536,7 @@ const styles = StyleSheet.create({
   heroImage: {
     width: '100%',
     aspectRatio: 16 / 9,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.surfaceSubtle,
   },
   heroGradientOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -560,42 +598,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
     flex: 1,
   },
-  breakingStrip: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 44,
-  },
-  breakingFixedLabelWrap: {
-    paddingHorizontal: 12,
-    borderRightWidth: 1,
-    borderRightColor: 'rgba(255,255,255,0.28)',
-    justifyContent: 'center',
-    height: '100%',
-  },
-  breakingFixedLabelText: {
-    color: '#FFFFFF',
-    fontFamily: fonts.uiBold,
-    fontSize: 12,
-    letterSpacing: 0.4,
-  },
-  breakingTickerViewport: {
-    flex: 1,
-    overflow: 'hidden',
-  },
-  breakingTickerTrack: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  breakingTickerText: {
-    color: '#FFFFFF',
-    fontFamily: fonts.uiMedium,
-    fontSize: 13,
-    lineHeight: 20,
-    paddingVertical: 10,
-  },
+  // Breaking ticker styles are defined at module level (theme-independent: always red + white)
   sectionTitle: {
     color: colors.text,
     fontFamily: fonts.uiBold,
@@ -616,9 +619,9 @@ const styles = StyleSheet.create({
     width: 300,
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#EEF2F7',
+    borderColor: colors.borderSubtle,
     flexDirection: 'row',
     ...elevation.card,
   },
@@ -629,7 +632,7 @@ const styles = StyleSheet.create({
   popularImage: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.surfaceSubtle,
   },
   popularRankBadge: {
     position: 'absolute',
@@ -693,9 +696,9 @@ const styles = StyleSheet.create({
   },
   latestCard: {
     borderRadius: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#EEF2F7',
+    borderColor: colors.borderSubtle,
     overflow: 'hidden',
     ...elevation.card,
   },
@@ -705,7 +708,7 @@ const styles = StyleSheet.create({
   latestImage: {
     width: '100%',
     aspectRatio: 16 / 9,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.surfaceSubtle,
   },
   latestCategoryBadge: {
     position: 'absolute',
@@ -762,8 +765,8 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#EEF2F7',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.borderSubtle,
+    backgroundColor: colors.surface,
     paddingVertical: 12,
     paddingHorizontal: 10,
     alignItems: 'center',

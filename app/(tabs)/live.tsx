@@ -24,7 +24,7 @@ import { useAudioActions, useAudioState } from '../../services/audio';
 
 
 
-const eqBarStyle = { width: s(4), borderRadius: s(2), backgroundColor: '#dc2626' };
+const eqBarBaseStyle = { width: s(4), borderRadius: s(2) };
 const eqRowStyle = { flexDirection: 'row' as const, alignItems: 'flex-end' as const, gap: s(4), height: s(44), marginTop: 0 };
 
 // ── Animated equalizer bar ─────────────────────────────────────────────────────
@@ -35,10 +35,12 @@ const EqBar = memo(function EqBar({
   maxH,
   offset,
   phase,
+  color,
 }: {
   maxH: number;
   offset: number;
   phase: SharedValue<number>;
+  color: string;
 }) {
   const h = useDerivedValue(() => {
     'worklet';
@@ -46,10 +48,11 @@ const EqBar = memo(function EqBar({
     return 6 + (maxH - 6) * sv;
   }, [maxH, offset]);
   const style = useAnimatedStyle(() => ({ height: h.value }));
-  return <Animated.View style={[eqBarStyle, style]} />;
+  return <Animated.View style={[eqBarBaseStyle, { backgroundColor: color }, style]} />;
 });
 
 function Equalizer({ playing }: { playing: boolean }) {
+  const { colors } = useTheme();
   const phase = useSharedValue(0);
   const isFocused = useIsFocused();
   const shouldAnimate = playing && isFocused;
@@ -74,7 +77,7 @@ function Equalizer({ playing }: { playing: boolean }) {
   return (
     <View style={eqRowStyle}>
       {BAR_HEIGHTS.map((h, i) => (
-        <EqBar key={i} maxH={h} offset={BAR_OFFSETS[i]} phase={phase} />
+        <EqBar key={i} maxH={h} offset={BAR_OFFSETS[i]} phase={phase} color={colors.primary} />
       ))}
     </View>
   );
@@ -183,7 +186,7 @@ export default function LiveScreen() {
       {/* ── Top bar ──────────────────────────────────────────── */}
       <View style={[styles.headerShell, { paddingTop: insets.top }]}>
         <View style={styles.headerRow}>
-          <Image source={isDark ? require('../../assets/images/darklogortvfontana.png') : require('../../assets/images/applogortvfontana.png')} contentFit="cover" style={styles.headerLogo} />
+          <Image source={isDark ? require('../../assets/images/logo-white-transparent.png') : require('../../assets/images/logo-blue-transparent.png')} contentFit="contain" style={styles.headerLogo} />
           <View style={styles.headerSpacer} />
           <HamburgerButton />
         </View>
@@ -241,7 +244,7 @@ export default function LiveScreen() {
             <Ionicons
               name={playIconName}
               size={s(36)}
-              color="#FFFFFF"
+              color={colors.surface}
               style={playIconName === 'play' ? styles.playIconNudge : undefined}
             />
           </Pressable>
@@ -392,10 +395,8 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     gap: 10,
   },
   headerLogo: {
-    width: 46,
-    height: 46,
-    borderRadius: 11,
-    backgroundColor: colors.surfaceSubtle,
+    width: 60,
+    height: 60,
   },
   headerSpacer: {
     flex: 1,
@@ -436,7 +437,7 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.textMuted,
   },
   badgeDotPlaying: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
   },
   badgeText: {
     color: colors.textSecondary,
@@ -446,7 +447,7 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     textTransform: 'uppercase',
   },
   badgeTextPlaying: {
-    color: '#FFFFFF',
+    color: colors.surface,
   },
 
   // ── Station info ────────────────────────────────────────────
@@ -513,7 +514,7 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: colors.surfaceSubtle,
+    backgroundColor: colors.surface,
     borderRadius: s(18),
     alignItems: 'center',
     justifyContent: 'center',
@@ -542,7 +543,7 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: s(14),
     paddingVertical: s(8),
     borderRadius: 999,
-    backgroundColor: colors.surfaceSubtle,
+    backgroundColor: colors.surface,
     marginBottom: s(10),
   },
   sleepBtnPressed: {

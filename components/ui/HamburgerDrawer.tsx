@@ -10,6 +10,7 @@ import {
   useState,
 } from 'react';
 import {
+  Alert,
   BackHandler,
   Image,
   Linking,
@@ -22,7 +23,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { setAppIcon, getSavedAppIcon, saveAppIconPreference } from '../../services/app-icon';
+import { setAppIcon, getSavedAppIcon } from '../../services/app-icon';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -104,22 +105,22 @@ function HamburgerDrawerInner() {
     return saved;
   });
 
-  const syncThemeAndIcon = useCallback(async (value: 'light' | 'dark') => {
+  const selectAppIcon = useCallback(async (value: 'light' | 'dark') => {
+    const confirmed = await new Promise<boolean>((resolve) => {
+      Alert.alert(
+        'Ndërrimi i Ikonës',
+        'Ndërrimi i ikonës do ta rinisë aplikacionin. Vazhdo?',
+        [
+          { text: 'Anulo', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Vazhdo', onPress: () => resolve(true) },
+        ],
+        { cancelable: true, onDismiss: () => resolve(false) },
+      );
+    });
+    if (!confirmed) return;
     setAppIconState(value);
-    saveAppIconPreference(value);
-    // Sync theme to match icon
-    if (value === 'light' && isDark) {
-      toggleTheme();
-    } else if (value === 'dark' && !isDark) {
-      toggleTheme();
-    }
-    // Apply native icon change (best-effort)
     await setAppIcon(value);
-  }, [isDark, toggleTheme]);
-
-  const selectAppIcon = useCallback((value: 'light' | 'dark') => {
-    void syncThemeAndIcon(value);
-  }, [syncThemeAndIcon]);
+  }, []);
 
   const panelWidth = Math.min(Math.round(windowWidth * 0.86), PANEL_MAX_W);
 
@@ -384,14 +385,7 @@ function HamburgerDrawerInner() {
                   </View>
                   <Switch
                     value={isDark}
-                    onValueChange={() => {
-                      toggleTheme();
-                      // Sync icon to match theme
-                      const nextIcon = isDark ? 'light' : 'dark';
-                      setAppIconState(nextIcon);
-                      saveAppIconPreference(nextIcon);
-                      void setAppIcon(nextIcon);
-                    }}
+                    onValueChange={toggleTheme}
                     trackColor={{ false: colors.border, true: colors.primary }}
                     thumbColor={Platform.OS === 'ios' ? undefined : isDark ? colors.primary : colors.surface}
                   />
@@ -408,7 +402,7 @@ function HamburgerDrawerInner() {
                     <Image source={require('../../assets/images/applogortvfontana.png')} style={S.iconPickerImage} />
                     {appIcon === 'light' ? (
                       <View style={[S.iconPickerCheck, { backgroundColor: colors.primary }]}>
-                        <Ionicons name="checkmark" size={12} color="#fff" />
+                        <Ionicons name="checkmark" size={12} color={colors.surface} />
                       </View>
                     ) : null}
                   </Pressable>
@@ -419,7 +413,7 @@ function HamburgerDrawerInner() {
                     <Image source={require('../../assets/images/darklogortvfontana.png')} style={S.iconPickerImage} />
                     {appIcon === 'dark' ? (
                       <View style={[S.iconPickerCheck, { backgroundColor: colors.primary }]}>
-                        <Ionicons name="checkmark" size={12} color="#fff" />
+                        <Ionicons name="checkmark" size={12} color={colors.surface} />
                       </View>
                     ) : null}
                   </Pressable>
@@ -565,7 +559,7 @@ const LegalLink = memo(function LegalLink({ label, url }: { label: string; url: 
 const getS = (colors: ThemeColors) => StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(15,23,42,0.42)',
+    backgroundColor: `${colors.navyFixed}6B`,
   },
   panelOuter: {
     position: 'absolute',
@@ -618,7 +612,7 @@ const getS = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.redTint,
   },
   rowPressed: {
-    backgroundColor: colors.surfaceSubtle,
+    backgroundColor: colors.surface,
   },
   activeRail: {
     position: 'absolute',
@@ -671,7 +665,7 @@ const getS = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    shadowColor: '#0f172a',
+    shadowColor: colors.navy,
     shadowOpacity: 0.04,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },

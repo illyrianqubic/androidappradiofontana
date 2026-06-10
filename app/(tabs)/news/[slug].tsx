@@ -501,7 +501,7 @@ export default function ArticleDetailScreen() {
             </Pressable>
           </View>
           <View style={styles.articleNavCenter}>
-            <Image source={isDark ? require('../../../assets/images/darklogortvfontana.png') : require('../../../assets/images/applogortvfontana.png')} contentFit="cover" style={styles.articleNavLogo} />
+            <Image source={isDark ? require('../../../assets/images/logo-white-transparent.png') : require('../../../assets/images/logo-blue-transparent.png')} contentFit="contain" style={styles.articleNavLogo} />
           </View>
           <View style={styles.articleNavSlot}>
             <HamburgerButton />
@@ -957,7 +957,7 @@ const ShareFab = memo(function ShareFab({
           elevation: 4,
         }}
       >
-        <Ionicons name="share-social-outline" size={24} color="#FFFFFF" />
+        <Ionicons name="share-social-outline" size={24} color={colors.surface} />
       </Pressable>
     </Animated.View>
   );
@@ -1004,6 +1004,7 @@ const ImageLightbox = memo(function ImageLightbox({
   visible: boolean;
   onClose: () => void;
 }) {
+  const { colors } = useTheme();
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -1081,7 +1082,7 @@ const ImageLightbox = memo(function ImageLightbox({
           </Animated.View>
         </GestureDetector>
         <Pressable style={lightboxStyles.closeBtn} onPress={onClose}>
-          <Ionicons name="close" size={28} color="#fff" />
+          <Ionicons name="close" size={28} color={colors.surface} />
         </Pressable>
       </View>
     </Modal>
@@ -1092,7 +1093,7 @@ const ImageLightbox = memo(function ImageLightbox({
 const getStyles = (colors: ThemeColors) => StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.bgScreen,
   },
 
   // ── Sticky nav ─────────────────────────────────────────────────────────
@@ -1124,15 +1125,14 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
   },
   articleNavLogo: {
-    width: s(36),
-    height: s(36),
-    borderRadius: s(8),
+    width: 45,
+    height: 45,
   },
   articleNavButton: {
     width: s(38),
     height: s(38),
     borderRadius: s(19),
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.rule,
     alignItems: 'center',
@@ -1142,7 +1142,7 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
   // ── Reading progress bar (under nav) ───────────────────────────────────
   progressTrack: {
     height: 2,
-    backgroundColor: 'rgba(220, 38, 38, 0.10)',
+    backgroundColor: colors.redTint,
   },
   progressFill: {
     height: '100%',
@@ -1157,7 +1157,7 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
   // ── Hero ───────────────────────────────────────────────────────────────
   heroContainer: {
     height: HERO_H,
-    backgroundColor: '#0B0B0B',
+    backgroundColor: colors.bgScreen,
     overflow: 'hidden',
   },
 
@@ -1479,7 +1479,7 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     borderColor: colors.redBorder,
   },
   relatedCardCatText: {
-    color: '#DC2626',
+    color: colors.primary,
     fontFamily: fonts.uiBold,
     fontSize: 8.5,
     letterSpacing: 1.4,

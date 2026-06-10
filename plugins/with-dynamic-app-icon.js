@@ -3,13 +3,7 @@ const path = require("path");
 const { withDangerousMod, withAndroidManifest } = require("expo/config-plugins");
 
 // ─── Android icon sizes ──────────────────────────────────────────────────────
-const DPI_VALUES = {
-  mdpi: { folder: "mipmap-mdpi", scale: 1, legacySize: 48, adaptiveSize: 108 },
-  hdpi: { folder: "mipmap-hdpi", scale: 1.5, legacySize: 72, adaptiveSize: 162 },
-  xhdpi: { folder: "mipmap-xhdpi", scale: 2, legacySize: 96, adaptiveSize: 216 },
-  xxhdpi: { folder: "mipmap-xxhdpi", scale: 3, legacySize: 144, adaptiveSize: 324 },
-  xxxhdpi: { folder: "mipmap-xxxhdpi", scale: 4, legacySize: 192, adaptiveSize: 432 },
-};
+const DPI_VALUES = ["mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"];
 
 const ANDROID_RES_PATH = "app/src/main/res";
 
@@ -25,9 +19,9 @@ module.exports = function withDynamicAppIcon(config) {
     return config;
   });
 
-  config = withDangerousMod(config, ["android", async (config) => {
+  config = withDangerousMod(config, ["android", (config) => {
     const projectRoot = config.modRequest.platformProjectRoot;
-    await generateAndroidLightResources(projectRoot);
+    copyAndroidIconResources(projectRoot);
     return config;
   }]);
 
@@ -67,7 +61,7 @@ function modifyAndroidManifest(manifest, packageName) {
     return name !== ".MainActivity" && name !== ".MainActivityLight";
   });
 
-  // Dark alias (enabled by default) — uses Expo-generated ic_launcher resources
+  // Dark alias (enabled by default) — uses ic_launcher resources
   managedAliases.push({
     $: {
       "android:name": ".MainActivity",
@@ -111,90 +105,92 @@ function modifyAndroidManifest(manifest, packageName) {
   return manifest;
 }
 
-// ─── Android: generate light icon resources ──────────────────────────────────
-async function generateAndroidLightResources(androidProjectRoot) {
+// ─── Android: copy pre-generated icon resources ──────────────────────────────
+function copyAndroidIconResources(androidProjectRoot) {
   const resPath = path.join(androidProjectRoot, ANDROID_RES_PATH);
   const projectRoot = path.resolve(androidProjectRoot, "..");
-  const lightIconSrc = path.join(projectRoot, "assets/images/applogortvfontana.png");
-  const lightForegroundSrc = path.join(projectRoot, "assets/adaptive-icon-foreground.png");
+  const pregenRoot = path.join(projectRoot, "assets/app-icons");
 
-  if (!fs.existsSync(lightIconSrc)) throw new Error(`Missing light icon source: ${lightIconSrc}`);
-  if (!fs.existsSync(lightForegroundSrc)) throw new Error(`Missing light foreground source: ${lightForegroundSrc}`);
-
-  // Ensure output directories exist
-  for (const { folder } of Object.values(DPI_VALUES)) {
-    await fs.promises.mkdir(path.join(resPath, folder), { recursive: true });
+  // ── Ensure output directories exist ──
+  for (const dpi of DPI_VALUES) {
+    fs.mkdirSync(path.join(resPath, `mipmap-${dpi}`), { recursive: true });
   }
-  await fs.promises.mkdir(path.join(resPath, "mipmap-anydpi-v26"), { recursive: true });
+  fs.mkdirSync(path.join(resPath, "mipmap-anydpi-v26"), { recursive: true });
+  fs.mkdirSync(path.join(resPath, "values"), { recursive: true });
 
-  // Generate legacy icons and round icons from applogortvfontana.png
-  for (const { folder, legacySize } of Object.values(DPI_VALUES)) {
-    const outSquare = path.join(resPath, folder, "ic_launcher_light.webp");
-    const outRound = path.join(resPath, folder, "ic_launcher_light_round.webp");
-    await convertImage(lightIconSrc, outSquare, legacySize, legacySize);
-    await convertImageRounded(lightIconSrc, outRound, legacySize, legacySize);
+  // ── Copy dark icons (legacy + round + foreground) ──
+  for (const dpi of DPI_VALUES) {
+    const srcDir = path.join(pregenRoot, "dark", dpi);
+    const dstDir = path.join(resPath, `mipmap-${dpi}`);
+    fs.copyFileSync(path.join(srcDir, "ic_launcher.webp"), path.join(dstDir, "ic_launcher.webp"));
+    fs.copyFileSync(path.join(srcDir, "ic_launcher_round.webp"), path.join(dstDir, "ic_launcher_round.webp"));
+    fs.copyFileSync(path.join(srcDir, "ic_launcher_foreground.webp"), path.join(dstDir, "ic_launcher_foreground.webp"));
   }
 
-  // Generate adaptive foreground from adaptive-icon-foreground.png
-  for (const { folder, adaptiveSize } of Object.values(DPI_VALUES)) {
-    const outForeground = path.join(resPath, folder, "ic_launcher_foreground_light.webp");
-    await convertImage(lightForegroundSrc, outForeground, adaptiveSize, adaptiveSize);
+  // ── Copy light icons (legacy + round + foreground) ──
+  for (const dpi of DPI_VALUES) {
+    const srcDir = path.join(pregenRoot, "light", dpi);
+    const dstDir = path.join(resPath, `mipmap-${dpi}`);
+    fs.copyFileSync(path.join(srcDir, "ic_launcher_light.webp"), path.join(dstDir, "ic_launcher_light.webp"));
+    fs.copyFileSync(path.join(srcDir, "ic_launcher_light_round.webp"), path.join(dstDir, "ic_launcher_light_round.webp"));
+    fs.copyFileSync(path.join(srcDir, "ic_launcher_foreground_light.webp"), path.join(dstDir, "ic_launcher_foreground_light.webp"));
   }
 
-  // Create adaptive icon XML files
-  const adaptiveXml = `<?xml version="1.0" encoding="utf-8"?>
+  // ── Write dark adaptive icon XML (points to pre-generated foreground) ──
+  const darkAdaptiveXml = `<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/iconBackground"/>
+    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
+</adaptive-icon>`;
+
+  fs.writeFileSync(
+    path.join(resPath, "mipmap-anydpi-v26", "ic_launcher.xml"),
+    darkAdaptiveXml,
+    "utf8"
+  );
+  fs.writeFileSync(
+    path.join(resPath, "mipmap-anydpi-v26", "ic_launcher_round.xml"),
+    darkAdaptiveXml,
+    "utf8"
+  );
+
+  // ── Write light adaptive icon XML ──
+  const lightAdaptiveXml = `<?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/iconBackgroundLight"/>
     <foreground android:drawable="@mipmap/ic_launcher_foreground_light"/>
 </adaptive-icon>`;
 
-  await fs.promises.writeFile(
+  fs.writeFileSync(
     path.join(resPath, "mipmap-anydpi-v26", "ic_launcher_light.xml"),
-    adaptiveXml,
+    lightAdaptiveXml,
     "utf8"
   );
-  await fs.promises.writeFile(
+  fs.writeFileSync(
     path.join(resPath, "mipmap-anydpi-v26", "ic_launcher_light_round.xml"),
-    adaptiveXml,
+    lightAdaptiveXml,
     "utf8"
   );
 
-  // Add light background color to colors.xml
+  // ── Ensure background colors exist in colors.xml ──
   const colorsXmlPath = path.join(resPath, "values", "colors.xml");
-  if (fs.existsSync(colorsXmlPath)) {
-    let colorsContent = await fs.promises.readFile(colorsXmlPath, "utf8");
-    if (!colorsContent.includes("iconBackgroundLight")) {
-      colorsContent = colorsContent.replace(
-        "</resources>",
-        `    <color name="iconBackgroundLight">#ffffff</color>\n</resources>`
-      );
-      await fs.promises.writeFile(colorsXmlPath, colorsContent, "utf8");
-    }
+  let colorsContent = fs.existsSync(colorsXmlPath)
+    ? fs.readFileSync(colorsXmlPath, "utf8")
+    : `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+</resources>`;
+
+  if (!colorsContent.includes("iconBackground")) {
+    colorsContent = colorsContent.replace(
+      "</resources>",
+      `    <color name="iconBackground">#0B1220</color>\n</resources>`
+    );
   }
-}
-
-// ─── Image helpers ───────────────────────────────────────────────────────────
-function execAsync(command) {
-  return new Promise((resolve, reject) => {
-    const { exec } = require("child_process");
-    exec(command, (error, stdout, stderr) => {
-      if (error) reject(new Error(`${error.message}\n${stderr}`));
-      else resolve(stdout);
-    });
-  });
-}
-
-async function convertImage(src, dest, width, height) {
-  await fs.promises.mkdir(path.dirname(dest), { recursive: true });
-  await execAsync(`convert "${src}" -resize ${width}x${height}^ -gravity center -extent ${width}x${height} "${dest}"`);
-}
-
-async function convertImageRounded(src, dest, width, height) {
-  await fs.promises.mkdir(path.dirname(dest), { recursive: true });
-  const radius = Math.round(width / 2);
-  await execAsync(
-    `convert "${src}" -resize ${width}x${height}^ -gravity center -extent ${width}x${height} ` +
-    `\\( -size ${width}x${height} xc:black -fill white -draw "ellipse ${radius},${radius} ${radius},${radius} 0,360" \\) ` +
-    `-compose CopyOpacity -composite "${dest}"`
-  );
+  if (!colorsContent.includes("iconBackgroundLight")) {
+    colorsContent = colorsContent.replace(
+      "</resources>",
+      `    <color name="iconBackgroundLight">#ffffff</color>\n</resources>`
+    );
+  }
+  fs.writeFileSync(colorsXmlPath, colorsContent, "utf8");
 }

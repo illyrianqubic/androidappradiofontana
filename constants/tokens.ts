@@ -9,6 +9,7 @@ export const colors = {
   redBorder: 'rgba(220,38,38,0.18)',
 
   // ── Dark navy (premium dark accent) ─────────────────────────────────────────
+  navyFixed: '#0f172a',
   navy: '#0f172a',
   navyMid: '#1e293b',
   navyLight: '#334155',

@@ -10,7 +10,7 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { colors } from '../../constants/tokens';
+import { useTheme } from '../../providers/ThemeProvider';
 
 type EqualizerBarsProps = {
   bars?: number;
@@ -80,9 +80,11 @@ export function EqualizerBars({
   bars = 5,
   playing,
   variant = 'full',
-  color = colors.primary,
+  color: colorProp,
   height,
 }: EqualizerBarsProps) {
+  const { colors } = useTheme();
+  const color = colorProp ?? colors.primary;
   const maxHeight = height ?? (variant === 'full' ? 68 : 14);
   const minHeight = variant === 'full' ? 18 : 4;
   const visibleBarCount =

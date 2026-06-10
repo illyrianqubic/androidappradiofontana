@@ -431,7 +431,7 @@ export default function NewsIndexScreen() {
       <View style={[S.header, { paddingTop: insets.top }]}>
         {/* Title row */}
         <View style={S.headerTitleRow}>
-          <Image source={isDark ? require('../../../assets/images/darklogortvfontana.png') : require('../../../assets/images/applogortvfontana.png')} contentFit="cover" style={S.headerLogo} />
+          <Image source={isDark ? require('../../../assets/images/logo-white-transparent.png') : require('../../../assets/images/logo-blue-transparent.png')} contentFit="contain" style={S.headerLogo} />
           <View style={S.headerSpacer} />
           <HamburgerButton />
         </View>
@@ -511,6 +511,7 @@ export default function NewsIndexScreen() {
           keyExtractor={loadingKeyExtractor}
           contentContainerStyle={listContentContainerStyle}
           renderItem={renderLoadingItem}
+          extraData={colors}
           maintainVisibleContentPosition={DISABLE_MAINTAIN_VISIBLE_CONTENT_POSITION}
         />
       ) : (
@@ -528,6 +529,7 @@ export default function NewsIndexScreen() {
           ListHeaderComponent={refreshHeader}
           ListFooterComponent={loadMoreFooter}
           ListEmptyComponent={emptyState}
+          extraData={colors}
           refreshing={isRefreshing}
           onRefresh={onPullToRefresh}
           progressViewOffset={0}
@@ -569,7 +571,7 @@ const getSF = (colors: ThemeColors) => StyleSheet.create({
     left: 0,
     right: 0,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(10,15,28,0.06)',
+    backgroundColor: colors.border,
   },
   content: {
     paddingHorizontal: 13,
@@ -673,10 +675,8 @@ const getS = (colors: ThemeColors) => StyleSheet.create({
     gap: 10,
   },
   headerLogo: {
-    width: 46,
-    height: 46,
-    borderRadius: 11,
-    backgroundColor: colors.surfaceSubtle,
+    width: 60,
+    height: 60,
   },
   headerSpacer: {
     flex: 1,

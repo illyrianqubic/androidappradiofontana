@@ -823,7 +823,7 @@ const RadioLiveBanner = memo(function RadioLiveBanner({ onPress }: { onPress: ()
           {/* ── Right: play CTA ────────────────────────────── */}
           <View style={styles.radioRight}>
             <View style={styles.radioPlayCircle}>
-              <Ionicons name="play" size={s(18)} color={colors.navy} style={styles.radioPlayIconNudge} />
+              <Ionicons name="play" size={s(18)} color={colors.navyFixed} style={styles.radioPlayIconNudge} />
             </View>
             <Text style={styles.radioPlayLabel}>DËGJO</Text>
           </View>
@@ -1304,7 +1304,7 @@ export default function HomeScreen() {
           </View>
         ) : (
           <View style={styles.headerRow}>
-            <Image source={isDark ? require('../../assets/images/darklogortvfontana.png') : require('../../assets/images/applogortvfontana.png')} contentFit="contain" priority="high" style={styles.headerLogo} />
+            <Image source={isDark ? require('../../assets/images/logo-white-transparent.png') : require('../../assets/images/logo-blue-transparent.png')} contentFit="contain" priority="high" style={styles.headerLogo} />
             <View style={styles.headerSpacer} />
             <View style={styles.headerActions}>
               <Pressable onPress={onHeaderSearch} style={styles.headerIconBtn} hitSlop={8}>
@@ -1424,9 +1424,8 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     gap: 10,
   },
   headerLogo: {
-    width: 56,
-    height: 56,
-    borderRadius: 14,
+    width: 60,
+    height: 60,
   },
   headerSpacer: {
     flex: 1,
@@ -1564,7 +1563,7 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     marginHorizontal: 12,
     marginBottom: 14,
     borderRadius: s(22),
-    backgroundColor: colors.navy,
+    backgroundColor: colors.navyFixed,
     ...elevation.card,
     overflow: 'hidden',
   },
@@ -1578,7 +1577,7 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     bottom: -s(18),
     fontSize: s(96),
     fontFamily: fonts.uiBold,
-    color: colors.surface,
+    color: '#FFFFFF',
     opacity: 0.04,
     letterSpacing: -3,
     lineHeight: s(96),
@@ -1625,10 +1624,10 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: 2.5,
-    backgroundColor: colors.surface,
+    backgroundColor: '#FFFFFF',
   },
   radioLiveLabel: {
-    color: colors.surface,
+    color: '#FFFFFF',
     fontFamily: fonts.uiBold,
     fontSize: ms(9),
     letterSpacing: 1.4,
@@ -1644,7 +1643,7 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
   radioName: {
     fontFamily: fonts.uiBold,
     fontSize: ms(25),
-    color: colors.surface,
+    color: '#FFFFFF',
     letterSpacing: -0.7,
     lineHeight: ms(29),
     marginBottom: s(8),
@@ -1679,7 +1678,7 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     width: s(50),
     height: s(50),
     borderRadius: s(25),
-    backgroundColor: colors.surface,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: colors.navyTint,
@@ -1935,7 +1934,7 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     left: 0,
     right: 0,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(10,15,28,0.07)',
+    backgroundColor: colors.border,
   },
   heroSkeleton: {
     borderRadius: radius.card,
@@ -2177,7 +2176,7 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     left: 0,
     right: 0,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(10,15,28,0.06)',
+    backgroundColor: colors.border,
   },
   localBody: {
     paddingHorizontal: 9,
