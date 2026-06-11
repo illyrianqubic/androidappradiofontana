@@ -12,7 +12,6 @@ import {
 import {
   Alert,
   BackHandler,
-  Image,
   Linking,
   Platform,
   Pressable,
@@ -23,6 +22,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { setAppIcon, getSavedAppIcon } from '../../services/app-icon';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -397,9 +397,9 @@ function HamburgerDrawerInner() {
                 <View style={S.iconPickerRow}>
                   <Pressable
                     onPress={() => selectAppIcon('light')}
-                    style={[S.iconPickerBox, appIcon === 'light' && { borderColor: colors.primary }]}
+                    style={[S.iconPickerBox, { backgroundColor: '#FFFFFF' }, appIcon === 'light' && { borderColor: colors.primary }]}
                   >
-                    <Image source={require('../../assets/images/applogortvfontana.png')} style={S.iconPickerImage} />
+                    <Image source={require('../../assets/images/logo-blue-transparent.png')} style={S.iconPickerImage} contentFit="contain" />
                     {appIcon === 'light' ? (
                       <View style={[S.iconPickerCheck, { backgroundColor: colors.primary }]}>
                         <Ionicons name="checkmark" size={12} color={colors.surface} />
@@ -408,9 +408,9 @@ function HamburgerDrawerInner() {
                   </Pressable>
                   <Pressable
                     onPress={() => selectAppIcon('dark')}
-                    style={[S.iconPickerBox, appIcon === 'dark' && { borderColor: colors.primary }]}
+                    style={[S.iconPickerBox, { backgroundColor: '#0B1220' }, appIcon === 'dark' && { borderColor: colors.primary }]}
                   >
-                    <Image source={require('../../assets/images/darklogortvfontana.png')} style={S.iconPickerImage} />
+                    <Image source={require('../../assets/images/logo-white-transparent.png')} style={S.iconPickerImage} contentFit="contain" />
                     {appIcon === 'dark' ? (
                       <View style={[S.iconPickerCheck, { backgroundColor: colors.primary }]}>
                         <Ionicons name="checkmark" size={12} color={colors.surface} />

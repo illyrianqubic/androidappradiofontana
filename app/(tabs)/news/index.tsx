@@ -67,8 +67,7 @@ function samePost(a: Post, b: Post): boolean {
   );
 }
 
-const FeaturedCard = memo(function FeaturedCard({ post, onPress }: { post: Post; onPress: (p: Post) => void }) {
-  const { colors } = useTheme();
+const FeaturedCard = memo(function FeaturedCard({ post, onPress, colors }: { post: Post; onPress: (p: Post) => void; colors: ThemeColors }) {
   const SF = useMemo(() => getSF(colors), [colors]);
   const imageUri = useMemo(
     () => buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.newsFeatured),
@@ -118,6 +117,7 @@ const FeaturedCard = memo(function FeaturedCard({ post, onPress }: { post: Post;
     </View>
   );
 }, (prev, next) =>
+  prev.colors === next.colors &&
   prev.onPress === next.onPress &&
   samePost(prev.post, next.post),
 );
@@ -383,9 +383,9 @@ export default function NewsIndexScreen() {
   const renderPostItem = useCallback(
     ({ item, index }: ListRenderItemInfo<Post>) => {
       if (index === 0 && showFeatured) {
-        return <FeaturedCard post={item} onPress={openPost} />;
+        return <FeaturedCard post={item} onPress={openPost} colors={colors} />;
       }
-      return <NewsCard post={item} onPress={openPost} />;
+      return <NewsCard post={item} onPress={openPost} colors={colors} />;
     },
     [openPost, showFeatured],
   );
@@ -411,7 +411,7 @@ export default function NewsIndexScreen() {
         </Text>
       </View>
     ),
-    [debouncedSearch],
+    [debouncedSearch, S, colors],
   );
 
   // H15: stable contentContainerStyle so FlashList doesn't see a new prop
@@ -464,7 +464,11 @@ export default function NewsIndexScreen() {
     // debounce, so typing does not rebuild the title/category header.
     // onSelectCategory and onPrefetchCategory are stable (empty/stable deps),
     // so only the active pill changes trigger a header rebuild.
-    [insets.top, activeCategory.slug, onSelectCategory, onPrefetchCategory],
+    // AUDIT FIX: S and isDark must be in deps so theme toggle refreshes the
+    // header background and logo source. Without them, the memoized element
+    // holds stale styles from the previous theme, causing the header to render
+    // with inverted colors after a theme change.
+    [S, isDark, insets.top, activeCategory.slug, onSelectCategory, onPrefetchCategory],
   );
 
   const refreshHeader = useMemo(
@@ -499,7 +503,7 @@ export default function NewsIndexScreen() {
         )}
       </View>
     );
-  }, [postsQuery.hasNextPage, postsQuery.isFetchingNextPage, postsQuery.fetchNextPage, colors.primary]);
+  }, [postsQuery.hasNextPage, postsQuery.isFetchingNextPage, postsQuery.fetchNextPage, colors.primary, S]);
 
   // ── Main view ──────────────────────────────────────────────────────────────
   return (

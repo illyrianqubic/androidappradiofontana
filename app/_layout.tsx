@@ -431,7 +431,7 @@ function RootLayoutInner() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bgScreen }}>
       <SafeAreaProvider>
         <PersistQueryClientProvider
           client={queryClient}

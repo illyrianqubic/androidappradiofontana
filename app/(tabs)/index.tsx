@@ -457,12 +457,13 @@ const HeroCard = memo(function HeroCard({
   hero,
   heroImageUri,
   onPress,
+  colors,
 }: {
   hero: Post;
   heroImageUri: string | null;
   onPress: (post: Post) => void;
+  colors: ThemeColors;
 }) {
-  const { colors } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const cat = hero.categories?.[0] ?? 'Lajme';
 
@@ -516,14 +517,14 @@ const HeroCard = memo(function HeroCard({
     </View>
   );
 }, (prev, next) =>
+  prev.colors === next.colors &&
   prev.onPress === next.onPress &&
   prev.heroImageUri === next.heroImageUri &&
   samePreviewPost(prev.hero, next.hero),
 );
 
 // ── LocalCard (compact overlay card for horizontal rail) ──────────────────────
-const LocalCard = memo(function LocalCard({ post, onPress }: { post: Post; onPress: (p: Post) => void }) {
-  const { colors } = useTheme();
+const LocalCard = memo(function LocalCard({ post, onPress, colors }: { post: Post; onPress: (p: Post) => void; colors: ThemeColors }) {
   const styles = useMemo(() => getStyles(colors), [colors]);
   const imageUri = useMemo(
     () => buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.feedThumb),
@@ -561,6 +562,7 @@ const LocalCard = memo(function LocalCard({ post, onPress }: { post: Post; onPre
     </View>
   );
 }, (prev, next) =>
+  prev.colors === next.colors &&
   prev.onPress === next.onPress &&
   samePreviewPost(prev.post, next.post),
 );
@@ -611,12 +613,13 @@ const GridItem = memo(function GridItem({
   item,
   isLeft,
   onPress,
+  colors,
 }: {
   item: Post;
   isLeft: boolean;
   onPress: (p: Post) => void;
+  colors: ThemeColors;
 }) {
-  const { colors } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const imageUri = useMemo(
     () => buildSanityImageUrl(item.mainImageUrl, sanityImageWidths.feedCard),
@@ -667,6 +670,7 @@ const GridItem = memo(function GridItem({
   );
 }, (prev, next) =>
   prev.isLeft === next.isLeft &&
+  prev.colors === next.colors &&
   prev.onPress === next.onPress &&
   samePreviewPost(prev.item, next.item),
 );
@@ -675,11 +679,12 @@ const GridItem = memo(function GridItem({
 const SearchResultCard = memo(function SearchResultCard({
   item,
   onPress,
+  colors,
 }: {
   item: Post;
   onPress: (p: Post) => void;
+  colors: ThemeColors;
 }) {
-  const { colors } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
   // M27: thumbnails standardized at 480px wide.
   const imageUri = useMemo(
@@ -716,6 +721,7 @@ const SearchResultCard = memo(function SearchResultCard({
       </Pressable>
   );
 }, (prev, next) =>
+  prev.colors === next.colors &&
   prev.onPress === next.onPress &&
   samePreviewPost(prev.item, next.item),
 );
@@ -1135,7 +1141,7 @@ export default function HomeScreen() {
           </View>
         );
       }
-      return <GridItem item={item} isLeft={isLeft} onPress={onPressPost} />;
+      return <GridItem item={item} isLeft={isLeft} onPress={onPressPost} colors={colors} />;
     },
     [onPressPost, styles],
   );
@@ -1175,7 +1181,7 @@ export default function HomeScreen() {
         {(heroQuery.isLoading || hero) && (
           <View style={styles.sectionBlock}>
             {hero ? (
-              <HeroCard hero={hero} heroImageUri={heroImageUri} onPress={onPressPost} />
+              <HeroCard hero={hero} heroImageUri={heroImageUri} onPress={onPressPost} colors={colors} />
             ) : (
               <SkeletonCard height={248} style={styles.heroSkeleton} />
             )}
@@ -1217,7 +1223,7 @@ export default function HomeScreen() {
                 removeClippedSubviews
               >
                 {localData.map((post) => (
-                  <LocalCard key={post._id} post={post} onPress={onPressPost} />
+                  <LocalCard key={post._id} post={post} onPress={onPressPost} colors={colors} />
                 ))}
               </ScrollView>
             </View>
@@ -1255,7 +1261,7 @@ export default function HomeScreen() {
   );
   const renderSearchResult = useCallback(
     ({ item }: ListRenderItemInfo<Post>) => (
-      <SearchResultCard item={item} onPress={onPressSearchResult} />
+      <SearchResultCard item={item} onPress={onPressSearchResult} colors={colors} />
     ),
     [onPressSearchResult],
   );

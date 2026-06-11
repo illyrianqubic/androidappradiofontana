@@ -687,6 +687,7 @@ export default function ArticleDetailScreen() {
                 index={i}
                 isLast={i === Math.min(relatedPosts.length, 2) - 1}
                 onPress={onOpenRelatedPost}
+                colors={colors}
               />
             ))}
           </View>
@@ -743,13 +744,14 @@ const RelatedItem = memo(function RelatedItem({
   post,
   isLast,
   onPress,
+  colors,
 }: {
   post: Post;
   index: number;
   isLast: boolean;
   onPress: (post: Post) => void;
+  colors: ThemeColors;
 }) {
-  const { colors } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const thumbUri = useMemo(
     () => buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.articleRelated),
@@ -794,6 +796,7 @@ const RelatedItem = memo(function RelatedItem({
   );
 }, (prev, next) =>
   prev.isLast === next.isLast &&
+  prev.colors === next.colors &&
   prev.onPress === next.onPress &&
   prev.post._id === next.post._id &&
   prev.post.slug === next.post.slug &&

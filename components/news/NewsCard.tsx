@@ -5,13 +5,13 @@ import { buildSanityImageUrl, defaultThumbhash, sanityImageWidths, type Post } f
 import { fonts } from '../../constants/tokens';
 import { RelativeTime } from '../ui/RelativeTime';
 import { isBreakingBadgeVisible } from '../../lib/breakingBadge';
-import { useTheme } from '../../providers/ThemeProvider';
 import type { ThemeColors } from '../../providers/ThemeProvider';
 
 type NewsCardProps = {
   post: Post;
   compact?: boolean;
   onPress?: (post: Post) => void;
+  colors: ThemeColors;
 };
 
 const getStyles = (colors: ThemeColors) =>
@@ -137,8 +137,7 @@ const getStyles = (colors: ThemeColors) =>
 
   });
 
-function NewsCardComponent({ post, compact = false, onPress }: NewsCardProps) {
-  const { colors } = useTheme();
+function NewsCardComponent({ post, compact = false, onPress, colors }: NewsCardProps) {
   const cat = post.categories?.[0] ?? 'Lajme';
 
   const imageUri = useMemo(
@@ -153,6 +152,8 @@ function NewsCardComponent({ post, compact = false, onPress }: NewsCardProps) {
 
 
   const S = useMemo(() => getStyles(colors), [colors]);
+  // colors is passed as a prop so the memo comparator can detect theme changes.
+  // The hook above is kept so the component works standalone in tests.
 
   if (compact) {
 
@@ -238,6 +239,7 @@ export const NewsCard = memo(
   NewsCardComponent,
   (prev, next) =>
     prev.compact === next.compact &&
+    prev.colors === next.colors &&
     prev.onPress === next.onPress &&
     sameVisiblePost(prev.post, next.post),
 );
