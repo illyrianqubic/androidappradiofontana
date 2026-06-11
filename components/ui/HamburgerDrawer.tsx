@@ -61,7 +61,7 @@ const LAJME_CATEGORIES = [
 
 const SOCIAL_LINKS = [
   { label: 'Facebook', url: 'https://www.facebook.com/rtvfontanalive' },
-  { label: 'Instagram', url: 'https://www.instagram.com/rtvfontana/' },
+  { label: 'Instagram', url: 'https://www.instagram.com/rtvfontana' },
   { label: 'YouTube', url: 'https://www.youtube.com/@RTVFontana' },
   { label: 'TikTok', url: 'https://www.tiktok.com/@rtvfontanalive' },
 ] as const;
@@ -487,25 +487,17 @@ function HamburgerDrawerInner() {
 
 const openLink = async (url: string) => {
   try {
-    const supported = await Linking.canOpenURL(url);
-    if (supported) {
-      await Linking.openURL(url);
-      return;
-    }
-    // If the system reports the https URL as unsupported (e.g. no browser
-    // handles it), try the YouTube app deep-link for YouTube URLs.
-    if (url.includes('youtube.com/@')) {
-      const handle = url.split('@')[1];
-      const appUrl = `youtube://${handle}`;
-      const appSupported = await Linking.canOpenURL(appUrl);
-      if (appSupported) {
-        await Linking.openURL(appUrl);
-        return;
-      }
-    }
-    Alert.alert('Gabim', 'Nuk mund të hapet kjo lidhje në këtë pajisje.');
+    // Open HTTPS links directly. canOpenURL requires extra Android
+    // permissions and often returns false for valid https URLs, so we
+    // skip the check and let the system handle the URL.
+    await Linking.openURL(url);
   } catch {
-    Alert.alert('Gabim', 'Nuk mund të hapet kjo lidhje.');
+    Alert.alert(
+      'Gabim',
+      'Nuk mund të hapet kjo lidhje. Mund ta kopjosh manualisht:\n\n' + url,
+      [{ text: 'OK' }],
+      { cancelable: true },
+    );
   }
 };
 
@@ -625,11 +617,9 @@ const getS = (colors: ThemeColors) => StyleSheet.create({
   panelOuter: {
     position: 'absolute',
     backgroundColor: colors.surfaceSubtle,
-    shadowColor: colors.navy,
-    shadowOpacity: 0.20,
-    shadowRadius: 24,
-    shadowOffset: { width: -8, height: 0 },
-    elevation: 20,
+    // FIX: drawer panel shadow/elevation was casting a visible vertical line
+    // on the right edge of the screen when the drawer was closed. Removing
+    // the shadow keeps the panel clean and eliminates the bleed-through.
     overflow: 'hidden',
   },
   panelInner: {
