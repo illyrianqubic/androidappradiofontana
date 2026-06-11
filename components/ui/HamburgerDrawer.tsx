@@ -39,6 +39,7 @@ import { useDrawer } from '../../providers/DrawerProvider';
 import { useTheme } from '../../providers/ThemeProvider';
 import type { ThemeColors } from '../../providers/ThemeProvider';
 import { fonts, radius, spacing } from '../../constants/tokens';
+import { setPendingDrawerCategory } from '../../lib/drawerCategory';
 
 const DrawerStylesContext = createContext<{ S: ReturnType<typeof getS>; colors: ThemeColors } | null>(null);
 
@@ -226,6 +227,44 @@ function HamburgerDrawerInner() {
     }, CLOSE_DURATION + 40);
   }, [close, router]);
 
+  // BUG FIX: category selection from the drawer while already on the news
+  // screen should update params without a slide animation.  `router.push`
+  // always pushes a new screen instance → slide-from-right.  Instead, if
+  // we're already on a news route we use `router.setParams` (instant) and
+  // only fall back to `router.navigate` (tab switch, no push) when coming
+  // from a different tab.
+  //
+  // BUG FIX (cross-tab first tap): navigating from Home/Live to the news tab
+  // by passing the category in the path string ('/news?category=...') can drop
+  // the param on the first mount. We instead use the typed object form of
+  // `router.navigate({ pathname: '/news', params: { category: slug } })` and
+  // also write the intended slug to an in-memory fallback that news/index.tsx
+  // reads on its initial mount.
+  const navigateToCategory = useCallback((path: string) => {
+    if (isNavigatingRef.current) return;
+    isNavigatingRef.current = true;
+    setLajmeExpanded(false);
+    close();
+    if (pendingNavTimerRef.current) clearTimeout(pendingNavTimerRef.current);
+    pendingNavTimerRef.current = setTimeout(() => {
+      pendingNavTimerRef.current = null;
+      const slugMatch = path.match(/\?category=([^&]+)/);
+      const slug = slugMatch ? slugMatch[1] : '';
+      const onNews = pathname === '/news' || pathname.startsWith('/news/') || pathname.startsWith('/(tabs)/news');
+      if (onNews) {
+        router.setParams(slug ? { category: slug } : { category: undefined });
+      } else {
+        setPendingDrawerCategory(slug);
+        if (slug) {
+          router.navigate({ pathname: '/news', params: { category: slug } } as never);
+        } else {
+          router.navigate('/news' as never);
+        }
+      }
+      setTimeout(() => { isNavigatingRef.current = false; }, 200);
+    }, CLOSE_DURATION + 40);
+  }, [close, pathname, router]);
+
   const toggleLajme = useCallback(() => setLajmeExpanded((v) => !v), []);
 
   // Active-state derivation runs only when pathname actually changes, not on
@@ -325,11 +364,11 @@ function HamburgerDrawerInner() {
                   >
                     <View style={S.categoryHeader}>
                       <Text style={S.categoryHeaderLabel}>Zgjidh rubrikën</Text>
-                      <CategoryAllButton onNavigate={navigate} />
+                      <CategoryAllButton onNavigate={navigateToCategory} />
                     </View>
                     <View style={S.categoryGrid}>
                       {LAJME_CATEGORIES.map((cat) => (
-                        <CategoryRow key={cat.slug} slug={cat.slug} label={cat.label} onNavigate={navigate} />
+                        <CategoryRow key={cat.slug} slug={cat.slug} label={cat.label} onNavigate={navigateToCategory} />
                       ))}
                     </View>
                   </Animated.View>
@@ -446,7 +485,29 @@ function HamburgerDrawerInner() {
   );
 }
 
-const openLink = (url: string) => Linking.openURL(url).catch(() => undefined);
+const openLink = async (url: string) => {
+  try {
+    const supported = await Linking.canOpenURL(url);
+    if (supported) {
+      await Linking.openURL(url);
+      return;
+    }
+    // If the system reports the https URL as unsupported (e.g. no browser
+    // handles it), try the YouTube app deep-link for YouTube URLs.
+    if (url.includes('youtube.com/@')) {
+      const handle = url.split('@')[1];
+      const appUrl = `youtube://${handle}`;
+      const appSupported = await Linking.canOpenURL(appUrl);
+      if (appSupported) {
+        await Linking.openURL(appUrl);
+        return;
+      }
+    }
+    Alert.alert('Gabim', 'Nuk mund të hapet kjo lidhje në këtë pajisje.');
+  } catch {
+    Alert.alert('Gabim', 'Nuk mund të hapet kjo lidhje.');
+  }
+};
 
 const NavItem = memo(function NavItem({
   icon,

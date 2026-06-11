@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   InteractionManager,
+  LayoutChangeEvent,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -26,6 +27,7 @@ import { appIdentity, fonts } from '../../../constants/tokens';
 import { useTheme } from '../../../providers/ThemeProvider';
 import type { ThemeColors } from '../../../providers/ThemeProvider';
 import { queueImagePrefetch } from '../../../lib/prefetchQueue';
+import { getAndClearPendingDrawerCategory } from '../../../lib/drawerCategory';
 import {
   buildSanityImageUrl,
   defaultThumbhash,
@@ -130,11 +132,13 @@ const CategoryPill = memo(function CategoryPill({
   active,
   onSelect,
   onPrefetch,
+  onLayout,
 }: {
   item: NewsCategoryTab;
   active: boolean;
   onSelect: (tab: NewsCategoryTab) => void;
   onPrefetch: (tab: NewsCategoryTab) => void;
+  onLayout?: (e: LayoutChangeEvent) => void;
 }) {
   const { colors } = useTheme();
   const SP = useMemo(() => getSP(colors), [colors]);
@@ -144,6 +148,7 @@ const CategoryPill = memo(function CategoryPill({
     <Pressable
       onPressIn={handlePressIn}
       onPress={handlePress}
+      onLayout={onLayout}
       style={[SP.pill, active && SP.pillActive]}
     >
       <Text style={[SP.pillText, active && SP.pillTextActive]}>{item.label}</Text>
@@ -210,8 +215,15 @@ export default function NewsIndexScreen() {
   const { category: categoryParam } = useLocalSearchParams<{ category?: string }>();
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlashListRef<Post>>(null);
+  const catScrollRef = useRef<ScrollView>(null);
+  const pillLayouts = useRef<Map<string, { x: number; width: number }>>(new Map());
   const [activeCategory, setActiveCategory] = useState<NewsCategoryTab>(() => {
-    const found = NEWS_CATEGORY_TABS.find((t) => t.slug === categoryParam);
+    // Cross-tab drawer navigation fallback: if Expo Router hasn't delivered
+    // the category param by the time this screen first mounts, use the slug
+    // the drawer stashed right before calling router.navigate().
+    const pendingSlug = getAndClearPendingDrawerCategory();
+    const slug = categoryParam ?? pendingSlug;
+    const found = NEWS_CATEGORY_TABS.find((t) => t.slug === slug);
     return found ?? NEWS_CATEGORY_TABS[0];
   });
   const activeCategorySlugRef = useRef(activeCategory.slug);
@@ -223,7 +235,13 @@ export default function NewsIndexScreen() {
   // does NOT re-run, so the active category would be stuck on whatever was
   // first opened. Sync activeCategory whenever categoryParam changes.
   useEffect(() => {
-    if (categoryParam === undefined) return;
+    if (categoryParam === undefined) {
+      if (activeCategorySlugRef.current !== '') {
+        setActiveCategory(NEWS_CATEGORY_TABS[0]);
+        listRef.current?.scrollToOffset({ offset: 0, animated: false });
+      }
+      return;
+    }
     const found = NEWS_CATEGORY_TABS.find((t) => t.slug === categoryParam);
     if (found && found.slug !== activeCategorySlugRef.current) {
       setActiveCategory(found);
@@ -282,6 +300,15 @@ export default function NewsIndexScreen() {
     setActiveCategory(tab);
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, []);
+
+  // Auto-scroll the category pill bar so the active pill is always visible.
+  useEffect(() => {
+    const slug = activeCategory.slug;
+    const layout = pillLayouts.current.get(slug);
+    if (layout && catScrollRef.current) {
+      catScrollRef.current.scrollTo({ x: Math.max(0, layout.x - 16), animated: true });
+    }
+  }, [activeCategory]);
 
   // Fire a prefetch for a category so data is warm before setActiveCategory runs.
   // Called on onPressIn (finger-down) — ~150ms before the press registers —
@@ -441,8 +468,10 @@ export default function NewsIndexScreen() {
 
         {/* Category pills */}
         <ScrollView
+          ref={catScrollRef}
           horizontal
           showsHorizontalScrollIndicator={false}
+          fadingEdgeLength={0}
           contentContainerStyle={S.catScroll}
         >
           {NEWS_CATEGORY_TABS.map((tab) => (
@@ -452,6 +481,10 @@ export default function NewsIndexScreen() {
               active={tab.slug === activeCategory.slug}
               onSelect={onSelectCategory}
               onPrefetch={onPrefetchCategory}
+              onLayout={(e) => {
+                const { x, width } = e.nativeEvent.layout;
+                pillLayouts.current.set(tab.slug, { x, width });
+              }}
             />
           ))}
         </ScrollView>

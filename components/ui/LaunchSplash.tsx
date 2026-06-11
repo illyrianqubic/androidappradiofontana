@@ -18,12 +18,12 @@ import { useTheme } from '../../providers/ThemeProvider';
 // Must stay in sync with the expo-splash-screen plugin imageWidth in app.json.
 const LOGO_SIZE = 250;
 
-const COLD_START_MIN_SPLASH_MS = 3200;
-const COLD_START_MAX_SPLASH_MS = 4200;
+const COLD_START_MIN_SPLASH_MS = 2600;
+const COLD_START_MAX_SPLASH_MS = 3800;
 const LOGO_FADE_DURATION = 200;
-const STAGE_2_DELAY = 120;
-const BG_COLOR_DURATION = 250;
-const OVERLAY_FADE_DURATION = 300;
+const STAGE_2_DELAY = 100;
+const BG_COLOR_DURATION = 240;
+const OVERLAY_FADE_DURATION = 280;
 const EXIT_FALLBACK_MS = 800;
 
 type LaunchSplashProps = {

@@ -44,6 +44,7 @@ import { useTheme } from '../../providers/ThemeProvider';
 import type { ThemeColors } from '../../providers/ThemeProvider';
 import { ms, s } from '../../lib/responsive';
 import { queueImagePrefetch } from '../../lib/prefetchQueue';
+import { getAndClearPendingDrawerCategory } from '../../lib/drawerCategory';
 import {
   buildSanityImageUrl,
   defaultThumbhash,
@@ -984,8 +985,11 @@ export default function HomeScreen() {
   const bandAnimStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: interpolate(bandVisible.value, [0, 1], [-BREAKING_H, 0]) }],
   }));
+  const isOpeningArticleRef = useRef(false);
   const onPressPost = useCallback(
     (post: Post) => {
+      if (isOpeningArticleRef.current) return;
+      isOpeningArticleRef.current = true;
       // Prefetch the same URL the article hero will request so the image bind
       // hits expo-image cache after navigation instead of downloading a
       // second, larger Sanity variant.
@@ -1031,9 +1035,17 @@ export default function HomeScreen() {
       if (newsStackKey) {
         // Step 1: focus the tab (no-op if already focused).
         navigation.dispatch(CommonActions.navigate({ name: 'news' }));
-        // Step 2: navigate within the news stack directly, bypassing TabRouter.
+        // Step 2: reset the news stack to [news list → article].
+        // Using reset guarantees the user never accumulates multiple articles
+        // when browsing from home — back always returns to the news list.
         navigation.dispatch({
-          ...CommonActions.navigate({ name: '[slug]', params: { slug: post.slug } }),
+          ...CommonActions.reset({
+            index: 1,
+            routes: [
+              { name: 'index' },
+              { name: '[slug]', params: { slug: post.slug } },
+            ],
+          }),
           target: newsStackKey,
         });
       } else {
@@ -1045,6 +1057,9 @@ export default function HomeScreen() {
           }),
         );
       }
+      setTimeout(() => {
+        isOpeningArticleRef.current = false;
+      }, 300);
     },
     [navigation, queryClient, router],
   );
@@ -1127,7 +1142,12 @@ export default function HomeScreen() {
   }, [router]);
 
   const onOpenNewsPage = useCallback(() => {
-    router.navigate('/(tabs)/news');
+    // Clear any stale pending category from a previous drawer navigation
+    // so it cannot override the explicit "all categories" intent.
+    getAndClearPendingDrawerCategory();
+    // Explicitly pass category: '' so React Navigation does not preserve
+    // a stale category param from a previous news-tab visit.
+    router.navigate({ pathname: '/news', params: { category: '' } } as never);
   }, [router]);
 
   // ── Render helpers ──────────────────────────────────────────────────────────
@@ -1218,6 +1238,7 @@ export default function HomeScreen() {
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
+                fadingEdgeLength={0}
                 decelerationRate="fast"
                 contentContainerStyle={styles.localRail}
                 removeClippedSubviews
