@@ -10,6 +10,7 @@ type KeyValueStore = {
   getString: (key: string) => string | undefined;
   set: (key: string, value: string) => void;
   delete: (key: string) => void;
+  getAllKeys: () => string[];
 };
 
 function createMmkv(id: string) {
@@ -18,45 +19,84 @@ function createMmkv(id: string) {
       getString: (key: string) => string | undefined;
       set: (key: string, value: string) => void;
       delete: (key: string) => void;
+      getAllKeys: () => string[];
     };
   };
   return new MMKV({ id });
 }
 
 function createQueryCacheStore(): KeyValueStore {
+  const fallbackStore = new Map<string, string>();
   try {
     const mmkv = createMmkv('rf-query-cache');
     return {
       getString: (key) => mmkv.getString(key),
-      set: (key, value) => mmkv.set(key, value),
+      set: (key, value) => {
+        try {
+          mmkv.set(key, value);
+        } catch {
+          fallbackStore.set(key, value);
+        }
+      },
       delete: (key) => mmkv.delete(key),
+      getAllKeys: () => mmkv.getAllKeys(),
     };
   } catch {
     // Allows Expo Go sessions to run even when MMKV native bindings are unavailable.
-    const fallbackStore = new Map<string, string>();
     return {
       getString: (key) => fallbackStore.get(key),
       set: (key, value) => { fallbackStore.set(key, value); },
       delete: (key) => { fallbackStore.delete(key); },
+      getAllKeys: () => Array.from(fallbackStore.keys()),
     };
   }
 }
 
 function createAppSettingsStore(): KeyValueStore {
+  const fallbackStore = new Map<string, string>();
   try {
     const mmkv = createMmkv('rf-app-settings');
     return {
       getString: (key) => mmkv.getString(key),
-      set: (key, value) => mmkv.set(key, value),
+      set: (key, value) => {
+        try {
+          // H-B10: cap reaction keys at 200. When writing a new reaction,
+          // delete the oldest 50 (by alphabetical slug order) to stay under
+          // the limit and prevent unbounded MMKV growth.
+          if (key.startsWith('reaction_')) {
+            const reactionKeys = mmkv.getAllKeys().filter((k) => k.startsWith('reaction_'));
+            if (reactionKeys.length >= 200) {
+              const toDelete = reactionKeys.sort().slice(0, 50);
+              for (const k of toDelete) {
+                try { mmkv.delete(k); } catch { /* best effort */ }
+              }
+            }
+          }
+          mmkv.set(key, value);
+        } catch {
+          fallbackStore.set(key, value);
+        }
+      },
       delete: (key) => mmkv.delete(key),
+      getAllKeys: () => mmkv.getAllKeys(),
     };
   } catch {
     // Expo Go fallback — settings persist only for the session.
-    const fallbackStore = new Map<string, string>();
     return {
       getString: (key) => fallbackStore.get(key),
-      set: (key, value) => { fallbackStore.set(key, value); },
+      set: (key, value) => {
+        // H-B10: same cap for the in-memory fallback.
+        if (key.startsWith('reaction_')) {
+          const reactionKeys = Array.from(fallbackStore.keys()).filter((k) => k.startsWith('reaction_'));
+          if (reactionKeys.length >= 200) {
+            const toDelete = reactionKeys.sort().slice(0, 50);
+            for (const k of toDelete) { fallbackStore.delete(k); }
+          }
+        }
+        fallbackStore.set(key, value);
+      },
       delete: (key) => { fallbackStore.delete(key); },
+      getAllKeys: () => Array.from(fallbackStore.keys()),
     };
   }
 }

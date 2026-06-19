@@ -36,7 +36,6 @@ const darkColors: ThemeColors = {
   inkFaint: '#64748b',
   paper: '#1e293b',
   rule: '#334155',
-  surfaceSubtleOld: '#1e293b',
 };
 
 type ThemeContextValue = {

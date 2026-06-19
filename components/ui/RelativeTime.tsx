@@ -61,7 +61,19 @@ function formatRelative(timestamp: string, nowMs: number) {
     return 'Dje';
   }
 
-  return `${Math.floor(diffMs / day)} ditë më parë`;
+  // H-B12: for posts >= 30 days old, show an absolute date with Albanian
+  // month abbreviations instead of e.g. "365 ditë më parë".
+  const days = diffMs / day;
+  if (days < 30) {
+    return `${Math.floor(days)} ditë më parë`;
+  }
+
+  const d = new Date(timestamp);
+  const months = ['Jan', 'Shk', 'Mar', 'Pri', 'Maj', 'Qer', 'Kor', 'Gus', 'Sht', 'Tet', 'Nën', 'Dhj'];
+  const dayNum = d.getDate();
+  const month = months[d.getMonth()];
+  const year = d.getFullYear();
+  return `${dayNum} ${month} ${year}`;
 }
 
 export const RelativeTime = memo(function RelativeTime({ timestamp, style }: RelativeTimeProps) {

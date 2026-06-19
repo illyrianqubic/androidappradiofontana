@@ -409,6 +409,20 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     });
 
     const attempt = reconnectAttemptRef.current;
+    const MAX_RECONNECT_ATTEMPTS = 15;
+    if (attempt >= MAX_RECONNECT_ATTEMPTS) {
+      audioLog('reconnect ceiling reached — stopping retries', { attempt });
+      updateState({
+        isReconnecting: false,
+        isBuffering: false,
+        playbackState: PlayerState.error,
+        metadata: {
+          title: 'Gabim në stream',
+          artist: 'Rilidhja u ndal pas shumë tentimeve',
+        },
+      });
+      return;
+    }
     const delay = reconnectDelaysMs[Math.min(attempt, reconnectDelaysMs.length - 1)];
     reconnectAttemptRef.current += 1;
     audioLog('reconnect scheduled', { attempt, delay });
@@ -466,6 +480,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     audioLog('play action');
     userIntentRef.current = 'play';
     cancelReconnect();
+    reconnectAttemptRef.current = 0;
 
     try {
       // Ensure the player is initialised (noop if already ready).
@@ -638,8 +653,22 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       // sequence. We've already set the loading state explicitly; letting
       // these fire would either revert the loading state (IDLE/None → none)
       // or create redundant updates before Playing arrives.
+      //
+      // Only Playing and Error clear liveEdgeLoadingRef explicitly above.
+      // Any other state arriving while the flag is still true (Stopped,
+      // Ended, None, Ready, Paused) would otherwise suppress ALL subsequent
+      // events permanently. Clear the flag so future events are processed.
       if (liveEdgeLoadingRef.current) {
         audioLog('state event suppressed (live-edge load in progress)', event.state);
+        // Playing and Error are handled above with explicit liveEdgeLoadingRef
+        // clearing. All other states (Stopped, Ended, None, Ready, Paused)
+        // would otherwise suppress future events permanently — clear the flag.
+        if (
+          event.state !== TrackPlayerState.Buffering &&
+          event.state !== TrackPlayerState.Loading
+        ) {
+          liveEdgeLoadingRef.current = false;
+        }
         return;
       }
 
@@ -714,6 +743,13 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       audioLog('remote-pause (lock screen)');
       pause();
     });
+    const metadataSub = TrackPlayer.addEventListener(
+      TrackPlayerEvent.MetadataCommonReceived,
+      () => {
+        if (!mountedRef.current) return;
+        void safeUpdateStationMetadata();
+      },
+    );
 
     void syncFromTrackPlayer();
 
@@ -724,6 +760,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       queueEndedSub.remove();
       remotePlaySub.remove();
       remotePauseSub.remove();
+      metadataSub.remove();
       clearReconnectTimeout();
       if (reconnectDebounceRef.current) {
         clearTimeout(reconnectDebounceRef.current);

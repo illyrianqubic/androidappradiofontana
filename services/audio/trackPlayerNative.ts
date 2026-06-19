@@ -49,6 +49,7 @@ export const TrackPlayerEvent = {
   RemotePlay: 'remote-play',
   RemotePause: 'remote-pause',
   RemoteStop: 'remote-stop',
+  MetadataCommonReceived: 'metadata-common-received',
 } as const;
 
 export type TrackPlayerEvent = (typeof TrackPlayerEvent)[keyof typeof TrackPlayerEvent];

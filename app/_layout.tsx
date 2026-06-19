@@ -447,7 +447,7 @@ function RootLayoutInner() {
                   <Stack.Screen name="rreth-nesh" />
                   <Stack.Screen name="na-kontakto" />
                   {/* Catch-all for OS-delivered deep links the app does not handle
-                      (e.g. radiofontana://notification.click on Samsung One UI).
+                      (e.g. rtvfontana://notification.click on Samsung One UI).
                       The +not-found route silently redirects to home. */}
                   <Stack.Screen name="+not-found" options={NOT_FOUND_SCREEN_OPTIONS} />
                 </Stack>

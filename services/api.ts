@@ -57,12 +57,12 @@ export type Post = {
 };
 
 export const sanityImageWidths = {
-  feedCard: 540,
-  feedThumb: 480,
+  feedCard: 270,
+  feedThumb: 240,
   newsFeatured: 720,
-  articleHero: 720,
-  articleInline: 720,
-  articleRelated: 540,
+  articleHero: 600,
+  articleInline: 600,
+  articleRelated: 270,
 } as const;
 
 type SanityResponse<T> = {

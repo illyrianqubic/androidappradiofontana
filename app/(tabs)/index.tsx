@@ -883,12 +883,13 @@ export default function HomeScreen() {
   // Hero gets its OWN query so it can be persisted to MMKV and hydrated
   // instantly on cold start (R-2 / X-4); the secondary rails are excluded
   // from persistence (see SKIP_PERSIST_KEYS in app/_layout.tsx).
-  // X-1: hero refetches on window focus so a freshly-published breaking
-  // story appears the moment the user returns to the app.
+  // H-B8: refetchOnWindowFocus disabled on hero. The AppState listener in
+  // _layout.tsx already invalidates home-hero after 5 min of background —
+  // refetchOnWindowFocus was causing a redundant second fetch every return.
   const heroQuery = useQuery({
     queryKey: ['home-hero'],
     queryFn: ({ signal }) => fetchHeroPost(signal),
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
     // PROFILING FIX (round 2): hero/breaking previously had no staleTime, so
     // every focus + every cold-start cache-hydration immediately fired a
     // background refetch that took ~1.1 s on Sanity (visible in profiler
@@ -1810,22 +1811,6 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: fonts.uiBold,
     fontSize: 22,
     letterSpacing: -0.6,
-  },
-  latestCountChip: {
-    minWidth: 28,
-    height: 22,
-    paddingHorizontal: 8,
-    borderRadius: 11,
-    backgroundColor: colors.inkDark,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  latestCountText: {
-    color: colors.surface,
-    fontFamily: fonts.uiBold,
-    fontSize: 11,
-    letterSpacing: -0.2,
   },
   latestSubRow: {
     flexDirection: 'row',

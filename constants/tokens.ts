@@ -39,9 +39,6 @@ export const colors = {
   inkFaint: '#8A93A6',
   paper: '#FBF9F4',
   rule: '#E6E1D8',
-
-  // ── Legacy compat ────────────────────────────────────────────────────────────
-  surfaceSubtleOld: '#FAFAFA',
 } as const;
 
 export const radius = {

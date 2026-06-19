@@ -39,7 +39,7 @@ import {
 
 import { HamburgerButton } from '../../../components/ui/HamburgerButton';
 import { SkeletonCard } from '../../../components/news/SkeletonCard';
-import { appIdentity, fonts, spacing } from '../../../constants/tokens';
+import { appIdentity, fonts, radius, spacing } from '../../../constants/tokens';
 import { useTheme } from '../../../providers/ThemeProvider';
 import type { ThemeColors } from '../../../providers/ThemeProvider';
 import { ms, s, vs } from '../../../lib/responsive';
@@ -318,6 +318,7 @@ export default function ArticleDetailScreen() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [lightboxVisible, setLightboxVisible] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const backDebounceRef = useRef(false);
   const { selected: selectedReaction, toggle: toggleReaction } = useArticleReaction(slug ?? '');
 
   const postQuery = useQuery({
@@ -464,6 +465,8 @@ export default function ArticleDetailScreen() {
   // Always navigate to the Lajme (news index) regardless of how the article
   // was opened — from home, from the news list, or from a related article.
   const onBack = useCallback(() => {
+    if (backDebounceRef.current) return;
+    backDebounceRef.current = true;
     // Defer navigation to avoid synchronous-unmount crash when the press
     // handler fires while React is in the middle of a commit phase.
     setTimeout(() => {
@@ -472,6 +475,8 @@ export default function ArticleDetailScreen() {
       } else {
         router.navigate('/(tabs)/news');
       }
+      // Reset the debounce after the navigation has had time to commit.
+      setTimeout(() => { backDebounceRef.current = false; }, 500);
     }, 0);
   }, [router]);
 
@@ -519,6 +524,32 @@ export default function ArticleDetailScreen() {
     () => [styles.scrollContent, { paddingTop: navBarHeight, paddingBottom: insets.bottom + 24 }],
     [navBarHeight, insets.bottom],
   );
+
+  // ── Error (no stale data to fall back on) ──────────────────────────────
+  if (postQuery.isError && !postQuery.data) {
+    return (
+      <View style={styles.screen}>
+        {articleNav}
+        <View style={[styles.emptyStateWrap, { paddingTop: navBarHeight + 12, paddingBottom: insets.bottom + spacing.xl }]}>
+          <Ionicons name="alert-circle-outline" size={48} color={colors.primary} />
+          <Text style={styles.emptyStateTitle}>Gabim gjatë ngarkimit</Text>
+          <Text style={styles.emptyStateSubtitle}>
+            Artikulli nuk mund të ngarkohet. Kontrollo lidhjen.
+          </Text>
+          <Pressable
+            onPress={() => postQuery.refetch()}
+            style={({ pressed }) => [
+              styles.retryButton,
+              pressed && { opacity: 0.8, transform: [{ scale: 0.97 }] },
+            ]}
+          >
+            <Ionicons name="refresh-outline" size={18} color="#FFFFFF" />
+            <Text style={styles.retryButtonText}>Provo Përsëri</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   // ── Loading ─────────────────────────────────────────────────────────────
   if (postQuery.isLoading) {
@@ -1538,6 +1569,25 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     textAlign: 'center',
+  },
+
+  // ── Error retry ──────────────────────────────────────────────────────
+  retryButton: {
+    marginTop: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.pill,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontFamily: fonts.uiBold,
+    fontSize: 14,
+    letterSpacing: 0.2,
   },
 
 });
