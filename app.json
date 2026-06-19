@@ -16,6 +16,8 @@
       "url": "https://u.expo.dev/fe78ac82-1bdf-4cb4-ba40-4a369f6673d9"
     },
     "splash": {
+      "image": "./assets/images/darklogortvfontana.png",
+      "resizeMode": "contain",
       "backgroundColor": "#0B1220"
     },
     "ios": {
@@ -65,6 +67,9 @@
       [
         "expo-splash-screen",
         {
+          "image": "./assets/images/darklogortvfontana.png",
+          "imageWidth": 250,
+          "resizeMode": "contain",
           "backgroundColor": "#0B1220"
         }
       ],
