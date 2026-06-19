@@ -1,11 +1,16 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useMemo } from 'react';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useEffect, useMemo } from 'react';
 import { Tabs } from 'expo-router';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 // A-3: deep import skips loading all other icon sets' glyph maps.
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { fonts } from '../../constants/tokens';
+import { fonts, motion } from '../../constants/tokens';
 import { useTheme } from '../../providers/ThemeProvider';
 import type { ThemeColors } from '../../providers/ThemeProvider';
 
@@ -29,35 +34,62 @@ const TAB_LABELS: Record<TabRoute, string> = {
   news: 'Lajme',
 };
 
+const TAB_COUNT = TAB_ROUTES.length;
+const BAR_HEIGHT = 64;
+const BUBBLE_SIZE = 56;
+const BUBBLE_ELEVATION = 14;
+
 function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
   const safeBottom = Math.max(insets.bottom, 10);
   const styles = useMemo(() => getStyles(colors), [colors]);
 
+  const tabWidth = screenWidth / TAB_COUNT;
+  const activeIndex = state.index;
+
+  // Animated notch position — glides to the active tab centre.
+  const notchX = useSharedValue(activeIndex * tabWidth + tabWidth / 2);
+  useEffect(() => {
+    notchX.value = withSpring(activeIndex * tabWidth + tabWidth / 2, {
+      stiffness: motion.springSnappy.stiffness,
+      damping: motion.springSnappy.damping,
+      mass: motion.springSnappy.mass,
+    });
+  }, [activeIndex, tabWidth, notchX]);
+
+  const bubbleStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: notchX.value - BUBBLE_SIZE / 2 }],
+  }));
+
   return (
-    <View style={[styles.tabBar, { paddingBottom: safeBottom, height: 64 + safeBottom }]}>
+    <View style={[styles.tabBar, { height: BAR_HEIGHT + safeBottom, paddingBottom: safeBottom }]}>
+      {/* Elevated active bubble — coloured circle rising above the bar */}
+      <Animated.View style={[styles.bubbleWrap, bubbleStyle]}>
+        <View style={styles.bubble}>
+          <Ionicons
+            name={ICONS_ACTIVE[TAB_ROUTES[activeIndex]]}
+            size={24}
+            color={colors.surface}
+          />
+        </View>
+      </Animated.View>
+
+      {/* Tab pressables — sit on top so they receive touches */}
       {state.routes.map((route, index) => {
         const name = route.name as TabRoute;
         if (!TAB_ROUTES.includes(name)) return null;
 
         const focused = state.index === index;
         const iconName = focused ? ICONS_ACTIVE[name] : ICONS_INACTIVE[name];
-        const iconColor = focused ? colors.navy : colors.textMuted;
+        const iconColor = focused ? colors.surface : colors.textMuted;
 
         const onPress = () => {
           import('expo-haptics')
             .then((Haptics) => Haptics.selectionAsync())
             .catch(() => undefined);
 
-          // Always land on the news listing, never a stale open article.
-          // Previously used router.replace('/news') which dispatched StackActions.replace
-          // on the ROOT navigator, wiping the parent navigation state. After that,
-          // the CommonActions.navigate dispatch from the Home screen (openPost) could
-          // no longer attach the nested [slug] route — only the tab switch fired and
-          // the article never opened. Fix: navigate within the tabs navigator itself,
-          // passing screen:'index' so the news stack pops any open article back to the
-          // listing before switching, without touching the root stack at all.
           if (name === 'news') {
             navigation.navigate('news', { screen: 'index' });
             return;
@@ -81,18 +113,14 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
             style={styles.tabItem}
             android_ripple={{ color: 'transparent' }}
           >
-            {/* Indicator track — always rendered so icons stay vertically aligned */}
-            <View style={styles.indicatorTrack}>
-              <View style={[styles.indicatorPill, focused && styles.indicatorPillActive]} />
+            {/* Icon slot — empty when active (the bubble provides the icon) */}
+            <View style={styles.iconSlot}>
+              {focused ? null : <Ionicons name={iconName} size={22} color={iconColor} />}
             </View>
 
-            {/* Icon + label — centered in the remaining space below the indicator */}
-            <View style={styles.iconLabel}>
-              <Ionicons name={iconName} size={22} color={iconColor} />
-              <Text style={[styles.label, focused && styles.labelFocused]}>
-                {TAB_LABELS[name]}
-              </Text>
-            </View>
+            <Text style={[styles.label, focused && styles.labelFocused]}>
+              {TAB_LABELS[name]}
+            </Text>
           </Pressable>
         );
       })}
@@ -108,8 +136,6 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         lazy: true,
-        // AUDIT FIX P1.4: freezeOnBlur stops off-screen tabs from
-        // reconciling, animating, and consuming CPU.
         freezeOnBlur: true,
         animation: 'none',
         sceneStyle: { backgroundColor: colors.surface },
@@ -128,48 +154,52 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.surface,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.borderSubtle,
-    elevation: 0,
-    shadowColor: colors.navy,
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: -2 },
+    overflow: 'visible',
   },
   tabItem: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'flex-start',
+    justifyContent: 'flex-end',
   },
-  // Always-present track reserves the 3px indicator slot so every tab's
-  // icon sits at the same vertical position regardless of active state.
-  indicatorTrack: {
-    width: '100%',
-    alignItems: 'center',
-    paddingTop: 0,
-  },
-  indicatorPill: {
-    width: 70,
-    height: 3,
-    borderRadius: 3,
-    backgroundColor: colors.borderSubtle,
-  },
-  indicatorPillActive: {
-    backgroundColor: colors.navy,
-  },
-  iconLabel: {
-    flex: 1,
+  iconSlot: {
+    width: BUBBLE_SIZE,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    paddingBottom: 2,
   },
   label: {
     fontFamily: fonts.uiMedium,
     fontSize: 10.5,
     letterSpacing: 0.3,
     color: colors.textMuted,
+    marginBottom: 4,
   },
   labelFocused: {
     fontFamily: fonts.uiBold,
     color: colors.navy,
+  },
+
+  // ── Elevated bubble ───────────────────────────────────────────────────
+  bubbleWrap: {
+    position: 'absolute',
+    top: -(BUBBLE_SIZE / 2) + BUBBLE_ELEVATION,
+    width: BUBBLE_SIZE,
+    height: BUBBLE_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  bubble: {
+    width: BUBBLE_SIZE,
+    height: BUBBLE_SIZE,
+    borderRadius: BUBBLE_SIZE / 2,
+    backgroundColor: colors.navy,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.navy,
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
 });
