@@ -15,11 +15,12 @@ import Animated, {
 import { useTheme } from '../../providers/ThemeProvider';
 
 // ─── constants ────────────────────────────────────────────────────────────────
-// Must stay in sync with the expo-splash-screen plugin imageWidth in app.json.
+// Logo size matches the visual identity spec — native splash now shows only
+// the #0B1220 background, so there is no longer a native logo to stay in sync with.
 const LOGO_SIZE = 250;
 
-const COLD_START_MIN_SPLASH_MS = 2600;
-const COLD_START_MAX_SPLASH_MS = 3800;
+const COLD_START_MIN_SPLASH_MS = 1600;
+const COLD_START_MAX_SPLASH_MS = 2600;
 const LOGO_FADE_DURATION = 200;
 const STAGE_2_DELAY = 100;
 const BG_COLOR_DURATION = 240;
