@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, RefreshControl, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ChevronRight, Menu, Search } from 'lucide-react-native';
@@ -160,6 +160,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
+  const refreshRunRef = useRef(0);
   const { colors, isDark } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -214,17 +215,23 @@ export default function HomeScreen() {
   );
 
   const onRefresh = useCallback(async () => {
+    const runId = refreshRunRef.current + 1;
+    refreshRunRef.current = runId;
     setRefreshing(true);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    await Promise.all([
-      heroQuery.refetch(),
-      breakingQuery.refetch(),
-      latestQuery.refetch(),
-      popularQuery.refetch(),
-    ]);
-
-    setRefreshing(false);
+    try {
+      await Promise.all([
+        heroQuery.refetch(),
+        breakingQuery.refetch(),
+        latestQuery.refetch(),
+        popularQuery.refetch(),
+      ]);
+    } finally {
+      if (refreshRunRef.current === runId) {
+        setRefreshing(false);
+      }
+    }
   }, [breakingQuery, heroQuery, latestQuery, popularQuery]);
 
   const onHeaderSearch = useCallback(() => {

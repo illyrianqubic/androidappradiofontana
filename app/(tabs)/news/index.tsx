@@ -4,6 +4,7 @@ import {
   InteractionManager,
   LayoutChangeEvent,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -339,10 +340,10 @@ export default function NewsIndexScreen() {
     return () => handle.cancel();
   }, [queryClient]);
 
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [bannerVisible, setBannerVisible] = useState(false);
   const refreshRunRef = useRef(0);
-  const [refreshResetKey, setRefreshResetKey] = useState(0);
   const onPullToRefresh = useCallback(async () => {
     const runId = refreshRunRef.current + 1;
     refreshRunRef.current = runId;
@@ -352,6 +353,7 @@ export default function NewsIndexScreen() {
       await Promise.race([
         Promise.allSettled([
           refetchPostsRef.current(),
+          queryClient.invalidateQueries({ queryKey: ['news-feed'] }),
           new Promise<void>((resolve) => setTimeout(resolve, REFRESH_MIN_VISIBLE_MS)),
         ]),
         new Promise<void>((resolve) => setTimeout(resolve, REFRESH_MAX_WAIT_MS)),
@@ -360,10 +362,9 @@ export default function NewsIndexScreen() {
       if (refreshRunRef.current === runId) {
         setIsRefreshing(false);
         setBannerVisible(false);
-        setRefreshResetKey((key) => key + 1);
       }
     }
-  }, []);
+  }, [queryClient]);
 
   // AUDIT FIX P2.6: idle-prefetch the first 3 visible posts after 2 s of
   // dwell time so the most likely next taps are near-instant. Declared
@@ -552,7 +553,6 @@ export default function NewsIndexScreen() {
         />
       ) : (
         <FlashList
-          key={`news-refresh-${refreshResetKey}`}
           ref={listRef}
           data={posts}
           keyExtractor={postKeyExtractor}
@@ -566,8 +566,14 @@ export default function NewsIndexScreen() {
           ListFooterComponent={loadMoreFooter}
           ListEmptyComponent={emptyState}
           extraData={colors}
-          refreshing={isRefreshing}
-          onRefresh={onPullToRefresh}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onPullToRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
           progressViewOffset={0}
           maintainVisibleContentPosition={DISABLE_MAINTAIN_VISIBLE_CONTENT_POSITION}
         />

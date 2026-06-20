@@ -3,6 +3,7 @@ import {
   AppState,
   InteractionManager,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -1426,8 +1427,14 @@ export default function HomeScreen() {
         ListFooterComponent={listFooter}
         renderItem={renderGridItem}
         getItemType={getGridItemType}
-        refreshing={isRefreshing}
-        onRefresh={onPullToRefresh}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onPullToRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
         progressViewOffset={0}
         maintainVisibleContentPosition={DISABLE_MAINTAIN_VISIBLE_CONTENT_POSITION}
       />

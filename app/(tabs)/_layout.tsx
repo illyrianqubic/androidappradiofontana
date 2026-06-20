@@ -30,7 +30,7 @@ const ICON_ZONE_HEIGHT = BAR_HEIGHT - DIVIDER_HEIGHT;
 const ICON_SIZE = 24;
 const LABEL_FONT_SIZE = 10;
 const LABEL_MARGIN_TOP = 2;
-const INDICATOR_HEIGHT = 3;
+const INDICATOR_HEIGHT = 4;
 const INDICATOR_MARGIN_BOTTOM = 4;
 
 // Vertical layout of the tab content (indicator + icon + label), centered in the icon zone.
@@ -48,7 +48,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const activeColor = isDark ? '#FFFFFF' : colors.navy;
 
   const tabWidth = screenWidth / TAB_COUNT;
-  const indicatorWidth = tabWidth * 0.8;
+  const indicatorWidth = tabWidth * 0.5;
   const activeIndex = state.index;
 
   // notchX tracks the horizontal centre of the active tab for the indicator.
@@ -82,7 +82,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
           style={[
             styles.indicator,
             indicatorStyle,
-            { backgroundColor: activeColor, width: indicatorWidth, top: COLUMN_TOP - 2 },
+            { backgroundColor: activeColor, width: indicatorWidth, top: 0 },
           ]}
           pointerEvents="none"
         />
