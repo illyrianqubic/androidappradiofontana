@@ -1,8 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useRouter } from 'expo-router';
-// A-3: deep import skips loading all other icon sets' glyph maps.
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { ChevronRight, Menu, Search } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -428,7 +427,7 @@ export default function HomeScreen() {
               <Text numberOfLines={1} style={styles.quickLinkTitle}>
                 {item.title}
               </Text>
-              <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+              <ChevronRight size={16} color={colors.textMuted} strokeWidth={1.5} />
             </Pressable>
           ))}
         </View>
@@ -447,11 +446,11 @@ export default function HomeScreen() {
 
           <View style={styles.headerActions}>
             <Pressable onPress={onHeaderSearch} style={styles.headerIconButton}>
-              <Ionicons name="search-outline" size={20} color={colors.text} />
+              <Search size={20} color={colors.text} strokeWidth={1.5} />
             </Pressable>
 
             <Pressable onPress={onHeaderMenu} style={styles.headerIconButton}>
-              <Ionicons name="options-outline" size={20} color={colors.text} />
+              <Menu size={20} color={colors.text} strokeWidth={1.5} />
             </Pressable>
           </View>
         </View>

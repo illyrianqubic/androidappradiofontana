@@ -12,8 +12,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-// A-3: deep import skips loading all other icon sets' glyph maps.
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Newspaper, Search, XCircle } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList, type FlashListRef, type ListRenderItemInfo } from '@shopify/flash-list';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
@@ -183,7 +182,7 @@ const SearchInput = memo(function SearchInput({
 
   return (
     <View style={S.searchRow}>
-      <Ionicons name="search-outline" size={16} color={colors.textMuted} style={S.searchIcon} />
+      <Search size={16} color={colors.textMuted} style={S.searchIcon} strokeWidth={1.5} />
       <TextInput
         value={value}
         onChangeText={setValue}
@@ -195,7 +194,7 @@ const SearchInput = memo(function SearchInput({
       />
       {value.length > 0 ? (
         <Pressable onPress={onClear} hitSlop={8} style={S.clearBtn}>
-          <Ionicons name="close-circle" size={16} color={colors.textMuted} />
+          <XCircle size={16} color={colors.textMuted} strokeWidth={1.5} />
         </Pressable>
       ) : null}
     </View>
@@ -431,7 +430,7 @@ export default function NewsIndexScreen() {
   const emptyState = useMemo(
     () => (
       <View style={S.emptyState}>
-        <Ionicons name="newspaper-outline" size={52} color={colors.border} />
+        <Newspaper size={52} color={colors.border} strokeWidth={1.5} />
         <Text style={S.emptyTitle}>Nuk ka lajme</Text>
         <Text style={S.emptySubtitle}>
           {debouncedSearch ? 'Provo me fjalë kyçe tjetër' : 'Zgjidh një kategori tjetër ose kthehu pas pak.'}

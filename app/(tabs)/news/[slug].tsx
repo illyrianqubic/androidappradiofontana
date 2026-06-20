@@ -23,8 +23,17 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-// A-3: deep import skips loading all other icon sets' glyph maps.
 import Ionicons from '@expo/vector-icons/Ionicons';
+import {
+  AlertCircle,
+  Check,
+  ChevronLeft,
+  FileText,
+  Link,
+  RefreshCw,
+  Share2,
+  X,
+} from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
@@ -501,7 +510,7 @@ export default function ArticleDetailScreen() {
           <View style={styles.articleNavSlot}>
             <Pressable onPress={onBack} hitSlop={12}>
               <View style={styles.articleNavButton}>
-                <Ionicons name="chevron-back" size={20} color={colors.inkDark} />
+                <ChevronLeft size={20} color={colors.inkDark} strokeWidth={1.5} />
               </View>
             </Pressable>
           </View>
@@ -531,7 +540,7 @@ export default function ArticleDetailScreen() {
       <View style={styles.screen}>
         {articleNav}
         <View style={[styles.emptyStateWrap, { paddingTop: navBarHeight + 12, paddingBottom: insets.bottom + spacing.xl }]}>
-          <Ionicons name="alert-circle-outline" size={48} color={colors.primary} />
+          <AlertCircle size={48} color={colors.primary} strokeWidth={1.5} />
           <Text style={styles.emptyStateTitle}>Gabim gjatë ngarkimit</Text>
           <Text style={styles.emptyStateSubtitle}>
             Artikulli nuk mund të ngarkohet. Kontrollo lidhjen.
@@ -543,7 +552,7 @@ export default function ArticleDetailScreen() {
               pressed && { opacity: 0.8, transform: [{ scale: 0.97 }] },
             ]}
           >
-            <Ionicons name="refresh-outline" size={18} color="#FFFFFF" />
+            <RefreshCw size={18} color="#FFFFFF" strokeWidth={1.5} />
             <Text style={styles.retryButtonText}>Provo Përsëri</Text>
           </Pressable>
         </View>
@@ -580,7 +589,7 @@ export default function ArticleDetailScreen() {
       <View style={styles.screen}>
         {articleNav}
         <View style={[styles.emptyStateWrap, { paddingTop: navBarHeight + 12, paddingBottom: insets.bottom + spacing.xl }]}>
-          <Ionicons name="document-outline" size={52} color={colors.rule} />
+          <FileText size={52} color={colors.rule} strokeWidth={1.5} />
           <Text style={styles.emptyStateTitle}>Artikulli nuk u gjet</Text>
           <Text style={styles.emptyStateSubtitle}>Provo përsëri pas pak ose kthehu te lista e lajmeve.</Text>
         </View>
@@ -671,31 +680,27 @@ export default function ArticleDetailScreen() {
               <Text style={styles.shareStripLabel}>Më pëlqeu? Ndaje me të tjerët.</Text>
               <View style={styles.shareIconRow}>
                 <ShareIcon
-                  icon="logo-facebook"
+                  icon={<Ionicons name="logo-facebook" size={20} color="#FFFFFF" />}
                   bg="#1877F2"
-                  iconColor="#FFFFFF"
                   onPress={onShareFacebook}
                   ariaLabel="Facebook"
                 />
                 <ShareIcon
-                  icon="logo-whatsapp"
+                  icon={<Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />}
                   bg="#25D366"
-                  iconColor="#FFFFFF"
                   onPress={onShareWhatsApp}
                   ariaLabel="WhatsApp"
                 />
                 <ShareIcon
-                  icon={linkCopied ? 'checkmark' : 'link-outline'}
+                  icon={linkCopied ? <Check size={20} color={colors.primary} strokeWidth={1.5} /> : <Link size={20} color={colors.inkDark} strokeWidth={1.5} />}
                   bg={linkCopied ? colors.redTint : colors.surfaceSubtle}
-                  iconColor={linkCopied ? colors.primary : colors.inkDark}
                   onPress={onCopyLink}
                   ariaLabel={linkCopied ? 'Kopjuar' : 'Kopjo linkun'}
                   border
                 />
                 <ShareIcon
-                  icon="share-social-outline"
+                  icon={<Share2 size={20} color={colors.inkDark} strokeWidth={1.5} />}
                   bg={colors.surfaceSubtle}
-                  iconColor={colors.inkDark}
                   onPress={onShareNative}
                   ariaLabel="Ndaj"
                   border
@@ -740,14 +745,12 @@ export default function ArticleDetailScreen() {
 function ShareIcon({
   icon,
   bg,
-  iconColor,
   onPress,
   ariaLabel,
   border,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: React.ReactNode;
   bg: string;
-  iconColor: string;
   onPress: () => void;
   ariaLabel: string;
   border?: boolean;
@@ -766,7 +769,7 @@ function ShareIcon({
         pressed && { transform: [{ scale: 0.94 }], opacity: 0.85 },
       ]}
     >
-      <Ionicons name={icon} size={20} color={iconColor} />
+      {icon}
     </Pressable>
   );
 }
@@ -991,7 +994,7 @@ const ShareFab = memo(function ShareFab({
           elevation: 4,
         }}
       >
-        <Ionicons name="share-social-outline" size={24} color={colors.surface} />
+        <Share2 size={24} color={colors.surface} strokeWidth={1.5} />
       </Pressable>
     </Animated.View>
   );
@@ -1116,7 +1119,7 @@ const ImageLightbox = memo(function ImageLightbox({
           </Animated.View>
         </GestureDetector>
         <Pressable style={lightboxStyles.closeBtn} onPress={onClose}>
-          <Ionicons name="close" size={28} color={colors.surface} />
+          <X size={28} color={colors.surface} strokeWidth={1.5} />
         </Pressable>
       </View>
     </Modal>

@@ -1,7 +1,15 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-// A-3: deep import skips loading all other icon sets' glyph maps.
-import Ionicons from '@expo/vector-icons/Ionicons';
+import {
+  ChevronRight,
+  Clock,
+  Loader,
+  Moon,
+  Pause,
+  Play,
+  Radio,
+  Wifi,
+} from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -173,11 +181,11 @@ export default function LiveScreen() {
     ? 'PO LIDHET...'
     : 'NDAL';
 
-  const playIconName: 'pause' | 'play' | 'ellipsis-horizontal' = isPlaying
-    ? 'pause'
+  const PlayIcon = isPlaying
+    ? Pause
     : isBufferingOrReconnecting
-    ? 'ellipsis-horizontal'
-    : 'play';
+    ? Loader
+    : Play;
 
   const headerHeight = insets.top + 66;
 
@@ -211,10 +219,10 @@ export default function LiveScreen() {
 
           {/* Radio icon box */}
           <View style={[styles.iconBox, isPlaying && styles.iconBoxPlaying]}>
-            <Ionicons
-              name="radio-outline"
+            <Radio
               size={s(28)}
               color={isPlaying ? colors.primary : colors.textMuted}
+              strokeWidth={1.5}
             />
           </View>
 
@@ -241,11 +249,11 @@ export default function LiveScreen() {
               pressed && styles.playBtnPressed,
             ]}
           >
-            <Ionicons
-              name={playIconName}
+            <PlayIcon
               size={s(36)}
               color={colors.surface}
-              style={playIconName === 'play' ? styles.playIconNudge : undefined}
+              strokeWidth={1.5}
+              style={PlayIcon === Play ? styles.playIconNudge : undefined}
             />
           </Pressable>
 
@@ -264,10 +272,10 @@ export default function LiveScreen() {
               pressed && styles.sleepBtnPressed,
             ]}
           >
-            <Ionicons
-              name={sleepSecondsLeft !== null ? 'moon' : 'moon-outline'}
+            <Moon
               size={s(14)}
               color={sleepSecondsLeft !== null ? colors.primary : colors.textMuted}
+              strokeWidth={1.5}
             />
             <Text
               style={[
@@ -292,12 +300,12 @@ export default function LiveScreen() {
         <View style={[styles.bottomZone, { paddingBottom: insets.bottom + s(14) }]}>
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
-              <Ionicons name="time-outline" size={s(22)} color={colors.textMuted} />
+              <Clock size={s(22)} color={colors.textMuted} strokeWidth={1.5} />
               <Text style={styles.statVal}>24/7</Text>
               <Text style={styles.statLbl}>LIVE</Text>
             </View>
             <View style={styles.statCard}>
-              <Ionicons name="wifi-outline" size={s(22)} color={colors.textMuted} />
+              <Wifi size={s(22)} color={colors.textMuted} strokeWidth={1.5} />
               <Text style={styles.statVal}>FM</Text>
               <Text style={styles.statLbl}>98.8</Text>
             </View>
@@ -328,10 +336,10 @@ export default function LiveScreen() {
                 ]}
               >
                 <Text style={styles.modalOptionText}>{opt.label}</Text>
-                <Ionicons
-                  name="chevron-forward"
+                <ChevronRight
                   size={s(18)}
                   color={colors.textMuted}
+                  strokeWidth={1.5}
                 />
               </Pressable>
             ))}

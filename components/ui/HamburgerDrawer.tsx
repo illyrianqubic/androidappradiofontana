@@ -34,7 +34,19 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
 } from 'react-native-reanimated';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Home,
+  Info,
+  Moon,
+  Newspaper,
+  Phone,
+  Radio,
+  Sun,
+} from 'lucide-react-native';
+import type { LucideIcon } from 'lucide-react-native';
 import { useDrawer } from '../../providers/DrawerProvider';
 import { useTheme } from '../../providers/ThemeProvider';
 import type { ThemeColors } from '../../providers/ThemeProvider';
@@ -316,7 +328,7 @@ function HamburgerDrawerInner() {
               <View style={S.sectionCard}>
                 <Text style={S.sectionLabel}>Navigimi</Text>
                 <NavItem
-                  icon="home-outline"
+                  icon={Home}
                   label="Kryefaqja"
                   detail="Pamja kryesore"
                   path="/(tabs)"
@@ -324,7 +336,7 @@ function HamburgerDrawerInner() {
                   onNavigate={navigate}
                 />
                 <NavItem
-                  icon="radio-outline"
+                  icon={Radio}
                   label="Drejtpërdrejt"
                   detail="Radio live"
                   path="/(tabs)/live"
@@ -342,17 +354,17 @@ function HamburgerDrawerInner() {
                 >
                   {isNewsActive ? <View style={S.activeRail} /> : null}
                   <View style={[S.navIconBox, isNewsActive && S.navIconBoxActive]}>
-                    <Ionicons name="newspaper-outline" size={18} color={isNewsActive ? colors.primary : colors.textMuted} />
+                    <Newspaper size={18} color={isNewsActive ? colors.primary : colors.textMuted} strokeWidth={1.5} />
                   </View>
                   <View style={S.navTextWrap}>
                     <Text style={[S.navLabel, isNewsActive && S.navLabelActive]}>Lajme</Text>
                     <Text style={S.navDetail}>Kategoritë kryesore</Text>
                   </View>
-                  <Ionicons
-                    name={lajmeExpanded ? 'chevron-up' : 'chevron-down'}
-                    size={14}
-                    color={isNewsActive ? colors.primary : colors.textTertiary}
-                  />
+                  {lajmeExpanded ? (
+                    <ChevronUp size={14} color={isNewsActive ? colors.primary : colors.textTertiary} strokeWidth={1.5} />
+                  ) : (
+                    <ChevronDown size={14} color={isNewsActive ? colors.primary : colors.textTertiary} strokeWidth={1.5} />
+                  )}
                 </Pressable>
 
                 {lajmeExpanded ? (
@@ -378,7 +390,7 @@ function HamburgerDrawerInner() {
               <View style={S.sectionCard}>
                 <Text style={S.sectionLabel}>Stacioni</Text>
                 <NavItem
-                  icon="information-circle-outline"
+                  icon={Info}
                   label="Rreth Nesh"
                   detail="Profili i radios"
                   path="/rreth-nesh"
@@ -386,7 +398,7 @@ function HamburgerDrawerInner() {
                   onNavigate={navigate}
                 />
                 <NavItem
-                  icon="call-outline"
+                  icon={Phone}
                   label="Na Kontakto"
                   detail="Telefon, email, rrjete"
                   path="/na-kontakto"
@@ -417,7 +429,11 @@ function HamburgerDrawerInner() {
                   ]}
                 >
                   <View style={S.navIconBox}>
-                    <Ionicons name={isDark ? 'moon-outline' : 'sunny-outline'} size={18} color={colors.textMuted} />
+                    {isDark ? (
+                      <Moon size={18} color={colors.textMuted} strokeWidth={1.5} />
+                    ) : (
+                      <Sun size={18} color={colors.textMuted} strokeWidth={1.5} />
+                    )}
                   </View>
                   <View style={S.navTextWrap}>
                     <Text style={S.navLabel}>{isDark ? 'Tema e Errët' : 'Tema e Çelur'}</Text>
@@ -441,7 +457,7 @@ function HamburgerDrawerInner() {
                     <Image source={require('../../assets/images/logo-blue-transparent.png')} style={S.iconPickerImage} contentFit="contain" />
                     {appIcon === 'light' ? (
                       <View style={[S.iconPickerCheck, { backgroundColor: colors.primary }]}>
-                        <Ionicons name="checkmark" size={12} color={colors.surface} />
+                        <Check size={12} color={colors.surface} strokeWidth={1.5} />
                       </View>
                     ) : null}
                   </Pressable>
@@ -452,7 +468,7 @@ function HamburgerDrawerInner() {
                     <Image source={require('../../assets/images/logo-white-transparent.png')} style={S.iconPickerImage} contentFit="contain" />
                     {appIcon === 'dark' ? (
                       <View style={[S.iconPickerCheck, { backgroundColor: colors.primary }]}>
-                        <Ionicons name="checkmark" size={12} color={colors.surface} />
+                        <Check size={12} color={colors.surface} strokeWidth={1.5} />
                       </View>
                     ) : null}
                   </Pressable>
@@ -502,14 +518,14 @@ const openLink = async (url: string) => {
 };
 
 const NavItem = memo(function NavItem({
-  icon,
+  icon: Icon,
   label,
   detail,
   path,
   active = false,
   onNavigate,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: LucideIcon;
   label: string;
   detail: string;
   path: string;
@@ -527,7 +543,7 @@ const NavItem = memo(function NavItem({
     <Pressable onPress={handlePress} style={pressableStyle}>
       {active ? <View style={S.activeRail} /> : null}
       <View style={[S.navIconBox, active && S.navIconBoxActive]}>
-        <Ionicons name={icon} size={18} color={active ? colors.primary : colors.textMuted} />
+        <Icon size={18} color={active ? colors.primary : colors.textMuted} strokeWidth={1.5} />
       </View>
       <View style={S.navTextWrap}>
         <Text style={[S.navLabel, active && S.navLabelActive]}>{label}</Text>

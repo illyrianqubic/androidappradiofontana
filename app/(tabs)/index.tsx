@@ -13,8 +13,20 @@ import {
 import { useRouter } from 'expo-router';
 import { CommonActions, useNavigation } from '@react-navigation/native';
 import type { NavigationState } from '@react-navigation/native';
-// A-3: deep import skips loading all other icon sets' glyph maps.
-import Ionicons from '@expo/vector-icons/Ionicons';
+import {
+  ChevronRight,
+  Cloud,
+  CloudLightning,
+  CloudRain,
+  CloudSnow,
+  CloudSun,
+  Play,
+  Search,
+  Sun,
+  Wind,
+  X,
+} from 'lucide-react-native';
+import type { LucideIcon } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -78,15 +90,15 @@ type WeatherResponse = {
   };
 };
 
-function wInfo(code: number): { label: string; icon: keyof typeof Ionicons.glyphMap } {
-  if (code === 0)  return { label: 'E kthjellët',      icon: 'sunny-outline'        };
-  if (code <= 3)   return { label: 'Me re të lehta',   icon: 'partly-sunny-outline' };
-  if (code <= 48)  return { label: 'Mjegull',           icon: 'cloud-outline'        };
-  if (code <= 57)  return { label: 'Vesë e lehtë',      icon: 'rainy-outline'        };
-  if (code <= 67)  return { label: 'Shi',               icon: 'rainy-outline'        };
-  if (code <= 77)  return { label: 'Borë',              icon: 'snow-outline'         };
-  if (code <= 82)  return { label: 'Rrebeshe shi',      icon: 'thunderstorm-outline' };
-  return                  { label: 'Stuhi',             icon: 'thunderstorm-outline' };
+function wInfo(code: number): { label: string; icon: LucideIcon } {
+  if (code === 0)  return { label: 'E kthjellët',      icon: Sun          };
+  if (code <= 3)   return { label: 'Me re të lehta',   icon: CloudSun     };
+  if (code <= 48)  return { label: 'Mjegull',           icon: Cloud        };
+  if (code <= 57)  return { label: 'Vesë e lehtë',      icon: CloudRain    };
+  if (code <= 67)  return { label: 'Shi',               icon: CloudRain    };
+  if (code <= 77)  return { label: 'Borë',              icon: CloudSnow    };
+  if (code <= 82)  return { label: 'Rrebeshe shi',      icon: CloudLightning };
+  return                  { label: 'Stuhi',             icon: CloudLightning };
 }
 
 type ForecastDay = { label: string; max: number; min: number; code: number };
@@ -163,6 +175,7 @@ const WeatherWidget = memo(function WeatherWidget() {
   if (isError) return null;
 
   const info = data ? wInfo(data.current.weathercode) : null;
+  const WeatherIcon = info?.icon;
   const forecast = data ? getForecast(data) : [];
 
   return (
@@ -184,7 +197,7 @@ const WeatherWidget = memo(function WeatherWidget() {
           {isLoading || !data ? (
             <View style={styles.weatherIconPlaceholder} />
           ) : (
-            <Ionicons name={info!.icon} size={36} color={colors.inkDark} />
+            WeatherIcon ? <WeatherIcon size={36} color={colors.inkDark} strokeWidth={1.5} /> : null
           )}
         </View>
 
@@ -198,7 +211,7 @@ const WeatherWidget = memo(function WeatherWidget() {
             <View style={styles.weatherRight}>
               <Text style={styles.weatherCondition}>{info?.label}</Text>
               <View style={styles.weatherWindRow}>
-                <Ionicons name="flag-outline" size={12} color={colors.textMuted} />
+                <Wind size={12} color={colors.textMuted} strokeWidth={1.5} />
                 <Text style={styles.weatherWind}>
                   {Math.round(data.current.windspeed_10m)} km/h erë
                 </Text>
@@ -210,13 +223,16 @@ const WeatherWidget = memo(function WeatherWidget() {
         {/* 3-day forecast row */}
         {!(isLoading || !data) && forecast.length > 0 ? (
           <Animated.View style={[styles.weatherForecastRow, revealStyle]}>
-            {forecast.map((day) => (
-              <View key={day.label} style={styles.weatherForecastDay}>
-                <Text style={styles.weatherForecastLabel}>{day.label}</Text>
-                <Ionicons name={wInfo(day.code).icon} size={20} color={colors.textSecondary} />
-                <Text style={styles.weatherForecastTemp}>{day.min}° / {day.max}°</Text>
-              </View>
-            ))}
+            {forecast.map((day) => {
+              const DayIcon = wInfo(day.code).icon;
+              return (
+                <View key={day.label} style={styles.weatherForecastDay}>
+                  <Text style={styles.weatherForecastLabel}>{day.label}</Text>
+                  <DayIcon size={20} color={colors.textSecondary} strokeWidth={1.5} />
+                  <Text style={styles.weatherForecastTemp}>{day.min}° / {day.max}°</Text>
+                </View>
+              );
+            })}
           </Animated.View>
         ) : null}
       </View>
@@ -601,7 +617,7 @@ const LatestNewsHeader = memo(function LatestNewsHeader({
         {onSeeAll ? (
           <Pressable onPress={onSeeAll} hitSlop={10} style={styles.latestSeeAll}>
             <Text style={styles.latestSeeAllText}>Të gjitha</Text>
-            <Ionicons name="chevron-forward" size={13} color={colors.primary} />
+            <ChevronRight size={13} color={colors.primary} strokeWidth={1.5} />
           </Pressable>
         ) : null}
       </View>
@@ -830,7 +846,7 @@ const RadioLiveBanner = memo(function RadioLiveBanner({ onPress }: { onPress: ()
           {/* ── Right: play CTA ────────────────────────────── */}
           <View style={styles.radioRight}>
             <View style={styles.radioPlayCircle}>
-              <Ionicons name="play" size={s(18)} color={colors.navyFixed} style={styles.radioPlayIconNudge} />
+              <Play size={s(18)} color={colors.navyFixed} style={styles.radioPlayIconNudge} strokeWidth={1.5} />
             </View>
             <Text style={styles.radioPlayLabel}>DËGJO</Text>
           </View>
@@ -1315,7 +1331,7 @@ export default function HomeScreen() {
       <View style={[styles.headerShell, { paddingTop: insets.top }]}>
         {isSearchActive ? (
           <View style={styles.searchRow}>
-            <Ionicons name="search-outline" size={18} color={colors.textMuted} style={{ marginLeft: 4 }} />
+            <Search size={18} color={colors.textMuted} style={{ marginLeft: 4 }} strokeWidth={1.5} />
             <TextInput
               ref={searchInputRef}
               style={styles.searchInput}
@@ -1327,7 +1343,7 @@ export default function HomeScreen() {
               autoCorrect={false}
             />
             <Pressable onPress={exitSearch} style={styles.headerIconBtn} hitSlop={8}>
-              <Ionicons name="close-outline" size={22} color={colors.text} />
+              <X size={22} color={colors.text} strokeWidth={1.5} />
             </Pressable>
           </View>
         ) : (
@@ -1336,7 +1352,7 @@ export default function HomeScreen() {
             <View style={styles.headerSpacer} />
             <View style={styles.headerActions}>
               <Pressable onPress={onHeaderSearch} style={styles.headerIconBtn} hitSlop={8}>
-                <Ionicons name="search-outline" size={20} color={colors.text} />
+                <Search size={20} color={colors.text} strokeWidth={1.5} />
               </Pressable>
               <HamburgerButton />
             </View>
@@ -1371,7 +1387,7 @@ export default function HomeScreen() {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.searchEmpty}>
-              <Ionicons name="search-outline" size={44} color={colors.textFaint} />
+              <Search size={44} color={colors.textFaint} strokeWidth={1.5} />
               <Text style={styles.searchEmptyTitle}>Asnjë rezultat</Text>
               <Text style={styles.searchEmptyText}>
                 Nuk u gjet asnjë artikull për "{searchQuery}"

@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useMemo } from 'react';
 import { useRouter } from 'expo-router';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { ChevronLeft } from 'lucide-react-native';
 import { fonts } from '../../constants/tokens';
 import { useTheme } from '../../providers/ThemeProvider';
 import type { ThemeColors } from '../../providers/ThemeProvider';
@@ -28,7 +28,7 @@ export function StaticPageHeader({ title, topInset }: StaticPageHeaderProps) {
           style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
           hitSlop={10}
         >
-          <Ionicons name="chevron-back" size={24} color={colors.text} />
+          <ChevronLeft size={24} color={colors.text} strokeWidth={1.5} />
         </Pressable>
         <Text numberOfLines={1} style={styles.headerTitle}>
           {title}
