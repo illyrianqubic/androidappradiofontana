@@ -30,7 +30,6 @@ const ICON_ZONE_HEIGHT = BAR_HEIGHT - DIVIDER_HEIGHT;
 const ICON_SIZE = 24;
 const LABEL_FONT_SIZE = 10;
 const LABEL_MARGIN_TOP = 2;
-const INDICATOR_WIDTH = 24;
 const INDICATOR_HEIGHT = 3;
 const INDICATOR_MARGIN_BOTTOM = 4;
 
@@ -41,13 +40,15 @@ const COLUMN_TOP = (ICON_ZONE_HEIGHT - COLUMN_HEIGHT) / 2;
 const ICON_TOP = COLUMN_TOP + INDICATOR_HEIGHT + INDICATOR_MARGIN_BOTTOM;
 
 function CustomTabBar({ state, navigation }: BottomTabBarProps) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const safeBottom = Math.max(insets.bottom, 10);
   const styles = useMemo(() => getStyles(colors), [colors]);
+  const activeColor = isDark ? '#FFFFFF' : colors.navy;
 
   const tabWidth = screenWidth / TAB_COUNT;
+  const indicatorWidth = tabWidth * 0.8;
   const activeIndex = state.index;
 
   // notchX tracks the horizontal centre of the active tab for the indicator.
@@ -61,8 +62,8 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   }, [activeIndex, tabWidth, notchX]);
 
   const indicatorStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: notchX.value - INDICATOR_WIDTH / 2 }],
-  }));
+    transform: [{ translateX: notchX.value - indicatorWidth / 2 }],
+  }), [indicatorWidth]);
 
   return (
     <View
@@ -78,7 +79,11 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
       <View style={[styles.iconZone, { width: screenWidth, height: ICON_ZONE_HEIGHT }]}>
         {/* Animated active indicator line */}
         <Animated.View
-          style={[styles.indicator, indicatorStyle]}
+          style={[
+            styles.indicator,
+            indicatorStyle,
+            { backgroundColor: activeColor, width: indicatorWidth, top: COLUMN_TOP - 2 },
+          ]}
           pointerEvents="none"
         />
 
@@ -88,7 +93,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
 
           const focused = state.index === index;
           const Icon = TAB_ICONS[name];
-          const tint = focused ? colors.primary : colors.textMuted;
+          const tint = focused ? activeColor : colors.textMuted;
 
           const onPress = () => {
             import('expo-haptics')
@@ -118,10 +123,12 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
               style={styles.tabItem}
               android_ripple={{ color: 'transparent' }}
             >
-              <Icon size={ICON_SIZE} color={tint} strokeWidth={1.5} />
-              <Text style={[styles.label, { color: tint, marginTop: LABEL_MARGIN_TOP }]}>
-                {route.name === 'index' ? 'Kryefaqja' : route.name === 'live' ? 'Live' : 'Lajme'}
-              </Text>
+              <View style={styles.tabContent}>
+                <Icon size={ICON_SIZE} color={tint} strokeWidth={1.5} />
+                <Text style={[styles.label, { color: tint, marginTop: LABEL_MARGIN_TOP }]}>
+                  {route.name === 'index' ? 'Kryefaqja' : route.name === 'live' ? 'Live' : 'Lajme'}
+                </Text>
+              </View>
             </Pressable>
           );
         })}
@@ -176,7 +183,6 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     position: 'absolute',
     top: COLUMN_TOP,
     left: 0,
-    width: INDICATOR_WIDTH,
     height: INDICATOR_HEIGHT,
     borderRadius: INDICATOR_HEIGHT / 2,
     backgroundColor: colors.primary,
@@ -185,6 +191,10 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingTop: ICON_TOP,
+  },
+  tabContent: {
+    alignItems: 'center',
+    transform: [{ translateY: -4 }],
   },
   label: {
     fontSize: LABEL_FONT_SIZE,

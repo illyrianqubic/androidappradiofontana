@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   ChevronRight,
   Clock,
@@ -101,7 +101,6 @@ export default function LiveScreen() {
   // ── Sleep timer ───────────────────────────────────────────────
   const [sleepSecondsLeft, setSleepSecondsLeft] = useState<number | null>(null);
   const [showSleepModal, setShowSleepModal] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const cancelSleepTimer = useCallback(() => {
@@ -153,13 +152,6 @@ export default function LiveScreen() {
     };
   }, []);
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    pause();
-    await play();
-    setTimeout(() => setRefreshing(false), 2000);
-  }, [pause, play]);
-
   const formatCountdown = (seconds: number) => {
     const m = Math.floor(seconds / 60);
     const sec = seconds % 60;
@@ -205,13 +197,6 @@ export default function LiveScreen() {
         contentContainerStyle={{ flexGrow: 1 }}
         showsVerticalScrollIndicator={false}
         alwaysBounceVertical
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.primary}
-          />
-        }
       >
         {/* ── Top zone: icon → play button ─────────────────────── */}
         <View style={[styles.topZone, { paddingTop: headerHeight + 24 }]}>
@@ -291,9 +276,7 @@ export default function LiveScreen() {
 
           <Equalizer playing={isPlaying} />
 
-          {refreshing && (
-            <Text style={styles.refreshText}>Duke u rilidh...</Text>
-          )}
+
         </View>
 
         {/* ── Bottom zone: stat cards ───────────────────────────── */}
@@ -631,12 +614,4 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: ms(15),
   },
 
-  // ── Pull-to-refresh text ────────────────────────────────────
-  refreshText: {
-    color: colors.primary,
-    fontFamily: fonts.uiBold,
-    fontSize: ms(12.5),
-    letterSpacing: 0.4,
-    marginTop: s(8),
-  },
 });
