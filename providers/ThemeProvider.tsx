@@ -29,11 +29,11 @@ const darkColors: ThemeColors = {
   textSecondary: '#cbd5e1',
   textMuted: '#94a3b8',
   textTertiary: '#64748b',
-  textFaint: '#475569',
+  textFaint: '#94a3b8',
   bgScreen: '#0B1220',
   inkDark: '#f1f5f9',
   inkSoft: '#94a3b8',
-  inkFaint: '#64748b',
+  inkFaint: '#94a3b8',
   paper: '#1e293b',
   rule: '#334155',
 };

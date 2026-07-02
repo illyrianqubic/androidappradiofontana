@@ -7,51 +7,87 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import { Home, Newspaper, Radio } from 'lucide-react-native';
-import type { LucideIcon } from 'lucide-react-native';
+import Svg, { Path } from 'react-native-svg';
+// A-3: deep import skips loading all other icon sets' glyph maps.
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { motion } from '../../constants/tokens';
+import { fonts, motion } from '../../constants/tokens';
 import { useTheme } from '../../providers/ThemeProvider';
 import type { ThemeColors } from '../../providers/ThemeProvider';
 
 const TAB_ROUTES = ['index', 'live', 'news'] as const;
 type TabRoute = (typeof TAB_ROUTES)[number];
 
-const TAB_ICONS: Record<TabRoute, LucideIcon> = {
-  index: Home,
-  live: Radio,
-  news: Newspaper,
+const ICONS_ACTIVE: Record<TabRoute, keyof typeof Ionicons.glyphMap> = {
+  index: 'home',
+  live: 'radio',
+  news: 'newspaper',
+};
+const ICONS_INACTIVE: Record<TabRoute, keyof typeof Ionicons.glyphMap> = {
+  index: 'home-outline',
+  live: 'radio',
+  news: 'newspaper-outline',
 };
 
 const TAB_COUNT = TAB_ROUTES.length;
-const BAR_HEIGHT = 56;
-const DIVIDER_HEIGHT = 0.5;
-const ICON_ZONE_HEIGHT = BAR_HEIGHT - DIVIDER_HEIGHT;
-const ICON_SIZE = 24;
-const LABEL_FONT_SIZE = 10;
-const LABEL_MARGIN_TOP = 2;
-const INDICATOR_HEIGHT = 4;
-const INDICATOR_MARGIN_BOTTOM = 4;
+const BAR_HEIGHT = 72;
 
-// Vertical layout of the tab content (indicator + icon + label), centered in the icon zone.
-const COLUMN_HEIGHT =
-  INDICATOR_HEIGHT + INDICATOR_MARGIN_BOTTOM + ICON_SIZE + LABEL_MARGIN_TOP + LABEL_FONT_SIZE;
-const COLUMN_TOP = (ICON_ZONE_HEIGHT - COLUMN_HEIGHT) / 2;
-const ICON_TOP = COLUMN_TOP + INDICATOR_HEIGHT + INDICATOR_MARGIN_BOTTOM;
+const LABELS: Record<TabRoute, string> = {
+  index: 'Kryefaqja',
+  live: 'Live',
+  news: 'Lajme',
+};
+
+const TAB_A11Y_LABELS: Record<TabRoute, string> = {
+  index: 'Kryefaqja',
+  live: 'Drejtpërdrejt Live',
+  news: 'Lajme',
+};
+const BUBBLE_SIZE = 56;
+const NOTCH_WIDTH = 64;
+const NOTCH_DEPTH = 28;
+const CORNER_RADIUS = 20;
+const NOTCH_STROKE_WIDTH = 2;
+
+// ─── SVG notch stroke path builder ───────────────────────────────────────────
+// Draws only the top edge of the bar (rounded corners + downward U notch) so
+// the curve is visible as a subtle border/stroke instead of an invisible fill.
+function buildNotchStrokePath(notchCx: number, barW: number): string {
+  const R = CORNER_RADIUS;
+  const halfW = NOTCH_WIDTH / 2;
+  const depth = NOTCH_DEPTH;
+  const nL = notchCx - halfW;
+  const nR = notchCx + halfW;
+  // Inset the stroke slightly so it sits fully inside the bar clip.
+  const y = NOTCH_STROKE_WIDTH / 2;
+
+  return [
+    `M 0 ${R + y}`,
+    `A ${R} ${R} 0 0 1 ${R} ${y}`,
+    `H ${nL}`,
+    `C ${nL} ${depth + y}, ${notchCx - halfW / 2} ${depth + y}, ${notchCx} ${depth + y}`,
+    `C ${notchCx + halfW / 2} ${depth + y}, ${nR} ${depth + y}, ${nR} ${y}`,
+    `H ${barW - R}`,
+    `A ${R} ${R} 0 0 1 ${barW} ${R + y}`,
+  ].join(' ');
+}
 
 function CustomTabBar({ state, navigation }: BottomTabBarProps) {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const safeBottom = Math.max(insets.bottom, 10);
   const styles = useMemo(() => getStyles(colors), [colors]);
-  const activeColor = isDark ? '#FFFFFF' : colors.navy;
 
   const tabWidth = screenWidth / TAB_COUNT;
-  const indicatorWidth = tabWidth * 0.5;
   const activeIndex = state.index;
 
-  // notchX tracks the horizontal centre of the active tab for the indicator.
+  // SVG is 2x screen width so the notch can translate to any tab position
+  // without revealing the SVG edge.
+  const svgWidth = screenWidth * 2;
+  const svgNotchCx = svgWidth / 2;
+
+  // notchX is the horizontal centre of the active tab.
   const notchX = useSharedValue(activeIndex * tabWidth + tabWidth / 2);
   useEffect(() => {
     notchX.value = withSpring(activeIndex * tabWidth + tabWidth / 2, {
@@ -61,77 +97,116 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
     });
   }, [activeIndex, tabWidth, notchX]);
 
-  const indicatorStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: notchX.value - indicatorWidth / 2 }],
-  }), [indicatorWidth]);
+  // Translate the SVG so its centre-notch aligns with the active tab centre.
+  const barSvgStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: notchX.value - svgNotchCx }],
+  }));
+
+  // Bubble translation — same X as the active tab centre.
+  const bubbleStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: notchX.value - BUBBLE_SIZE / 2 }],
+  }));
+
+  const notchPath = useMemo(
+    () => buildNotchStrokePath(svgNotchCx, svgWidth),
+    [svgNotchCx, svgWidth],
+  );
 
   return (
     <View
       style={[
         styles.tabBarContainer,
-        { height: BAR_HEIGHT + safeBottom, width: screenWidth },
+        { height: BAR_HEIGHT + safeBottom, backgroundColor: colors.surface },
       ]}
     >
-      {/* Top divider line */}
-      <View style={[styles.divider, { width: screenWidth }]} />
-
-      {/* Icon zone */}
-      <View style={[styles.iconZone, { width: screenWidth, height: ICON_ZONE_HEIGHT }]}>
-        {/* Animated active indicator line */}
-        <Animated.View
-          style={[
-            styles.indicator,
-            indicatorStyle,
-            { backgroundColor: activeColor, width: indicatorWidth, top: 0 },
-          ]}
-          pointerEvents="none"
-        />
-
-        {state.routes.map((route, index) => {
-          const name = route.name as TabRoute;
-          if (!TAB_ROUTES.includes(name)) return null;
-
-          const focused = state.index === index;
-          const Icon = TAB_ICONS[name];
-          const tint = focused ? activeColor : colors.textMuted;
-
-          const onPress = () => {
-            import('expo-haptics')
-              .then((Haptics) => Haptics.selectionAsync())
-              .catch(() => undefined);
-
-            if (name === 'news') {
-              navigation.navigate('news', { screen: 'index' });
-              return;
-            }
-
-            const event = navigation.emit({
-              type: 'tabPress',
-              target: route.key,
-              canPreventDefault: true,
-            });
-
-            if (!focused && !event.defaultPrevented) {
-              navigation.navigate(route.name);
-            }
-          };
-
-          return (
-            <Pressable
-              key={route.key}
-              onPress={onPress}
-              style={styles.tabItem}
-              android_ripple={{ color: 'transparent' }}
+      <View style={[styles.bar, { width: screenWidth, height: BAR_HEIGHT }]}>
+        {/* SVG notch stroke — behind tabs and bubble */}
+        <View style={[styles.svgClip, { width: screenWidth, height: BAR_HEIGHT }]}>
+          <Animated.View style={barSvgStyle}>
+            <Svg
+              width={svgWidth}
+              height={BAR_HEIGHT}
+              viewBox={`0 0 ${svgWidth} ${BAR_HEIGHT}`}
             >
-              <View style={styles.tabContent}>
-                <Icon size={ICON_SIZE} color={tint} strokeWidth={1.5} />
-                <Text style={[styles.label, { color: tint, marginTop: LABEL_MARGIN_TOP }]}>
-                  {route.name === 'index' ? 'Kryefaqja' : route.name === 'live' ? 'Live' : 'Lajme'}
-                </Text>
-              </View>
-            </Pressable>
-          );
-        })}
+              <Path
+                d={notchPath}
+                fill="none"
+                stroke={colors.border}
+                strokeWidth={NOTCH_STROKE_WIDTH}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
+          </Animated.View>
+        </View>
+
+        {/* Tab pressables — icon + label per tab */}
+        <View style={[styles.tabsRow, { width: screenWidth, height: BAR_HEIGHT }]}>
+          {state.routes.map((route, index) => {
+            const name = route.name as TabRoute;
+            if (!TAB_ROUTES.includes(name)) return null;
+
+            const focused = state.index === index;
+            const iconName = focused ? ICONS_ACTIVE[name] : ICONS_INACTIVE[name];
+            const iconColor = focused ? colors.surface : colors.textMuted;
+            const labelColor = focused ? colors.navy : colors.textMuted;
+
+            const onPress = () => {
+              import('expo-haptics')
+                .then((Haptics) => Haptics.selectionAsync())
+                .catch(() => undefined);
+
+              if (name === 'news') {
+                navigation.navigate('news', { screen: 'index' });
+                return;
+              }
+
+              const event = navigation.emit({
+                type: 'tabPress',
+                target: route.key,
+                canPreventDefault: true,
+              });
+
+              if (!focused && !event.defaultPrevented) {
+                navigation.navigate(route.name);
+              }
+            };
+
+            return (
+              <Pressable
+                key={route.key}
+                onPress={onPress}
+                style={styles.tabItem}
+                android_ripple={{ color: 'transparent' }}
+                accessibilityRole="tab"
+                accessibilityLabel={TAB_A11Y_LABELS[name]}
+              >
+                <View style={styles.tabItemInner}>
+                  {focused ? null : (
+                    <Ionicons name={iconName} size={22} color={iconColor} />
+                  )}
+                  <Text style={[styles.tabLabel, { color: labelColor }]}>
+                    {LABELS[name]}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* Active bubble — single navy circle centered inside the bar */}
+        <Animated.View
+          style={[styles.bubbleWrap, bubbleStyle]}
+          pointerEvents="none"
+        >
+          <View style={styles.bubble}>
+            <Ionicons
+              name={ICONS_ACTIVE[TAB_ROUTES[activeIndex]]}
+              size={24}
+              color={colors.surface}
+            />
+          </View>
+        </Animated.View>
       </View>
     </View>
   );
@@ -164,41 +239,68 @@ export default function TabsLayout() {
 const getStyles = (colors: ThemeColors) => StyleSheet.create({
   tabBarContainer: {
     position: 'relative',
-    backgroundColor: colors.surface,
+    width: '100%',
+    overflow: 'hidden',
+    borderTopLeftRadius: CORNER_RADIUS,
+    borderTopRightRadius: CORNER_RADIUS,
   },
-  divider: {
+  bar: {
     position: 'absolute',
     top: 0,
     left: 0,
-    height: DIVIDER_HEIGHT,
-    backgroundColor: colors.border,
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: CORNER_RADIUS,
+    borderTopRightRadius: CORNER_RADIUS,
+    overflow: 'visible',
   },
-  iconZone: {
+  svgClip: {
     position: 'absolute',
-    top: DIVIDER_HEIGHT,
+    top: 0,
     left: 0,
+    height: BAR_HEIGHT,
+    overflow: 'hidden',
+    borderTopLeftRadius: CORNER_RADIUS,
+    borderTopRightRadius: CORNER_RADIUS,
+  },
+  tabsRow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    height: BAR_HEIGHT,
     flexDirection: 'row',
-  },
-  indicator: {
-    position: 'absolute',
-    top: COLUMN_TOP,
-    left: 0,
-    height: INDICATOR_HEIGHT,
-    borderRadius: INDICATOR_HEIGHT / 2,
-    backgroundColor: colors.primary,
   },
   tabItem: {
     flex: 1,
     alignItems: 'center',
-    paddingTop: ICON_TOP,
+    justifyContent: 'center',
   },
-  tabContent: {
+  tabItemInner: {
     alignItems: 'center',
-    transform: [{ translateY: -4 }],
+    justifyContent: 'center',
+    paddingTop: 8,
   },
-  label: {
-    fontSize: LABEL_FONT_SIZE,
-    lineHeight: LABEL_FONT_SIZE + 2,
-    fontFamily: 'InterVariable',
+  tabLabel: {
+    fontSize: 10,
+    fontFamily: fonts.uiMedium,
+    marginTop: 2,
+  },
+
+  // ── Active bubble ─────────────────────────────────────────────────────
+  bubbleWrap: {
+    position: 'absolute',
+    top: (BAR_HEIGHT - BUBBLE_SIZE) / 2,
+    width: BUBBLE_SIZE,
+    height: BUBBLE_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  bubble: {
+    width: BUBBLE_SIZE,
+    height: BUBBLE_SIZE,
+    borderRadius: BUBBLE_SIZE / 2,
+    backgroundColor: colors.navy,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

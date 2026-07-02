@@ -47,6 +47,7 @@ import {
   Sun,
 } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useDrawer } from '../../providers/DrawerProvider';
 import { useTheme } from '../../providers/ThemeProvider';
 import type { ThemeColors } from '../../providers/ThemeProvider';
@@ -405,17 +406,19 @@ function HamburgerDrawerInner() {
                   active={isContactActive}
                   onNavigate={navigate}
                 />
-              </View>
 
-              <View style={S.contactCard}>
-                <Text style={S.sectionLabel}>Studio</Text>
+                <View style={S.softDivider} />
+
                 <ActionRow label="+383 44 150 027" action="Telefono" url="tel:+38344150027" />
                 <View style={S.softDivider} />
                 <ActionRow label="rtvfontana@gmail.com" action="Email" url="mailto:rtvfontana@gmail.com" />
+
                 <View style={S.softDivider} />
-                <View style={S.statusRow}>
-                  <Text style={S.statusText}>08:00 - 20:00</Text>
-                  <Text style={S.statusBadge}>AKTIV</Text>
+
+                <View style={S.socialRow}>
+                  {SOCIAL_LINKS.map((link) => (
+                    <SocialIconButton key={link.label} label={link.label} url={link.url} />
+                  ))}
                 </View>
               </View>
 
@@ -445,14 +448,13 @@ function HamburgerDrawerInner() {
                     thumbColor={Platform.OS === 'ios' ? undefined : isDark ? colors.primary : colors.surface}
                   />
                 </Pressable>
-              </View>
 
-              <View style={S.sectionCard}>
-                <Text style={S.sectionLabel}>Ikona e aplikacionit</Text>
+                <View style={S.softDivider} />
+
                 <View style={S.iconPickerRow}>
                   <Pressable
                     onPress={() => selectAppIcon('light')}
-                    style={[S.iconPickerBox, { backgroundColor: '#FFFFFF' }, appIcon === 'light' && { borderColor: colors.primary }]}
+                    style={({ pressed }) => [S.iconPickerBox, { backgroundColor: '#FFFFFF' }, appIcon === 'light' && { borderColor: colors.primary }, pressed && { opacity: 0.75, transform: [{ scale: 0.96 }] }]}
                   >
                     <Image source={require('../../assets/images/logo-blue-transparent.png')} style={S.iconPickerImage} contentFit="contain" />
                     {appIcon === 'light' ? (
@@ -463,7 +465,7 @@ function HamburgerDrawerInner() {
                   </Pressable>
                   <Pressable
                     onPress={() => selectAppIcon('dark')}
-                    style={[S.iconPickerBox, { backgroundColor: '#0B1220' }, appIcon === 'dark' && { borderColor: colors.primary }]}
+                    style={({ pressed }) => [S.iconPickerBox, { backgroundColor: '#0B1220' }, appIcon === 'dark' && { borderColor: colors.primary }, pressed && { opacity: 0.75, transform: [{ scale: 0.96 }] }]}
                   >
                     <Image source={require('../../assets/images/logo-white-transparent.png')} style={S.iconPickerImage} contentFit="contain" />
                     {appIcon === 'dark' ? (
@@ -472,18 +474,6 @@ function HamburgerDrawerInner() {
                       </View>
                     ) : null}
                   </Pressable>
-                </View>
-              </View>
-
-              <View style={S.socialCard}>
-                <View style={S.socialHeader}>
-                  <Text style={S.sectionLabel}>Kanale zyrtare</Text>
-                  <Text style={S.socialHint}>4 rrjete</Text>
-                </View>
-                <View style={S.socialGrid}>
-                  {SOCIAL_LINKS.map((link) => (
-                    <SocialChip key={link.label} label={link.label} url={link.url} />
-                  ))}
                 </View>
               </View>
 
@@ -605,12 +595,26 @@ const CategoryRow = memo(function CategoryRow({
   );
 });
 
-const SocialChip = memo(function SocialChip({ label, url }: { label: string; url: string }) {
-  const { S } = useDrawerStyles();
+const SocialIconButton = memo(function SocialIconButton({ label, url }: { label: string; url: string }) {
+  const { S, colors } = useDrawerStyles();
   const handlePress = useCallback(() => openLink(url), [url]);
+  const iconName = useMemo(() => {
+    switch (label) {
+      case 'Facebook': return 'logo-facebook' as const;
+      case 'Instagram': return 'logo-instagram' as const;
+      case 'YouTube': return 'logo-youtube' as const;
+      case 'TikTok': return 'logo-tiktok' as const;
+      default: return 'globe-outline' as const;
+    }
+  }, [label]);
   return (
-    <Pressable onPress={handlePress} style={({ pressed }: { pressed: boolean }) => [S.socialChip, pressed && S.socialChipPressed]}>
-      <Text style={S.socialLabel}>{label}</Text>
+    <Pressable onPress={handlePress} hitSlop={8} style={({ pressed }: { pressed: boolean }) => [
+      S.socialIconBtn,
+      pressed && S.socialIconBtnPressed,
+    ]}>
+      <View style={S.socialIconCircle}>
+        <Ionicons name={iconName} size={18} color={colors.textSecondary} />
+      </View>
     </Pressable>
   );
 });
@@ -805,14 +809,6 @@ const getS = (colors: ThemeColors) => StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
   },
-  contactCard: {
-    marginTop: spacing.sm,
-    padding: spacing.sm,
-    borderRadius: 22,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
   actionRow: {
     minHeight: 46,
     flexDirection: 'row',
@@ -838,75 +834,33 @@ const getS = (colors: ThemeColors) => StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     backgroundColor: colors.border,
     marginHorizontal: spacing.sm,
+    marginVertical: spacing.xs,
   },
-  statusRow: {
-    minHeight: 46,
+  socialRow: {
     flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.sm,
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.xs,
   },
-  statusText: {
-    flex: 1,
-    color: colors.textMuted,
-    fontFamily: fonts.uiMedium,
-    fontSize: 13,
-  },
-  statusBadge: {
-    color: colors.primary,
-    fontFamily: fonts.uiBold,
-    fontSize: 11,
-    letterSpacing: 0.7,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: radius.pill,
-    backgroundColor: colors.redTint,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.redBorder,
-  },
-  socialCard: {
-    marginTop: spacing.sm,
-    padding: spacing.sm,
-    borderRadius: 22,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  socialHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  socialHint: {
-    color: colors.textTertiary,
-    fontFamily: fonts.uiMedium,
-    fontSize: 11,
-    paddingRight: spacing.xs,
-    marginBottom: spacing.xs,
-  },
-  socialGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-  },
-  socialChip: {
-    flex: 1,
-    minWidth: '46%',
-    minHeight: 42,
+  socialIconBtn: {
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 15,
+  },
+  socialIconBtnPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.95 }],
+  },
+  socialIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.surfaceSubtle,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  socialChipPressed: {
-    backgroundColor: colors.redTint,
-  },
-  socialLabel: {
-    color: colors.text,
-    fontFamily: fonts.uiBold,
-    fontSize: 12,
   },
   legalLinks: {
     flexDirection: 'row',

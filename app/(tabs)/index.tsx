@@ -15,9 +15,11 @@ import { useRouter } from 'expo-router';
 import { CommonActions, useNavigation } from '@react-navigation/native';
 import type { NavigationState } from '@react-navigation/native';
 import {
+  AlertCircle,
   ChevronRight,
   Cloud,
   CloudLightning,
+  CloudOff,
   CloudRain,
   CloudSnow,
   CloudSun,
@@ -131,8 +133,8 @@ async function fetchWeatherIstog(signal?: AbortSignal): Promise<WeatherResponse>
 
 // ── WeatherWidget ──────────────────────────────────────────────────────────────
 const WeatherWidget = memo(function WeatherWidget() {
-  const { colors } = useTheme();
-  const styles = useMemo(() => getStyles(colors), [colors]);
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   // M30: pause weather polling when the app is backgrounded so the 15-min
   // timer doesn't wake the JS thread (and trigger a persisted-cache write)
   // while the user is in another app.
@@ -173,7 +175,34 @@ const WeatherWidget = memo(function WeatherWidget() {
     transform: [{ translateY: (1 - reveal.value) * 10 }],
   }));
 
-  if (isError) return null;
+  if (isError) {
+    return (
+      <View style={styles.weatherCard}>
+        <View style={styles.weatherInner}>
+          {/* Decorative depth circles */}
+          <View style={styles.weatherCircle} />
+          <View style={styles.weatherCircle2} />
+
+          {/* Header: location + live pill */}
+          <View style={styles.weatherTopRow}>
+            <View>
+              <Text style={styles.weatherCity}>Istog, Kosovë</Text>
+              <View style={styles.weatherLivePill}>
+                <View style={styles.weatherLiveDot} />
+                <Text style={styles.weatherSub}>Mësoni moti tani</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Error content */}
+          <View style={{ alignItems: 'center', justifyContent: 'center', flex: 1, minHeight: 60 }}>
+            <CloudOff size={20} color={colors.textFaint} strokeWidth={1.5} />
+            <Text style={styles.weatherErrorText}>Moti nuk disponohet</Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   const info = data ? wInfo(data.current.weathercode) : null;
   const WeatherIcon = info?.icon;
@@ -340,7 +369,8 @@ function BreakingTickerInner({ headlines }: { headlines: BreakingItem[] }) {
     if (!vw || !tw || !isFocusedRef.current || reducedMotionRef.current) return;
     cancelAnimation(translateX);
     translateX.value = vw;
-    const duration = ((vw + tw) / 50) * 1000;
+    const rawDuration = ((vw + tw) / 50) * 1000;
+    const duration = Math.max(3000, Math.min(10000, rawDuration));
     translateX.value = withTiming(-tw, { duration, easing: Easing.linear }, (finished) => {
       if (finished) runOnJS(advanceToNext)();
     });
@@ -405,7 +435,7 @@ function BreakingTickerInner({ headlines }: { headlines: BreakingItem[] }) {
   if (!currentHeadline) return null;
 
   return (
-    <Pressable onPress={onPressTicker} hitSlop={4} style={styles.breakingStrip}>
+    <Pressable onPress={onPressTicker} hitSlop={4} style={({ pressed }) => [styles.breakingStrip, pressed && { opacity: 0.82 }]}>
       <View style={styles.breakingLabel}>
         <Text style={styles.breakingLabelText}>LAJM I FUNDIT</Text>
       </View>
@@ -493,6 +523,8 @@ const HeroCard = memo(function HeroCard({
           styles.heroCard,
           pressed && { transform: [{ scale: 0.97 }], opacity: 0.92 },
         ]}
+        accessibilityRole="button"
+        accessibilityLabel={hero.title}
       >
         <View pointerEvents="none" style={styles.heroAccentRail} />
         {/* Image — cinematic 16:10, no overlays */}
@@ -616,7 +648,7 @@ const LatestNewsHeader = memo(function LatestNewsHeader({
           <Text style={styles.latestTitle}>Lajmet e Fundit</Text>
         </View>
         {onSeeAll ? (
-          <Pressable onPress={onSeeAll} hitSlop={10} style={styles.latestSeeAll}>
+          <Pressable onPress={onSeeAll} hitSlop={10} style={({ pressed }) => [styles.latestSeeAll, pressed && { opacity: 0.65 }]} accessibilityRole="button" accessibilityLabel="Shiko të gjitha lajmet">
             <Text style={styles.latestSeeAllText}>Të gjitha</Text>
             <ChevronRight size={13} color={colors.primary} strokeWidth={1.5} />
           </Pressable>
@@ -1216,10 +1248,15 @@ export default function HomeScreen() {
         <RadioLiveBanner onPress={onPressLive} />
 
         {/* ── HERO — only rendered when a featured or breaking post exists ── */}
-        {(heroQuery.isLoading || hero) && (
+        {(heroQuery.isLoading || hero || heroQuery.isError) && (
           <View style={styles.sectionBlock}>
             {hero ? (
               <HeroCard hero={hero} heroImageUri={heroImageUri} onPress={onPressPost} colors={colors} />
+            ) : heroQuery.isError ? (
+              <View style={styles.heroErrorPlaceholder}>
+                <AlertCircle size={28} color={colors.textMuted} strokeWidth={1.5} />
+                <Text style={styles.heroErrorText}>Lajmi kryesor nuk disponohet</Text>
+              </View>
             ) : (
               <SkeletonCard height={248} style={styles.heroSkeleton} />
             )}
@@ -1239,7 +1276,7 @@ export default function HomeScreen() {
     // AUDIT FIX: removed `latestData.length` — the memoized JSX never reads
     // `latestData`, so every time the latest-posts query resolved the entire
     // header (HeroCard, WeatherWidget, RadioLiveBanner) recomputed unnecessarily.
-    [hero, heroImageUri, heroQuery.isLoading, bannerVisible, onPressPost, onOpenNewsPage, onPressLive, styles],
+    [hero, heroImageUri, heroQuery.isLoading, heroQuery.isError, bannerVisible, onPressPost, onOpenNewsPage, onPressLive, styles],
   );
 
   // ── List footer: Lokale → Footer ──────────────────────────────────────────
@@ -1352,7 +1389,7 @@ export default function HomeScreen() {
             <Image source={isDark ? require('../../assets/images/logo-white-transparent.png') : require('../../assets/images/logo-blue-transparent.png')} contentFit="contain" priority="high" style={styles.headerLogo} />
             <View style={styles.headerSpacer} />
             <View style={styles.headerActions}>
-              <Pressable onPress={onHeaderSearch} style={styles.headerIconBtn} hitSlop={8}>
+              <Pressable onPress={onHeaderSearch} style={styles.headerIconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Kërko lajme">
                 <Search size={20} color={colors.text} strokeWidth={1.5} />
               </Pressable>
               <HamburgerButton />
@@ -1443,7 +1480,7 @@ export default function HomeScreen() {
 }
 
 // ── StyleSheet ─────────────────────────────────────────────────────────────────
-const getStyles = (colors: ThemeColors) => StyleSheet.create({
+const getStyles = (colors: ThemeColors, isDark = false) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.bgScreen,
@@ -1974,6 +2011,21 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
   heroSkeleton: {
     borderRadius: radius.card,
   },
+  heroErrorPlaceholder: {
+    borderRadius: radius.card,
+    backgroundColor: colors.surfaceSubtle,
+    minHeight: 248,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  heroErrorText: {
+    fontFamily: fonts.uiRegular,
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
   heroContent: {
     paddingLeft: 18,
     paddingRight: 14,
@@ -2049,7 +2101,7 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     width: s(190),
     height: s(190),
     borderRadius: s(95),
-    backgroundColor: 'rgba(0,0,0,0.025)',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.025)',
   },
   weatherCircle2: {
     position: 'absolute',
@@ -2058,7 +2110,7 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     width: s(140),
     height: s(140),
     borderRadius: s(70),
-    backgroundColor: 'rgba(0,0,0,0.018)',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.018)',
   },
   weatherTopRow: {
     flexDirection: 'row',
@@ -2136,6 +2188,13 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.textMuted,
     fontFamily: fonts.uiRegular,
     fontSize: 12,
+  },
+  weatherErrorText: {
+    color: colors.textFaint,
+    fontFamily: fonts.uiRegular,
+    fontSize: 11,
+    marginTop: 6,
+    textAlign: 'center',
   },
   weatherForecastRow: {
     flexDirection: 'row',

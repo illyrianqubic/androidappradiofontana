@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Newspaper, Search, XCircle } from 'lucide-react-native';
+import { AlertCircle, Newspaper, RefreshCw, Search, XCircle } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList, type FlashListRef, type ListRenderItemInfo } from '@shopify/flash-list';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
@@ -82,7 +82,7 @@ const FeaturedCard = memo(function FeaturedCard({ post, onPress, colors }: { pos
     <View style={SF.outer}>
       <Pressable
         onPress={onCardPress}
-        style={SF.inner}
+        style={({ pressed }) => [SF.inner, pressed && { opacity: 0.88, transform: [{ scale: 0.99 }] }]}
       >
         {/* Image — cinematic 16:10, no overlays */}
         <View style={SF.imageZone}>
@@ -149,7 +149,9 @@ const CategoryPill = memo(function CategoryPill({
       onPressIn={handlePressIn}
       onPress={handlePress}
       onLayout={onLayout}
-      style={[SP.pill, active && SP.pillActive]}
+      style={({ pressed }) => [SP.pill, active && SP.pillActive, pressed && { opacity: 0.75, transform: [{ scale: 0.95 }] }]}
+      accessibilityRole="tab"
+      accessibilityLabel={`Kategoria ${item.label}`}
     >
       <Text style={[SP.pillText, active && SP.pillTextActive]}>{item.label}</Text>
     </Pressable>
@@ -194,7 +196,7 @@ const SearchInput = memo(function SearchInput({
         clearButtonMode="while-editing"
       />
       {value.length > 0 ? (
-        <Pressable onPress={onClear} hitSlop={8} style={S.clearBtn}>
+        <Pressable onPress={onClear} hitSlop={8} style={({ pressed }) => [S.clearBtn, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Pastro kërkimin">
           <XCircle size={16} color={colors.textMuted} strokeWidth={1.5} />
         </Pressable>
       ) : null}
@@ -427,6 +429,30 @@ export default function NewsIndexScreen() {
     [showFeatured],
   );
 
+  // ── Error state ──────────────────────────────────────────────────────────
+  const errorState = useMemo(
+    () => (
+      <View style={S.errorContainer}>
+        <AlertCircle size={40} color={colors.textMuted} strokeWidth={1.5} />
+        <Text style={S.errorTitle}>Gabim gjatë ngarkimit</Text>
+        <Text style={S.errorSubtitle}>Kontrollo lidhjen dhe provo përsëri.</Text>
+        <Pressable
+          onPress={() => postsQuery.refetch()}
+          style={({ pressed }) => [
+            S.errorRetryBtn,
+            pressed && { opacity: 0.8, transform: [{ scale: 0.97 }] },
+          ]}
+          accessibilityLabel="Provo përsëri"
+          accessibilityRole="button"
+        >
+          <RefreshCw size={16} color={colors.surface} strokeWidth={1.5} />
+          <Text style={S.errorRetryText}>Provo Përsëri</Text>
+        </Pressable>
+      </View>
+    ),
+    [S, colors],
+  );
+
   // ── Empty state ────────────────────────────────────────────────────────────
   const emptyState = useMemo(
     () => (
@@ -564,7 +590,7 @@ export default function NewsIndexScreen() {
           getItemType={getPostItemType}
           ListHeaderComponent={refreshHeader}
           ListFooterComponent={loadMoreFooter}
-          ListEmptyComponent={emptyState}
+          ListEmptyComponent={postsQuery.isError && posts.length === 0 ? errorState : emptyState}
           extraData={colors}
           refreshControl={
             <RefreshControl
@@ -755,6 +781,42 @@ const getS = (colors: ThemeColors) => StyleSheet.create({
     height: 1,
     backgroundColor: colors.border,
     marginHorizontal: -14,
+  },
+  // Error state
+  errorContainer: {
+    paddingTop: 60,
+    paddingBottom: 40,
+    alignItems: 'center',
+    gap: 10,
+  },
+  errorTitle: {
+    fontFamily: fonts.uiBold,
+    fontSize: 15,
+    color: colors.text,
+    marginTop: 6,
+  },
+  errorSubtitle: {
+    fontFamily: fonts.uiRegular,
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: 'center',
+    paddingHorizontal: 32,
+    lineHeight: 20,
+  },
+  errorRetryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: colors.primary,
+  },
+  errorRetryText: {
+    fontFamily: fonts.uiBold,
+    fontSize: 13,
+    color: colors.surface,
   },
   // Empty state
   emptyState: {

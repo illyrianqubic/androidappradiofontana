@@ -592,6 +592,23 @@ export default function ArticleDetailScreen() {
           <FileText size={52} color={colors.rule} strokeWidth={1.5} />
           <Text style={styles.emptyStateTitle}>Artikulli nuk u gjet</Text>
           <Text style={styles.emptyStateSubtitle}>Provo përsëri pas pak ose kthehu te lista e lajmeve.</Text>
+          <Pressable
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/(tabs)/news');
+              }
+            }}
+            style={({ pressed }) => [
+              styles.backButton,
+              pressed && { opacity: 0.7 },
+            ]}
+            accessibilityLabel="Kthehu te lajmet"
+            accessibilityRole="button"
+          >
+            <Text style={styles.backButtonText}>← Kthehu te lajmet</Text>
+          </Pressable>
         </View>
       </View>
     );
@@ -1026,7 +1043,6 @@ const lightboxStyles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1118,7 +1134,7 @@ const ImageLightbox = memo(function ImageLightbox({
             <Image source={uri ? { uri } : undefined} style={lightboxStyles.image} />
           </Animated.View>
         </GestureDetector>
-        <Pressable style={lightboxStyles.closeBtn} onPress={onClose}>
+        <Pressable style={[lightboxStyles.closeBtn, { backgroundColor: colors.surface + '26' }]} onPress={onClose}>
           <X size={28} color={colors.surface} strokeWidth={1.5} />
         </Pressable>
       </View>
@@ -1574,6 +1590,16 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     textAlign: 'center',
   },
 
+  // ── Back button (not-found) ─────────────────────────────────────────
+  backButton: {
+    marginTop: spacing.md,
+  },
+  backButtonText: {
+    color: colors.primary,
+    fontFamily: fonts.uiBold,
+    fontSize: 14,
+  },
+
   // ── Error retry ──────────────────────────────────────────────────────
   retryButton: {
     marginTop: spacing.md,
@@ -1587,7 +1613,7 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     borderRadius: radius.pill,
   },
   retryButtonText: {
-    color: '#FFFFFF',
+    color: colors.surface,
     fontFamily: fonts.uiBold,
     fontSize: 14,
     letterSpacing: 0.2,

@@ -162,7 +162,10 @@ function NewsCardComponent({ post, compact = false, onPress, colors }: NewsCardP
       <View style={S.cOuter}>
         <Pressable
           onPress={onCardPress}
-          style={S.cInner}
+          style={({ pressed }) => [S.cInner, pressed && { opacity: 0.88, transform: [{ scale: 0.98 }] }]}
+          accessibilityRole="button"
+          accessibilityLabel={post.title}
+          accessibilityHint="Shtyp për të hapur artikullin"
         >
           <View style={S.cImgWrap}>
             <Image
@@ -188,7 +191,10 @@ function NewsCardComponent({ post, compact = false, onPress, colors }: NewsCardP
     <View style={S.outer}>
       <Pressable
         onPress={onCardPress}
-        style={S.inner}
+        style={({ pressed }) => [S.inner, pressed && { opacity: 0.88, transform: [{ scale: 0.99 }] }]}
+        accessibilityRole="button"
+        accessibilityLabel={post.title}
+        accessibilityHint="Shtyp për të hapur artikullin"
       >
         {/* Full-bleed 16:9 image — no text overlay */}
         <View style={S.imgWrap}>

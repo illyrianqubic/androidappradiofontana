@@ -29,7 +29,7 @@ import { appSettings } from '../storage';
 const reconnectDelaysMs = [1000, 2000, 4000, 8000, 16000, 30000];
 const AUDIO_DEBUG = __DEV__;
 
-const PlayerState = {
+export const PlayerState = {
   none: 0,
   connecting: 1,
   paused: 2,
@@ -37,6 +37,7 @@ const PlayerState = {
   buffering: 4,
   error: 5,
 } as const;
+export type PlayerStateValue = (typeof PlayerState)[keyof typeof PlayerState];
 
 // Resolve the local asset to a file:// URI so Android can use it as the
 // media notification largeIcon (square thumbnail on the left). Passing a raw
@@ -61,6 +62,7 @@ type AudioStateValue = {
   isBuffering: boolean;
   isReconnecting: boolean;
   playbackState: number;
+  reconnectAttempt: number;
 };
 
 type AudioActionsValue = {
@@ -75,6 +77,8 @@ type AudioContextValue = AudioStateValue & AudioActionsValue;
 type PlayerStateShape = AudioStateValue & {
   metadata: NowPlayingMetadata;
 };
+
+type PlayerStatePatch = Partial<PlayerStateShape>;
 
 function audioLog(message: string, details?: unknown) {
   if (!AUDIO_DEBUG) return;
@@ -104,6 +108,7 @@ const initialPlayerState: PlayerStateShape = {
   isBuffering: false,
   isReconnecting: false,
   playbackState: PlayerState.none,
+  reconnectAttempt: 0,
   metadata: {
     title: stationMetadata.title,
     artist: stationMetadata.artist,
@@ -256,7 +261,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     setState(next);
   }, []);
 
-  const { isReady, isPlaying, isBuffering, isReconnecting, playbackState, metadata } = state;
+  const { isReady, isPlaying, isBuffering, isReconnecting, playbackState, reconnectAttempt, metadata } = state;
 
   const clearReconnectTimeout = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -425,6 +430,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     }
     const delay = reconnectDelaysMs[Math.min(attempt, reconnectDelaysMs.length - 1)];
     reconnectAttemptRef.current += 1;
+    updateState({ reconnectAttempt: reconnectAttemptRef.current });
     audioLog('reconnect scheduled', { attempt, delay });
 
     // AUDIT FIX: replaced busy-wait ticker (recursive setTimeout every 200 ms)
@@ -503,6 +509,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         isBuffering: true,
         isReconnecting: true,
         playbackState: PlayerState.buffering,
+        reconnectAttempt: 0,
       });
       liveEdgeLoadingRef.current = true;
       try {
@@ -637,7 +644,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         clearReconnectTimeout();
         cancelPendingBufferingShow();
         void safeUpdateStationMetadata();
-        updateState(toStatePatch(event.state));
+        updateState({ ...toStatePatch(event.state), reconnectAttempt: 0 });
         return;
       }
 
@@ -794,8 +801,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       isBuffering,
       isReconnecting,
       playbackState,
+      reconnectAttempt,
     }),
-    [isReady, isPlaying, isBuffering, isReconnecting, playbackState],
+    [isReady, isPlaying, isBuffering, isReconnecting, playbackState, reconnectAttempt],
   );
 
   const metadataValue = useMemo<NowPlayingMetadata>(
