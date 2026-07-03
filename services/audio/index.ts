@@ -56,7 +56,7 @@ export type NowPlayingMetadata = {
   artist: string;
 };
 
-type AudioStateValue = {
+export type AudioStateValue = {
   isReady: boolean;
   isPlaying: boolean;
   isBuffering: boolean;
@@ -65,14 +65,14 @@ type AudioStateValue = {
   reconnectAttempt: number;
 };
 
-type AudioActionsValue = {
+export type AudioActionsValue = {
   play: () => Promise<void>;
   pause: () => void;
   toggle: () => void;
   reconnect: () => Promise<void>;
 };
 
-type AudioContextValue = AudioStateValue & AudioActionsValue;
+export type AudioContextValue = AudioStateValue & AudioActionsValue;
 
 type PlayerStateShape = AudioStateValue & {
   metadata: NowPlayingMetadata;
@@ -831,32 +831,40 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function useAudioState(): AudioStateValue {
+export function useAudioState(): AudioStateValue | null {
   const ctx = useContext(AudioStateContext);
   if (!ctx) {
-    throw new Error('useAudioState must be used inside AudioProvider');
+    audioLog('useAudioState used outside AudioProvider – returning null');
+    return null;
   }
   return ctx;
 }
 
-export function useAudioMetadata(): NowPlayingMetadata {
+export function useAudioMetadata(): NowPlayingMetadata | null {
   const ctx = useContext(AudioMetadataContext);
   if (!ctx) {
-    throw new Error('useAudioMetadata must be used inside AudioProvider');
+    audioLog('useAudioMetadata used outside AudioProvider – returning null');
+    return null;
   }
   return ctx;
 }
 
-export function useAudioActions(): AudioActionsValue {
+export function useAudioActions(): AudioActionsValue | null {
   const ctx = useContext(AudioActionsContext);
   if (!ctx) {
-    throw new Error('useAudioActions must be used inside AudioProvider');
+    audioLog('useAudioActions used outside AudioProvider – returning null');
+    return null;
   }
   return ctx;
 }
 
-export function useAudio(): AudioContextValue {
+export function useAudio(): AudioContextValue | null {
   const state = useAudioState();
   const actions = useAudioActions();
-  return useMemo(() => ({ ...state, ...actions }), [state, actions]);
+  return useMemo(() => {
+    if (!state || !actions) return null;
+    return { ...state, ...actions };
+  }, [state, actions]);
 }
+
+export { AudioStateContext, AudioMetadataContext, AudioActionsContext };

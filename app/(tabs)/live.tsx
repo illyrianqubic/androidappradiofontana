@@ -34,6 +34,7 @@ import type { ThemeColors } from '../../providers/ThemeProvider';
 import { ms, s } from '../../lib/responsive';
 import { useAudioActions, useAudioState, useAudioMetadata } from '../../services/audio';
 import { PlayerState } from '../../services/audio';
+import type { AudioStateValue, AudioActionsValue } from '../../services/audio';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PREMIUM CIRCLE — radial gradient album-art visualizer
@@ -498,7 +499,7 @@ const badgeStyles = StyleSheet.create({
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function NowPlayingMetadata({ colors }: { colors: ThemeColors }) {
-  const metadata = useAudioMetadata();
+  const metadata = useAudioMetadata() ?? { title: 'RTV Fontana 98.8 FM', artist: '' };
   const fadeOpacity = useSharedValue(1);
   const [displayedTitle, setDisplayedTitle] = useState('RTV Fontana 98.8 FM');
   const [displayedArtist, setDisplayedArtist] = useState('');
@@ -770,10 +771,25 @@ const pbStyles = StyleSheet.create({
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export default function LiveScreen() {
+  const audioState = useAudioState();
+  const audioActions = useAudioActions();
+
+  if (!audioState || !audioActions) return null;
+
+  return <LiveScreenInner audioState={audioState} audioActions={audioActions} />;
+}
+
+function LiveScreenInner({
+  audioState,
+  audioActions,
+}: {
+  audioState: AudioStateValue;
+  audioActions: AudioActionsValue;
+}) {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const { isPlaying, isReconnecting, isBuffering, playbackState, reconnectAttempt } = useAudioState();
-  const { toggle, play } = useAudioActions();
+  const { isPlaying, isReconnecting, isBuffering, playbackState, reconnectAttempt } = audioState;
+  const { toggle, play } = audioActions;
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   // ── Sleep timer ───────────────────────────────────────────────
