@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
   cancelAnimation,
+  runOnJS,
   useAnimatedStyle,
   useDerivedValue,
   useSharedValue,
@@ -249,11 +250,13 @@ const EqBar = memo(function EqBar({
 }: {
   maxH: number;
   offset: number;
-  phase: SharedValue<number>;
+  phase?: SharedValue<number>;
   staggerIndex: number;
   color: string;
   isAnimating: boolean;
 }) {
+  const fallbackPhase = useSharedValue(0);
+  const activePhase = phase ?? fallbackPhase;
   const staggerProgress = useSharedValue(isAnimating ? 1 : 0);
 
   useEffect(() => {
@@ -272,7 +275,7 @@ const EqBar = memo(function EqBar({
 
   const h = useDerivedValue(() => {
     'worklet';
-    const wave = (Math.sin((phase.value + offset) * Math.PI * 2) + 1) * 0.5;
+    const wave = (Math.sin((activePhase.value + offset) * Math.PI * 2) + 1) * 0.5;
     const fullH = EQ_MIN_H + (maxH - EQ_MIN_H) * wave;
     return fullH * staggerProgress.value;
   }, [maxH, offset]);
@@ -504,44 +507,63 @@ function NowPlayingMetadata({ colors }: { colors: ThemeColors }) {
   const [displayedTitle, setDisplayedTitle] = useState('RTV Fontana 98.8 FM');
   const [displayedArtist, setDisplayedArtist] = useState('');
   const prevKeyRef = useRef('');
+  const expectedKeyRef = useRef('');
+  const mountedRef = useRef(true);
 
   const currentKey = `${metadata.title}|${metadata.artist}`;
 
+  const applyText = useCallback((rawTitle: string, rawArtist: string, expectedKey: string) => {
+    if (!mountedRef.current || expectedKeyRef.current !== expectedKey) return;
+
+    let title: string;
+    let artist: string;
+
+    if (rawTitle && rawTitle !== 'RTV Fontana' && rawTitle !== 'Unknown') {
+      const dashIdx = rawTitle.indexOf(' - ');
+      if (dashIdx > 0) {
+        artist = rawTitle.slice(0, dashIdx).trim();
+        title = rawTitle.slice(dashIdx + 3).trim();
+      } else {
+        title = rawTitle;
+        artist = rawArtist && rawArtist !== 'Unknown' ? rawArtist : 'RTV Fontana 98.8 FM';
+      }
+    } else {
+      title = 'RTV Fontana 98.8 FM';
+      artist = rawArtist && rawArtist !== 'Unknown' ? rawArtist : 'Istog, Kosovë';
+    }
+
+    setDisplayedTitle(title);
+    setDisplayedArtist(artist);
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   useEffect(() => {
     if (currentKey === prevKeyRef.current) return;
+    const isFirstRender = prevKeyRef.current === '';
     prevKeyRef.current = currentKey;
+    expectedKeyRef.current = currentKey;
 
-    // Fade out
+    const rawTitle = metadata.title || '';
+    const rawArtist = metadata.artist || '';
+
+    if (isFirstRender) {
+      applyText(rawTitle, rawArtist, currentKey);
+      return;
+    }
+
+    // Fade out, then update text on the JS thread and fade back in.
     fadeOpacity.value = withTiming(0, { duration: 200 }, (finished) => {
       if (!finished) return;
-      // Update text
-      const rawTitle = metadata.title || '';
-      const rawArtist = metadata.artist || '';
-
-      let title: string;
-      let artist: string;
-
-      if (rawTitle && rawTitle !== 'RTV Fontana' && rawTitle !== 'Unknown') {
-        const dashIdx = rawTitle.indexOf(' - ');
-        if (dashIdx > 0) {
-          artist = rawTitle.slice(0, dashIdx).trim();
-          title = rawTitle.slice(dashIdx + 3).trim();
-        } else {
-          title = rawTitle;
-          artist = rawArtist && rawArtist !== 'Unknown' ? rawArtist : 'RTV Fontana 98.8 FM';
-        }
-      } else {
-        title = 'RTV Fontana 98.8 FM';
-        artist = rawArtist && rawArtist !== 'Unknown' ? rawArtist : 'Istog, Kosovë';
-      }
-
-      setDisplayedTitle(title);
-      setDisplayedArtist(artist);
-
-      // Fade in
+      runOnJS(applyText)(rawTitle, rawArtist, expectedKeyRef.current);
       fadeOpacity.value = withTiming(1, { duration: 300 });
     });
-  }, [currentKey, metadata.title, metadata.artist, fadeOpacity]);
+  }, [currentKey, metadata.title, metadata.artist, fadeOpacity, applyText]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: fadeOpacity.value,
