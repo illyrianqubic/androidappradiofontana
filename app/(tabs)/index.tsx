@@ -12,8 +12,7 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { CommonActions, useNavigation } from '@react-navigation/native';
-import type { NavigationState } from '@react-navigation/native';
+
 import {
   AlertCircle,
   ChevronRight,
@@ -342,7 +341,7 @@ function BreakingTickerInner({ headlines }: { headlines: BreakingItem[] }) {
   const onPressTicker = useCallback(() => {
     const slug = currentHeadline?.slug;
     if (!slug) return;
-    router.push(`/(tabs)/news/${slug}`);
+    router.push(`/article/${slug}`);
   }, [router, currentHeadline]);
 
   // Forward-declare startAnim ref so advanceToNext can call it for the single-headline loop.
@@ -505,11 +504,13 @@ const HeroCard = memo(function HeroCard({
   hero,
   heroImageUri,
   onPress,
+  onPressIn,
   colors,
 }: {
   hero: Post;
   heroImageUri: string | null;
   onPress: (post: Post) => void;
+  onPressIn?: (post: Post) => void;
   colors: ThemeColors;
 }) {
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -519,6 +520,7 @@ const HeroCard = memo(function HeroCard({
     <View style={styles.heroOuter}>
       <Pressable
         onPress={() => onPress(hero)}
+        onPressIn={() => onPressIn?.(hero)}
         style={({ pressed }) => [
           styles.heroCard,
           pressed && { transform: [{ scale: 0.97 }], opacity: 0.92 },
@@ -569,12 +571,13 @@ const HeroCard = memo(function HeroCard({
 }, (prev, next) =>
   prev.colors === next.colors &&
   prev.onPress === next.onPress &&
+  prev.onPressIn === next.onPressIn &&
   prev.heroImageUri === next.heroImageUri &&
   samePreviewPost(prev.hero, next.hero),
 );
 
 // ── LocalCard (compact overlay card for horizontal rail) ──────────────────────
-const LocalCard = memo(function LocalCard({ post, onPress, colors }: { post: Post; onPress: (p: Post) => void; colors: ThemeColors }) {
+const LocalCard = memo(function LocalCard({ post, onPress, onPressIn, colors }: { post: Post; onPress: (p: Post) => void; onPressIn?: (p: Post) => void; colors: ThemeColors }) {
   const styles = useMemo(() => getStyles(colors), [colors]);
   const imageUri = useMemo(
     () => buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.feedThumb),
@@ -585,6 +588,7 @@ const LocalCard = memo(function LocalCard({ post, onPress, colors }: { post: Pos
     <View style={styles.localOuter}>
       <Pressable
         onPress={() => onPress(post)}
+        onPressIn={() => onPressIn?.(post)}
         style={({ pressed }) => [
           styles.localCard,
           pressed && { transform: [{ scale: 0.97 }], opacity: 0.92 },
@@ -614,6 +618,7 @@ const LocalCard = memo(function LocalCard({ post, onPress, colors }: { post: Pos
 }, (prev, next) =>
   prev.colors === next.colors &&
   prev.onPress === next.onPress &&
+  prev.onPressIn === next.onPressIn &&
   samePreviewPost(prev.post, next.post),
 );
 
@@ -663,11 +668,13 @@ const GridItem = memo(function GridItem({
   item,
   isLeft,
   onPress,
+  onPressIn,
   colors,
 }: {
   item: Post;
   isLeft: boolean;
   onPress: (p: Post) => void;
+  onPressIn?: (p: Post) => void;
   colors: ThemeColors;
 }) {
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -684,6 +691,7 @@ const GridItem = memo(function GridItem({
     <View style={[styles.gridColumn, isLeft ? styles.gridColLeft : styles.gridColRight]}>
       <Pressable
         onPress={() => onPress(item)}
+        onPressIn={() => onPressIn?.(item)}
         style={({ pressed }) => [
           styles.gridCard,
           pressed && { transform: [{ scale: 0.97 }], opacity: 0.92 },
@@ -722,6 +730,7 @@ const GridItem = memo(function GridItem({
   prev.isLeft === next.isLeft &&
   prev.colors === next.colors &&
   prev.onPress === next.onPress &&
+  prev.onPressIn === next.onPressIn &&
   samePreviewPost(prev.item, next.item),
 );
 
@@ -896,7 +905,6 @@ export default function HomeScreen() {
   const { colors, isDark } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const router = useRouter();
-  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const [isSearchActive, setIsSearchActive] = useState(false);
@@ -1036,86 +1044,45 @@ export default function HomeScreen() {
     transform: [{ translateY: interpolate(bandVisible.value, [0, 1], [-BREAKING_H, 0]) }],
   }));
   const isOpeningArticleRef = useRef(false);
-  const onPressPost = useCallback(
+  const prefetchArticle = useCallback(
     (post: Post) => {
-      if (isOpeningArticleRef.current) return;
-      isOpeningArticleRef.current = true;
       // Prefetch the same URL the article hero will request so the image bind
       // hits expo-image cache after navigation instead of downloading a
       // second, larger Sanity variant.
       // M-C3: routed through queueImagePrefetch so rapid taps cap at 3 in-flight.
       queueImagePrefetch(buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.articleHero));
-      // AUDIT FIX P2.5: warm both the route module bundle AND the
-      // post-detail query so the article can render the moment the slide
-      // animation completes. Saves ~400–700 ms perceived per article open.
+      // Warm the route module bundle so the slide animation can start immediately.
+      router.prefetch(`/article/${post.slug}`);
+      // Warm the post query so content is ready the moment the route lands.
       // We use the real fetchPostBySlug (not Promise.resolve(post)) because
       // the listing object lacks `body[]` — seeding it would let
       // useQuery treat the cached value as fresh and skip the body fetch.
-      router.prefetch(`/news/${post.slug}`);
-      // PROFILING FIX (round 2): staleTime Infinity makes a second prefetch
-      // for the same slug a no-op while data exists or a fetch is in-flight,
-      // and lets useQuery on the article screen treat the result as fresh
-      // forever (combined with `refetchOnMount: false` there).
       queryClient.prefetchQuery({
-        queryKey: ['post-detail', post.slug],
+        queryKey: ['post', post.slug],
         queryFn: ({ signal }) => fetchPostBySlug(post.slug, signal),
+        // Infinity makes repeated prefetches a no-op while data/a fetch is
+        // in-flight. The article screen observer sets its own 5-min staleTime.
         staleTime: Infinity,
       });
-      // Navigate to the article from the home screen.
-      //
-      // Root cause of the "second tap only switches tabs" bug:
-      //   TabRouter.getStateForAction for NAVIGATE merges route params when the
-      //   target tab already has state. The nested `screen:'[slug]'` param is
-      //   stored on the route object but NEVER forwarded as a navigate action to
-      //   the inner StackRouter. So the tab switches (correct) but the stack
-      //   doesn't move (bug). This initial-state mechanism only fires on the very
-      //   first visit when the tab has no existing state.
-      //
-      // Fix (two-dispatch approach):
-      //   When the news stack already exists (has a key), dispatch TWO synchronous
-      //   actions that React Navigation batches into one state commit:
-      //     1. Focus the news tab.
-      //     2. Navigate within the news stack by targeting it directly via its key.
-      //   When the news stack doesn't exist yet (first visit), fall back to the
-      //   single-dispatch initial-state approach which still works correctly.
-      const tabsState = navigation.getState();
-      const newsRoute = tabsState?.routes?.find((r) => r.name === 'news');
-      const newsStackKey = (newsRoute?.state as NavigationState | undefined)?.key;
+    },
+    [queryClient, router],
+  );
 
-      if (newsStackKey) {
-        // Step 1: focus the tab (no-op if already focused).
-        navigation.dispatch(CommonActions.navigate({ name: 'news' }));
-        // Step 2: reset the news stack to [news list → article].
-        // Using reset guarantees the user never accumulates multiple articles
-        // when browsing from home — back always returns to the news list.
-        navigation.dispatch({
-          ...CommonActions.reset({
-            index: 1,
-            routes: [
-              { name: 'index' },
-              { name: '[slug]', params: { slug: post.slug } },
-            ],
-          }),
-          target: newsStackKey,
-        });
-      } else {
-        // First visit — tab uninitialized, initial-state mechanism handles nesting.
-        navigation.dispatch(
-          CommonActions.navigate({
-            name: 'news',
-            params: { screen: '[slug]', initial: false, params: { slug: post.slug } },
-          }),
-        );
-      }
+  const onPressPost = useCallback(
+    (post: Post) => {
+      if (isOpeningArticleRef.current) return;
+      isOpeningArticleRef.current = true;
+      prefetchArticle(post);
+      router.push(`/article/${post.slug}`);
       setTimeout(() => {
         isOpeningArticleRef.current = false;
       }, 300);
     },
-    [navigation, queryClient, router],
+    [prefetchArticle, router],
   );
 
   // AUDIT FIX P2.6: after the home screen has been idle for 2 s, warm up
-  // the article route + post-detail query for the first 3 visible posts.
+  // the article route + post query for the first 3 visible posts.
   // PERF FIX: wrap the work in InteractionManager so it never fires while
   // the user is still actively scrolling/animating — prevents the prefetch
   // burst from competing with frame production.
@@ -1127,13 +1094,8 @@ export default function HomeScreen() {
     const t = setTimeout(() => {
       interactionHandle = InteractionManager.runAfterInteractions(() => {
         for (const slug of slugs) {
-          router.prefetch(`/news/${slug}`);
-          queryClient.prefetchQuery({
-            queryKey: ['post-detail', slug],
-            queryFn: ({ signal }) => fetchPostBySlug(slug, signal),
-            // PROFILING FIX (round 2): see same comment in onPressPost.
-            staleTime: Infinity,
-          });
+          const post = latestData.find((p) => p.slug === slug);
+          if (post) prefetchArticle(post);
         }
       });
     }, 2000);
@@ -1211,7 +1173,7 @@ export default function HomeScreen() {
           </View>
         );
       }
-      return <GridItem item={item} isLeft={isLeft} onPress={onPressPost} colors={colors} />;
+      return <GridItem item={item} isLeft={isLeft} onPress={onPressPost} onPressIn={prefetchArticle} colors={colors} />;
     },
     [onPressPost, styles],
   );
@@ -1251,7 +1213,7 @@ export default function HomeScreen() {
         {(heroQuery.isLoading || hero || heroQuery.isError) && (
           <View style={styles.sectionBlock}>
             {hero ? (
-              <HeroCard hero={hero} heroImageUri={heroImageUri} onPress={onPressPost} colors={colors} />
+              <HeroCard hero={hero} heroImageUri={heroImageUri} onPress={onPressPost} onPressIn={prefetchArticle} colors={colors} />
             ) : heroQuery.isError ? (
               <View style={styles.heroErrorPlaceholder}>
                 <AlertCircle size={28} color={colors.textMuted} strokeWidth={1.5} />
@@ -1299,7 +1261,7 @@ export default function HomeScreen() {
                 removeClippedSubviews
               >
                 {localData.map((post) => (
-                  <LocalCard key={post._id} post={post} onPress={onPressPost} colors={colors} />
+                  <LocalCard key={post._id} post={post} onPress={onPressPost} onPressIn={prefetchArticle} colors={colors} />
                 ))}
               </ScrollView>
             </View>

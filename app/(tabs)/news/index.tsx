@@ -280,19 +280,18 @@ export default function NewsIndexScreen() {
       // does not fetch a second, larger Sanity image variant.
       // M-C3: capped at 3 concurrent so card-mashing never floods the socket pool.
       queueImagePrefetch(buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.articleHero));
-      // AUDIT FIX P2.5: warm route module + post-detail query so the article
+      // AUDIT FIX P2.5: warm route module + post query so the article
       // screen renders the moment the slide animation completes.
-      router.prefetch(`/news/${post.slug}`);
+      router.prefetch(`/article/${post.slug}`);
       queryClient.prefetchQuery({
-        queryKey: ['post-detail', post.slug],
+        queryKey: ['post', post.slug],
         queryFn: ({ signal }) => fetchPostBySlug(post.slug, signal),
         // PROFILING FIX (round 2): see comment in (tabs)/index.tsx.
         staleTime: Infinity,
       });
-      // FIX: was router.replace — that swapped the listing for the article
-      // and made back skip lajme entirely. router.push keeps the listing in
-      // the back stack so back returns to it (FlashList preserves scroll).
-      router.push({ pathname: '/news/[slug]', params: { slug: post.slug } });
+      // Article now lives in the root stack so it opens above the current tab.
+      // Back naturally returns to whichever tab (Home or News) opened it.
+      router.push(`/article/${post.slug}`);
     },
     [router, queryClient],
   );
@@ -390,9 +389,9 @@ export default function NewsIndexScreen() {
       // the UI thread.
       interactionHandle = InteractionManager.runAfterInteractions(() => {
         for (const slug of slugs) {
-          router.prefetch(`/news/${slug}`);
+          router.prefetch(`/article/${slug}`);
           queryClient.prefetchQuery({
-            queryKey: ['post-detail', slug],
+            queryKey: ['post', slug],
             queryFn: ({ signal }) => fetchPostBySlug(slug, signal),
             // PROFILING FIX (round 2): see comment in (tabs)/index.tsx.
             staleTime: Infinity,

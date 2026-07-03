@@ -99,7 +99,7 @@ const persister = createAsyncStoragePersister({
 });
 
 const SKIP_PERSIST_KEYS: ReadonlySet<string> = new Set([
-  'post-detail',
+  'post',
   'news-feed',
   'related-posts',
   'home-popular',

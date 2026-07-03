@@ -1,7 +1,8 @@
 import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
-import { buildSanityImageUrl, defaultThumbhash, sanityImageWidths, type Post } from '../../services/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { buildSanityImageUrl, defaultThumbhash, fetchPostBySlug, sanityImageWidths, type Post } from '../../services/api';
 import { fonts } from '../../constants/tokens';
 import { RelativeTime } from '../ui/RelativeTime';
 import { isBreakingBadgeVisible } from '../../lib/breakingBadge';
@@ -139,6 +140,7 @@ const getStyles = (colors: ThemeColors) =>
 
 function NewsCardComponent({ post, compact = false, onPress, colors }: NewsCardProps) {
   const cat = post.categories?.[0] ?? 'Lajme';
+  const queryClient = useQueryClient();
 
   const imageUri = useMemo(
     () => buildSanityImageUrl(
@@ -149,6 +151,14 @@ function NewsCardComponent({ post, compact = false, onPress, colors }: NewsCardP
   );
 
   const onCardPress = useCallback(() => { onPress?.(post); }, [onPress, post]);
+  const handlePressIn = useCallback(() => {
+    if (!post.slug) return;
+    queryClient.prefetchQuery({
+      queryKey: ['post', post.slug],
+      queryFn: ({ signal }) => fetchPostBySlug(post.slug, signal),
+      staleTime: 5 * 60 * 1000,
+    });
+  }, [queryClient, post.slug]);
 
 
   const S = useMemo(() => getStyles(colors), [colors]);
@@ -162,6 +172,7 @@ function NewsCardComponent({ post, compact = false, onPress, colors }: NewsCardP
       <View style={S.cOuter}>
         <Pressable
           onPress={onCardPress}
+          onPressIn={handlePressIn}
           style={({ pressed }) => [S.cInner, pressed && { opacity: 0.88, transform: [{ scale: 0.98 }] }]}
           accessibilityRole="button"
           accessibilityLabel={post.title}
@@ -191,6 +202,7 @@ function NewsCardComponent({ post, compact = false, onPress, colors }: NewsCardP
     <View style={S.outer}>
       <Pressable
         onPress={onCardPress}
+        onPressIn={handlePressIn}
         style={({ pressed }) => [S.inner, pressed && { opacity: 0.88, transform: [{ scale: 0.99 }] }]}
         accessibilityRole="button"
         accessibilityLabel={post.title}

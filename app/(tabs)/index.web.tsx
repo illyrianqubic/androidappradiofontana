@@ -202,7 +202,7 @@ export default function HomeScreen() {
 
   const onPressPost = useCallback(
     (post: Post) => {
-      router.push({ pathname: '/(tabs)/news/[slug]', params: { slug: post.slug } });
+      router.push(`/article/${post.slug}`);
     },
     [router],
   );

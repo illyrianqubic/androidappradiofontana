@@ -13,7 +13,7 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 // AUDIT FIX P1.2 + P6.22: Merriweather is no longer loaded at root — it's
-// lazy-loaded by app/(tabs)/news/[slug].tsx (the only screen that uses
+// lazy-loaded by app/article/[slug].tsx (the only screen that uses
 // serif body text) via expo-font/loadAsync. The Black weight is dropped
 // entirely (was unused outside two stylesheet definitions, both now mapped
 // to Bold). Saves ~200–250 ms cold start (3 fewer font HTTP fetches +
@@ -183,7 +183,7 @@ const persister = createAsyncStoragePersister({
 
 // C4: skip persisting heavy / per-tab queries that bloat the cache and add
 // nothing the app cannot recompute on next open.
-//   - article body (`post-detail`) is up to 100KB+ of portable text
+//   - article body (`post`) is up to 100KB+ of portable text
 //   - per-category news feeds (`news-feed`) accumulate ~60KB per tab visited
 //   - related posts re-derive instantly from cached categories
 //   - secondary home rails (`home-popular`, `home-local`, `home-latest`)
@@ -196,7 +196,7 @@ const persister = createAsyncStoragePersister({
 // C-A6: Set lookup is O(1) vs Array.includes O(n). The dehydrate predicate
 // runs on every cache mutation across the entire cache.
 const SKIP_PERSIST_KEYS: ReadonlySet<string> = new Set([
-  'post-detail',
+  'post',
   'news-feed',
   'related-posts',
   'home-popular',
@@ -347,7 +347,7 @@ function RootLayoutInner() {
 
   // AUDIT FIX P1.2: only Inter is loaded at root — saves ~200 ms cold start
   // (4 fewer font HTTP fetches + glyph-table parses on first install). The
-  // article screen (app/(tabs)/news/[slug].tsx) lazy-loads Merriweather on
+  // article screen (app/article/[slug].tsx) lazy-loads Merriweather on
   // its own mount via expo-font/loadAsync; while loading it falls back to the
   // system serif which is visually close enough during the brief load.
   const [interLoaded, interFontError] = useFonts({
@@ -446,6 +446,10 @@ function RootLayoutInner() {
                   <Stack.Screen name="(tabs)" />
                   <Stack.Screen name="rreth-nesh" />
                   <Stack.Screen name="na-kontakto" />
+                  <Stack.Screen
+                    name="article/[slug]"
+                    options={{ headerShown: false, animation: 'slide_from_right' }}
+                  />
                   {/* Catch-all for OS-delivered deep links the app does not handle
                       (e.g. rtvfontana://notification.click on Samsung One UI).
                       The +not-found route silently redirects to home. */}

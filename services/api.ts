@@ -286,7 +286,6 @@ export async function fetchPostBySlug(slug: string, signal?: AbortSignal): Promi
     excerpt,
     publishedAt,
     "breaking": coalesce(breaking, false),
-    "views": coalesce(views, 0),
     "mainImageUrl": mainImage.asset->url,
     "thumbhash": mainImage.asset->metadata.thumbhash,
     "categories": array::compact(coalesce(categories[]->title, []) + [category->title]),
