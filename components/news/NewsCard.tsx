@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useQueryClient } from '@tanstack/react-query';
 import { buildSanityImageUrl, defaultThumbhash, fetchPostBySlug, sanityImageWidths, type Post } from '../../services/api';
+import { queueImagePrefetch } from '../../lib/prefetchQueue';
 import { fonts } from '../../constants/tokens';
 import { RelativeTime } from '../ui/RelativeTime';
 import { isBreakingBadgeVisible } from '../../lib/breakingBadge';
@@ -158,7 +159,10 @@ function NewsCardComponent({ post, compact = false, onPress, colors }: NewsCardP
       queryFn: ({ signal }) => fetchPostBySlug(post.slug, signal),
       staleTime: 5 * 60 * 1000,
     });
-  }, [queryClient, post.slug]);
+    // Start downloading the hero image during the tap so it binds instantly
+    // when the article screen mounts.
+    queueImagePrefetch(buildSanityImageUrl(post.mainImageUrl, sanityImageWidths.articleHero));
+  }, [queryClient, post.slug, post.mainImageUrl]);
 
 
   const S = useMemo(() => getStyles(colors), [colors]);

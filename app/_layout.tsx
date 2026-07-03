@@ -448,7 +448,7 @@ function RootLayoutInner() {
                   <Stack.Screen name="na-kontakto" />
                   <Stack.Screen
                     name="article/[slug]"
-                    options={{ headerShown: false, animation: 'slide_from_right' }}
+                    options={{ headerShown: false, animation: 'slide_from_right', animationDuration: 200 }}
                   />
                   {/* Catch-all for OS-delivered deep links the app does not handle
                       (e.g. rtvfontana://notification.click on Samsung One UI).

@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo } from 'react';
-import { StyleSheet, View, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -17,7 +17,7 @@ import type { ThemeColors } from '../../providers/ThemeProvider';
 
 type SkeletonCardProps = {
   height?: number;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 };
 
 // Single shared shimmer driver — one looping worklet for ALL skeleton instances.

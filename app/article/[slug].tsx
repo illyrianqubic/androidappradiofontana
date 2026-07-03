@@ -560,17 +560,16 @@ export default function ArticleDetailScreen() {
       <View style={styles.screen}>
         {articleNav}
         <View style={[styles.loadingWrap, { paddingTop: navBarHeight + 16 }]}>
-          <SkeletonCard height={vs(280)} style={{ borderRadius: 0 }} />
+          <SkeletonCard height={260} style={{ width: '100%', borderRadius: 0 }} />
           <View style={styles.loadingHeader}>
-            <SkeletonCard height={14} style={styles.loadingBlock} />
-            <SkeletonCard height={28} style={styles.loadingBlock} />
-            <SkeletonCard height={28} style={styles.loadingBlock} />
-            <SkeletonCard height={14} style={styles.loadingBlock} />
+            <SkeletonCard height={28} style={[styles.loadingBlock, { width: '85%' }]} />
+            <SkeletonCard height={28} style={[styles.loadingBlock, { width: '85%' }]} />
+            <SkeletonCard height={14} style={[styles.loadingBlock, { width: 160 }]} />
           </View>
           <View style={styles.loadingHeader}>
-            <SkeletonCard height={18} style={styles.loadingBlock} />
-            <SkeletonCard height={18} style={styles.loadingBlock} />
-            <SkeletonCard height={18} style={styles.loadingBlock} />
+            <SkeletonCard height={14} style={[styles.loadingBlock, { width: '100%' }]} />
+            <SkeletonCard height={14} style={[styles.loadingBlock, { width: '90%' }]} />
+            <SkeletonCard height={14} style={[styles.loadingBlock, { width: '100%' }]} />
           </View>
         </View>
       </View>
