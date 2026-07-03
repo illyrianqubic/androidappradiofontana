@@ -51,7 +51,7 @@ function getNotificationLogoUri(): string {
   return Image.resolveAssetSource(logoSource).uri;
 }
 
-type NowPlayingMetadata = {
+export type NowPlayingMetadata = {
   title: string;
   artist: string;
 };
