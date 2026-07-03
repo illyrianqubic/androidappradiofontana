@@ -967,6 +967,7 @@ const ShareFab = memo(function ShareFab({
   scrollY: SharedValue<number>;
 }) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const style = useAnimatedStyle(() => ({
     opacity: interpolate(scrollY.value, [0, 100], [0, 1], Extrapolation.CLAMP),
     transform: [
@@ -982,7 +983,7 @@ const ShareFab = memo(function ShareFab({
         {
           position: 'absolute',
           right: 16,
-          bottom: 24,
+          bottom: insets.bottom + 16,
           zIndex: 20,
         },
         style,

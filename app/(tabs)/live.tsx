@@ -610,7 +610,6 @@ const npStyles = StyleSheet.create({
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const PLAY_BTN_SIZE = s(78);
-const OUTER_RING_SIZE = s(88);
 
 function PremiumPlayButton({
   isPlaying,
@@ -628,49 +627,8 @@ function PremiumPlayButton({
   colors: ThemeColors;
 }) {
   const btnScale = useSharedValue(1);
-  const ringScale = useSharedValue(isPlaying ? 1 : 0.92);
-  const ringOpacity = useSharedValue(isPlaying ? 0.3 : 0);
-  const ringRotation = useSharedValue(0);
 
   const PlayIcon = isPlaying ? Pause : isLoading ? Loader : Play;
-
-  useEffect(() => {
-    if (isPlaying && !isLoading) {
-      ringScale.value = withRepeat(
-        withSequence(
-          withTiming(1.06, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
-          withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
-        ),
-        -1,
-        false,
-      );
-      ringOpacity.value = withTiming(0.3, { duration: 400 });
-    } else if (isLoading) {
-      cancelAnimation(ringScale);
-      ringScale.value = withTiming(1, { duration: 300 });
-      ringOpacity.value = withTiming(0.15, { duration: 300 });
-      ringRotation.value = withRepeat(
-        withTiming(360, { duration: 1500, easing: Easing.linear }),
-        -1,
-        false,
-      );
-    } else {
-      cancelAnimation(ringScale);
-      ringScale.value = withTiming(0.92, { duration: 400, easing: Easing.out(Easing.ease) });
-      ringOpacity.value = withTiming(0, { duration: 400 });
-      cancelAnimation(ringRotation);
-      ringRotation.value = withTiming(0, { duration: 300 });
-    }
-    return () => {
-      cancelAnimation(ringScale);
-      cancelAnimation(ringRotation);
-    };
-  }, [isPlaying, isLoading, ringScale, ringOpacity, ringRotation]);
-
-  const ringAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: ringScale.value }, { rotate: `${ringRotation.value}deg` }],
-    opacity: ringOpacity.value,
-  }));
 
   const btnAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: btnScale.value }],
@@ -686,17 +644,6 @@ function PremiumPlayButton({
 
   return (
     <View style={pbStyles.container}>
-      {/* Outer ring */}
-      {((isPlaying && !isLoading) || isLoading) && (
-        <Animated.View
-          style={[
-            pbStyles.outerRing,
-            { borderColor: colors.primary },
-            ringAnimatedStyle,
-          ]}
-        />
-      )}
-
       {/* Play/Pause button */}
       <Animated.View style={btnAnimatedStyle}>
         <Pressable
@@ -751,13 +698,6 @@ const pbStyles = StyleSheet.create({
   container: {
     alignItems: 'center',
     marginBottom: s(16),
-  },
-  outerRing: {
-    position: 'absolute',
-    width: OUTER_RING_SIZE,
-    height: OUTER_RING_SIZE,
-    borderRadius: OUTER_RING_SIZE / 2,
-    borderWidth: 2,
   },
   button: {
     width: PLAY_BTN_SIZE,
