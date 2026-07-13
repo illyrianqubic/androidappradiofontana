@@ -7,7 +7,11 @@ let setAppIconNative: ((iconName: 'light' | 'dark') => Promise<void>) | null = n
 
 function getNativeModule() {
   if (setAppIconNative) return setAppIconNative;
-  if (Platform.OS === 'web') return null;
+  // Dynamic icon switching is Android-only: the iOS native module compiles
+  // but Info.plist has no CFBundleAlternateIcons entry, so setAlternateIconName
+  // would always reject. Gate here so every caller (service + UI) is a no-op
+  // on iOS/web instead of attempting and silently failing per-call.
+  if (Platform.OS !== 'android') return null;
   try {
     const DynamicAppIcon = require('../../modules/dynamic-app-icon').default;
     if (DynamicAppIcon?.setAppIcon) {
