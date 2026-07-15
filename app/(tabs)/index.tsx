@@ -123,12 +123,25 @@ function getForecast(data: WeatherResponse | undefined): ForecastDay[] {
 }
 
 async function fetchWeatherIstog(signal?: AbortSignal): Promise<WeatherResponse> {
-  const res = await fetch(
-    'https://api.open-meteo.com/v1/forecast?latitude=42.78&longitude=20.48&current=temperature_2m,weathercode,windspeed_10m&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=Europe%2FBelgrade',
-    { signal },
-  );
-  if (!res.ok) throw new Error('weather');
-  return res.json() as Promise<WeatherResponse>;
+  // AUDIT FIX: mirror sanityFetch's own timeout pattern (services/api.ts) —
+  // without this, a slow/hanging Open-Meteo response could stay pending for
+  // 60s+ (OS default) instead of the 8s every Sanity-backed request is
+  // capped at.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8_000);
+  const combined = signal
+    ? AbortSignal.any([signal, controller.signal])
+    : controller.signal;
+  try {
+    const res = await fetch(
+      'https://api.open-meteo.com/v1/forecast?latitude=42.78&longitude=20.48&current=temperature_2m,weathercode,windspeed_10m&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=Europe%2FBelgrade',
+      { signal: combined },
+    );
+    if (!res.ok) throw new Error('weather');
+    return res.json() as Promise<WeatherResponse>;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // ── WeatherWidget ──────────────────────────────────────────────────────────────
