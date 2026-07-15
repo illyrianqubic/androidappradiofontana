@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { withDangerousMod, withAndroidManifest } = require("expo/config-plugins");
+const { withDangerousMod, withAndroidManifest, withInfoPlist, withXcodeProject } = require("expo/config-plugins");
 
 // ─── Android icon sizes ──────────────────────────────────────────────────────
 const DPI_VALUES = ["mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"];
@@ -24,6 +24,71 @@ module.exports = function withDynamicAppIcon(config) {
     copyAndroidIconResources(projectRoot);
     return config;
   }]);
+
+  // ─── iOS: inject CFBundleAlternateIcons into Info.plist ─────────────────
+  config = withInfoPlist(config, (config) => {
+    config.modResults.CFBundleIcons = {
+      CFBundlePrimaryIcon: {
+        CFBundleIconFiles: ['AppIcon'],
+        CFBundleIconName: 'AppIcon',
+      },
+      CFBundleAlternateIcons: {
+        // Key 'LightIcon' must match the string passed to
+        // setAlternateIconName() in DynamicAppIconModule.swift
+        LightIcon: {
+          CFBundleIconFiles: ['LightIcon'],
+          CFBundleIconName: 'LightIcon',
+        },
+      },
+    };
+    return config;
+  });
+
+  // ─── iOS: copy PNG assets into Xcode project directory ──────────────────
+  config = withDangerousMod(config, ['ios', (config) => {
+    const iosRoot = config.modRequest.platformProjectRoot; // .../ios/
+    const projectName = config.modRequest.projectName;     // e.g. "rtvfontana"
+    const destDir = path.join(iosRoot, projectName);
+    const srcDir = path.resolve(
+      config.modRequest.projectRoot,
+      'assets/app-icons/ios'
+    );
+
+    const files = ['LightIcon@2x.png', 'LightIcon@3x.png'];
+    for (const file of files) {
+      const src = path.join(srcDir, file);
+      const dest = path.join(destDir, file);
+      if (fs.existsSync(src)) {
+        fs.copyFileSync(src, dest);
+      } else {
+        console.warn(`[with-dynamic-app-icon] iOS asset not found: ${src}`);
+      }
+    }
+    return config;
+  }]);
+
+  // ─── iOS: register PNG files in Xcode Resources build phase ─────────────
+  config = withXcodeProject(config, (config) => {
+    const xcodeProject = config.modResults;
+    const targetUUID = xcodeProject.getFirstTarget()?.uuid;
+    if (!targetUUID) return config;
+
+    const files = ['LightIcon@2x.png', 'LightIcon@3x.png'];
+    for (const file of files) {
+      // Check if already registered (idempotent — safe to re-run)
+      const refs = xcodeProject.pbxFileReferenceSection() || {};
+      const alreadyAdded = Object.values(refs).some(
+        (ref) =>
+          ref &&
+          typeof ref === 'object' &&
+          (ref.path === file || ref.path === `"${file}"`)
+      );
+      if (!alreadyAdded) {
+        xcodeProject.addResourceFile(file, { target: targetUUID });
+      }
+    }
+    return config;
+  });
 
   return config;
 };
