@@ -1,5 +1,3 @@
-import { Platform } from 'react-native';
-
 export const colors = {
   // ── Brand accent ────────────────────────────────────────────────────────────
   primary: '#dc2626',
@@ -111,12 +109,5 @@ export const elevation = {
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 8 },
     elevation: 6,
-  },
-  floating: {
-    shadowColor: '#000000',
-    shadowOpacity: Platform.select({ ios: 0.15, android: 0.20, default: 0.14 }),
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 10,
   },
 } as const;
