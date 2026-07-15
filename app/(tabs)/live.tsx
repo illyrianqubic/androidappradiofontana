@@ -929,7 +929,7 @@ function LiveScreenInner({
         style={{ flex: 1 }}
         contentContainerStyle={{ flexGrow: 1 }}
         showsVerticalScrollIndicator={false}
-        alwaysBounceVertical
+        bounces={false}
       >
         {/* ── Content zone ──────────────────────────────────────── */}
         <View style={[styles.contentZone, { paddingTop: headerHeight + s(20) }]}>

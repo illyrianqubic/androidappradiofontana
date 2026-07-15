@@ -439,7 +439,15 @@ function RootLayoutInner() {
         >
           <AudioProvider>
             <DrawerProvider>
-              <StatusBar style={isDark ? 'light' : 'dark'} />
+              {/* AUDIT FIX (iOS): LaunchSplash's background always starts at the
+                  same dark navy as the native splash (see LaunchSplash.tsx),
+                  regardless of the saved theme — that's needed for a seamless
+                  native->JS splash handoff with no visible color jump. But a
+                  light-theme user's StatusBar would otherwise switch to 'dark'
+                  (dark icons) immediately on mount, rendering dark-on-dark and
+                  nearly invisible for the full splash duration. Force 'light'
+                  while the splash is up; resume theme-driven style once it exits. */}
+              <StatusBar style={showLaunchSplash ? 'light' : (isDark ? 'light' : 'dark')} />
 
               <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
                 <Stack screenOptions={ROOT_STACK_SCREEN_OPTIONS}>

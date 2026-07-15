@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import {
   AppState,
   InteractionManager,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -689,41 +690,43 @@ const GridItem = memo(function GridItem({
   }, [item.publishedAt]);
   return (
     <View style={[styles.gridColumn, isLeft ? styles.gridColLeft : styles.gridColRight]}>
-      <Pressable
-        onPress={() => onPress(item)}
-        onPressIn={() => onPressIn?.(item)}
-        style={({ pressed }) => [
-          styles.gridCard,
-          pressed && { transform: [{ scale: 0.97 }], opacity: 0.92 },
-        ]}
-      >
-          {/* 16:9 image — text never overlaid */}
-          <View style={styles.gridImgWrap}>
-            <Image
-              source={imageUri ? { uri: imageUri } : undefined}
-              placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
-              recyclingKey={item._id}
-              contentFit="cover"
-              transition={0}
-              style={styles.gridImg}
-            />
-          </View>
-          <View style={styles.gridBody}>
-            {isBreakingBadgeVisible(item.breaking, item.publishedAt) ? (
-              <View style={styles.gridBadge}>
-                <Text style={styles.gridBadgeText}>LAJM I FUNDIT</Text>
-              </View>
-            ) : null}
-            <View style={styles.gridCatRow}>
-              <Text numberOfLines={1} style={styles.gridCatText}>
-                {(item.categories?.[0] ?? 'Lajme').toUpperCase()}
-              </Text>
-              {isFresh ? <Text style={styles.gridFreshText}>I RI</Text> : null}
+      <View style={styles.gridCardOuter}>
+        <Pressable
+          onPress={() => onPress(item)}
+          onPressIn={() => onPressIn?.(item)}
+          style={({ pressed }) => [
+            styles.gridCard,
+            pressed && { transform: [{ scale: 0.97 }], opacity: 0.92 },
+          ]}
+        >
+            {/* 16:9 image — text never overlaid */}
+            <View style={styles.gridImgWrap}>
+              <Image
+                source={imageUri ? { uri: imageUri } : undefined}
+                placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
+                recyclingKey={item._id}
+                contentFit="cover"
+                transition={0}
+                style={styles.gridImg}
+              />
             </View>
-            <Text numberOfLines={3} style={styles.gridTitle}>{item.title}</Text>
-            <RelativeTime timestamp={item.publishedAt} style={styles.gridTime} />
-          </View>
-        </Pressable>
+            <View style={styles.gridBody}>
+              {isBreakingBadgeVisible(item.breaking, item.publishedAt) ? (
+                <View style={styles.gridBadge}>
+                  <Text style={styles.gridBadgeText}>LAJM I FUNDIT</Text>
+                </View>
+              ) : null}
+              <View style={styles.gridCatRow}>
+                <Text numberOfLines={1} style={styles.gridCatText}>
+                  {(item.categories?.[0] ?? 'Lajme').toUpperCase()}
+                </Text>
+                {isFresh ? <Text style={styles.gridFreshText}>I RI</Text> : null}
+              </View>
+              <Text numberOfLines={3} style={styles.gridTitle}>{item.title}</Text>
+              <RelativeTime timestamp={item.publishedAt} style={styles.gridTime} />
+            </View>
+          </Pressable>
+      </View>
     </View>
   );
 }, (prev, next) =>
@@ -751,33 +754,35 @@ const SearchResultCard = memo(function SearchResultCard({
     [item.mainImageUrl],
   );
   return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.searchResultCard,
-        pressed && { transform: [{ scale: 0.97 }], opacity: 0.92 },
-      ]}
-      onPress={() => onPress(item)}
-    >
-      <Image
-        source={imageUri ? { uri: imageUri } : undefined}
-        placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
-        recyclingKey={item._id}
-        contentFit="cover"
-        transition={0}
-        style={styles.searchResultImg}
-      />
-      <View style={styles.searchResultBody}>
-        <Text numberOfLines={1} style={styles.searchResultCat}>
-          {item.categories?.[0] ?? 'Lajme'}
-        </Text>
-        <Text numberOfLines={2} style={styles.searchResultTitle}>{item.title}</Text>
-        {item.excerpt ? (
-          <Text numberOfLines={2} style={styles.searchResultExcerpt}>
-            {item.excerpt}
+    <View style={styles.searchResultCardOuter}>
+      <Pressable
+        style={({ pressed }) => [
+          styles.searchResultCard,
+          pressed && { transform: [{ scale: 0.97 }], opacity: 0.92 },
+        ]}
+        onPress={() => onPress(item)}
+      >
+        <Image
+          source={imageUri ? { uri: imageUri } : undefined}
+          placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
+          recyclingKey={item._id}
+          contentFit="cover"
+          transition={0}
+          style={styles.searchResultImg}
+        />
+        <View style={styles.searchResultBody}>
+          <Text numberOfLines={1} style={styles.searchResultCat}>
+            {item.categories?.[0] ?? 'Lajme'}
           </Text>
-        ) : null}
-      </View>
-      </Pressable>
+          <Text numberOfLines={2} style={styles.searchResultTitle}>{item.title}</Text>
+          {item.excerpt ? (
+            <Text numberOfLines={2} style={styles.searchResultExcerpt}>
+              {item.excerpt}
+            </Text>
+          ) : null}
+        </View>
+        </Pressable>
+    </View>
   );
 }, (prev, next) =>
   prev.colors === next.colors &&
@@ -1341,6 +1346,7 @@ export default function HomeScreen() {
               placeholderTextColor={colors.textMuted}
               returnKeyType="search"
               autoCorrect={false}
+              clearButtonMode={Platform.OS === 'ios' ? 'while-editing' : 'never'}
             />
             <Pressable onPress={exitSearch} style={styles.headerIconBtn} hitSlop={8}>
               <X size={22} color={colors.text} strokeWidth={1.5} />
@@ -1615,11 +1621,14 @@ const getStyles = (colors: ThemeColors, isDark = false) => StyleSheet.create({
     borderRadius: s(22),
     backgroundColor: colors.navyFixed,
     ...elevation.card,
-    overflow: 'hidden',
   },
   radioCardInner: {
     borderRadius: s(22),
     minHeight: s(110),
+    // AUDIT FIX (iOS): overflow:'hidden' lives on this inner view (not on
+    // radioCard) — combining it with radioCard's shadow props would set
+    // CALayer masksToBounds=true and clip the shadow to invisible on iOS.
+    overflow: 'hidden',
   },
   radioGhostFreq: {
     position: 'absolute',
@@ -2044,12 +2053,17 @@ const getStyles = (colors: ThemeColors, isDark = false) => StyleSheet.create({
   // ── Weather card ────────────────────────────────────────────────────────────
   weatherCard: {
     borderRadius: radius.xl,
-    overflow: 'hidden',
     ...elevation.card,
     borderWidth: 1,
     borderColor: colors.border,
   },
   weatherInner: {
+    // AUDIT FIX (iOS): borderRadius moved here (matching weatherCard) so this
+    // view's own overflow:'hidden' — needed to clip the decorative circles
+    // below — can do the clipping instead of weatherCard's. weatherCard no
+    // longer sets overflow:'hidden' itself, since that would set CALayer
+    // masksToBounds=true and clip its own shadow to invisible on iOS.
+    borderRadius: radius.xl,
     backgroundColor: colors.surface,
     padding: 20,
     minHeight: 126,
@@ -2274,11 +2288,17 @@ const getStyles = (colors: ThemeColors, isDark = false) => StyleSheet.create({
   gridSkeleton: {
     borderRadius: radius.md,
   },
-  gridCard: {
+  // AUDIT FIX (iOS): shadow lives on the outer wrapper; overflow:'hidden'
+  // lives on the inner (gridCard) view. Combining both on one view sets
+  // CALayer masksToBounds=true and clips the shadow to invisible on iOS.
+  gridCardOuter: {
     borderRadius: radius.md,
     backgroundColor: colors.surface,
-    overflow: 'hidden',
     ...elevation.card,
+  },
+  gridCard: {
+    borderRadius: radius.md,
+    overflow: 'hidden',
   },
   gridImgWrap: {
     width: '100%',
@@ -2464,13 +2484,19 @@ const getStyles = (colors: ThemeColors, isDark = false) => StyleSheet.create({
     fontSize: 13,
     marginBottom: 12,
   },
+  // AUDIT FIX (iOS): shadow lives on the outer wrapper; overflow:'hidden'
+  // lives on the inner (searchResultCard) view — see gridCard/gridCardOuter
+  // comment above for why these can't share a view on iOS.
+  searchResultCardOuter: {
+    marginBottom: 10,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    ...elevation.card,
+  },
   searchResultCard: {
     flexDirection: 'row',
-    backgroundColor: colors.surface,
     borderRadius: 14,
-    marginBottom: 10,
     overflow: 'hidden',
-    ...elevation.card,
   },
   searchResultPressed: {
     backgroundColor: colors.redTint,

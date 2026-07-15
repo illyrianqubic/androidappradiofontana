@@ -1482,18 +1482,23 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     letterSpacing: -0.2,
     marginBottom: 12,
   },
+  // AUDIT FIX (iOS): shadow lives on relatedCardWrap (outer); overflow:'hidden'
+  // lives on relatedCard (inner). Combining shadow + overflow:'hidden' on one
+  // view sets CALayer masksToBounds=true and clips the shadow to invisible
+  // on iOS — this wrapper already existed, it just wasn't doing the split.
   relatedCardWrap: {
     marginBottom: 14,
-  },
-  relatedCard: {
     borderRadius: 14,
     backgroundColor: colors.surface,
-    overflow: 'hidden',
     shadowColor: colors.navy,
     shadowOpacity: 0.07,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
+  },
+  relatedCard: {
+    borderRadius: 14,
+    overflow: 'hidden',
   },
   relatedCardImg: {
     width: '100%',

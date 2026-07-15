@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useEffect, useMemo, useRef } from 'react';
 import { Tabs } from 'expo-router';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
@@ -30,7 +30,7 @@ const ICON_SIZE = 24;
 const LABEL_FONT_SIZE = 10;
 const LABEL_MARGIN_TOP = 2;
 
-const SPRING_CONFIG = { stiffness: 300, damping: 15, mass: 0.8 } as const;
+const SPRING_CONFIG = { stiffness: 260, damping: 28, mass: 0.8 } as const;
 
 function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const { colors } = useTheme();
@@ -116,7 +116,10 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
             <Pressable
               key={route.key}
               onPress={onPress}
-              style={styles.tabItem}
+              style={({ pressed }) => [
+                styles.tabItem,
+                pressed && Platform.OS === 'ios' && { opacity: 0.7 },
+              ]}
               android_ripple={{ color: 'transparent' }}
             >
               <Animated.View style={[styles.tabContent, animatedStyles[index]]}>

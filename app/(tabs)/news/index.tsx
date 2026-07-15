@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   InteractionManager,
   LayoutChangeEvent,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -193,7 +194,7 @@ const SearchInput = memo(function SearchInput({
         placeholderTextColor={colors.textTertiary}
         style={S.searchInput}
         returnKeyType="search"
-        clearButtonMode="while-editing"
+        clearButtonMode={Platform.OS === 'ios' ? 'while-editing' : 'never'}
       />
       {value.length > 0 ? (
         <Pressable onPress={onClear} hitSlop={8} style={({ pressed }) => [S.clearBtn, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel="Pastro kërkimin">
