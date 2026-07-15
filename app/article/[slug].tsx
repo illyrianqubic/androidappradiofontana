@@ -238,18 +238,21 @@ function countWords(blocks: PortableTextBlock[]): number {
   return total;
 }
 
+// AUDIT FIX (iOS parity): hand-rolled Albanian month names instead of
+// toLocaleDateString('sq-AL', ...) — Hermes' bundled ICU data can differ
+// between iOS and Android builds, risking a different-looking (or
+// English-fallback) month name on one platform. Matches the same
+// hand-rolled approach RelativeTime.tsx already uses for this exact reason.
+const SQ_MONTHS = [
+  'janar', 'shkurt', 'mars', 'prill', 'maj', 'qershor',
+  'korrik', 'gusht', 'shtator', 'tetor', 'nëntor', 'dhjetor',
+];
+
 function formatPubDate(iso?: string): string {
   if (!iso) return '';
-  try {
-    const d = new Date(iso);
-    return d.toLocaleDateString('sq-AL', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
-  } catch {
-    return '';
-  }
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getDate()} ${SQ_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 // Memoized body — only re-renders when the post body changes. Without this
