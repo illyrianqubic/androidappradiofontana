@@ -316,17 +316,39 @@ function RootLayoutInner() {
   // synchronously from its top-level init. React Query's default always-
   // online mode is fine; refetchOnReconnect simply becomes a no-op until a
   // custom dev client / production build with the native module is used.
+  //
+  // AUDIT FIX (iOS): covers both focus-refetch and reconnect-refetch since
+  // focusManager and onlineManager are not wired to AppState/NetInfo. A user
+  // who was backgrounded long enough to plausibly have lost and regained
+  // connectivity (subway, elevator) gets a full cache invalidation below,
+  // not just the two home queries — everything currently mounted refetches
+  // if it's stale. This piggybacks on the SAME >5 min gate as S-2 below
+  // (not a new unconditional trigger): P5.19 deliberately narrowed this
+  // effect to avoid invalidating on brief tab swaps (notification shade,
+  // quick app-switcher peeks), and a blanket invalidateQueries() on every
+  // 'active' transition would undo that — a quick swap to Messages and back
+  // while reading an article would needlessly refetch it. Reconnect-after-
+  // absence and foreground-after-absence are the same signal here, so they
+  // share the same threshold.
 
   // S-2: refetchOnAppForeground. When the user returns to the app after >5 min
-  // in the background, invalidate the home queries so freshly published
-  // breaking news appears. We track the timestamp the app went to background
-  // and only invalidate if the gap exceeds the threshold — brief tab swaps
-  // (notification shade, sharing) don't trigger network work.
+  // in the background, invalidate all queries so any content that went stale
+  // while away (and any connectivity change) is caught. We track the
+  // timestamp the app went to background and only invalidate if the gap
+  // exceeds the threshold — brief tab swaps (notification shade, sharing)
+  // don't trigger network work.
   // AUDIT FIX P5.19: only invalidate home-hero + home-breaking on foreground.
   // Previously we also invalidated home-latest and news-feed (all categories);
   // when the user returns to Home there's no need to refetch every cached
   // news category, and home-latest will refetch via its own staleness check.
   // The news-feed will be invalidated by the News tab itself when focused.
+  // AUDIT FIX (iOS): broadened back to invalidateQueries() with no filter —
+  // see the reconnect-coverage comment above. This still only fires past the
+  // 5-minute threshold, so it isn't the same over-eager pattern P5.19 fixed;
+  // it also doesn't force an immediate refetch of screens that aren't
+  // mounted (invalidateQueries only marks cached data stale — a query only
+  // refetches once something is actually observing it, e.g. the News tab
+  // invalidating its own feed the next time it's focused).
   const backgroundedAtRef = useRef<number | null>(null);
   useEffect(() => {
     const FIVE_MIN = 5 * 60 * 1000;
@@ -337,8 +359,7 @@ function RootLayoutInner() {
         const since = backgroundedAtRef.current;
         backgroundedAtRef.current = null;
         if (since !== null && Date.now() - since > FIVE_MIN) {
-          queryClient.invalidateQueries({ queryKey: ['home-hero'] });
-          queryClient.invalidateQueries({ queryKey: ['home-breaking'] });
+          queryClient.invalidateQueries();
         }
       }
     });
