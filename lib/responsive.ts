@@ -21,11 +21,32 @@ let H = Dimensions.get('window').height;
 const BASE_W = 393;
 const BASE_H = 851;
 
+// AUDIT FIX (iOS): defensive guard against a bad first read. On some iOS
+// cold starts, Dimensions.get('window') at module load (above) can
+// occasionally return 0 before the native window frame is fully settled.
+// getStyles() factories are memoized on [colors] only, so a bad initial
+// W/H would otherwise silently propagate a zero-scaled value through every
+// s()/vs()/ms() call for the rest of the session with no re-trigger. This
+// never fires in normal operation — it only self-heals the one bad-cold-
+// start case on the first layout call.
+function ensureDimensionsReady(): void {
+  if (W !== 0 && H !== 0) return;
+  const window = Dimensions.get('window');
+  W = window.width;
+  H = window.height;
+}
+
 /** Scale a value proportionally to screen width. */
-export const s = (v: number): number => (v / BASE_W) * W;
+export const s = (v: number): number => {
+  ensureDimensionsReady();
+  return (v / BASE_W) * W;
+};
 
 /** Scale a value proportionally to screen height. */
-export const vs = (v: number): number => (v / BASE_H) * H;
+export const vs = (v: number): number => {
+  ensureDimensionsReady();
+  return (v / BASE_H) * H;
+};
 
 /**
  * Moderate scale — less aggressive than s().
