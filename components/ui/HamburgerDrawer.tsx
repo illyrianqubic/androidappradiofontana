@@ -123,7 +123,7 @@ function HamburgerDrawerInner() {
     const confirmed = await new Promise<boolean>((resolve) => {
       Alert.alert(
         'Ndërrimi i Ikonës',
-        'Ndërrimi i ikonës do ta rinisë aplikacionin. Vazhdo?',
+        'A dëshiron të ndërrosh ikonën e aplikacionit?',
         [
           { text: 'Anulo', style: 'cancel', onPress: () => resolve(false) },
           { text: 'Vazhdo', onPress: () => resolve(true) },
@@ -132,9 +132,18 @@ function HamburgerDrawerInner() {
       );
     });
     if (!confirmed) return;
+    // AUDIT FIX (iOS): setAppIcon() can silently fail (e.g. iOS before the
+    // CFBundleAlternateIcons EAS rebuild lands, or a native error) — check
+    // its return value and revert the optimistic UI state instead of
+    // showing a confirmed checkmark for an icon change that never happened.
+    const previous = appIcon;
     setAppIconState(value);
-    await setAppIcon(value);
-  }, []);
+    const succeeded = await setAppIcon(value);
+    if (!succeeded) {
+      setAppIconState(previous);
+      Alert.alert('Gabim', 'Ndërrimi i ikonës dështoi. Provo përsëri.');
+    }
+  }, [appIcon]);
 
   const panelWidth = Math.min(Math.round(windowWidth * 0.86), PANEL_MAX_W);
 
