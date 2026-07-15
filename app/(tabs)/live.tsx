@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   ChevronRight,
   Clock,
@@ -758,16 +758,25 @@ function LiveScreenInner({
   const [sleepSecondsLeft, setSleepSecondsLeft] = useState<number | null>(null);
   const [showSleepModal, setShowSleepModal] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // AUDIT FIX (iOS): absolute wall-clock deadline instead of a pure tick
+  // counter. iOS can coalesce/delay JS timers in the background even for
+  // audio apps; deriving remaining time from Date.now() vs. this deadline
+  // self-corrects for any delayed/skipped ticks instead of accumulating
+  // drift.
+  const sleepTimerTargetRef = useRef<number | null>(null);
 
   const cancelSleepTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = null;
+    sleepTimerTargetRef.current = null;
     setSleepSecondsLeft(null);
   }, []);
 
   const startSleepTimer = useCallback((minutes: number) => {
     if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = null;
     setShowSleepModal(false);
+    sleepTimerTargetRef.current = Date.now() + minutes * 60_000;
     setSleepSecondsLeft(minutes * 60);
   }, []);
 
@@ -780,21 +789,52 @@ function LiveScreenInner({
     if (sleepSecondsLeft <= 0) {
       if (timerRef.current) clearInterval(timerRef.current);
       timerRef.current = null;
+      sleepTimerTargetRef.current = null;
       toggle();
       setSleepSecondsLeft(null);
       return;
     }
     if (timerRef.current) return;
     timerRef.current = setInterval(() => {
-      setSleepSecondsLeft((prev) => {
-        if (prev === null || prev <= 1) return 0;
-        return prev - 1;
-      });
+      // AUDIT FIX (iOS): compute remaining time from the wall-clock deadline
+      // rather than decrementing a counter, so a coalesced/delayed tick
+      // (iOS background timer throttling) doesn't push the eventual pause
+      // later than the selected duration.
+      const target = sleepTimerTargetRef.current;
+      if (target === null) return;
+      setSleepSecondsLeft(Math.max(0, Math.ceil((target - Date.now()) / 1000)));
     }, 1000);
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      // PRE-EXISTING BUG FIX: this cleanup previously cleared the interval
+      // but never reset timerRef.current to null. Since sleepSecondsLeft is
+      // this effect's own dependency, every tick's setState re-ran this
+      // effect — the stale non-null ref then blocked `if (timerRef.current)
+      // return;` above from ever recreating the interval, so the countdown
+      // ticked exactly once and froze forever (never reached zero, never
+      // paused playback). Resetting to null here lets each tick's re-run
+      // correctly spin up the next interval.
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     };
   }, [sleepSecondsLeft, toggle]);
+
+  // AUDIT FIX (iOS): re-sync the countdown immediately when the app returns
+  // to the foreground, so any background throttling is corrected the moment
+  // the user looks at the screen rather than waiting for the next 1s tick.
+  // Only subscribed while a sleep timer is actually running — tied to the
+  // same effect lifetime as the interval above, not a permanent listener.
+  useEffect(() => {
+    if (sleepSecondsLeft === null) return;
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') return;
+      const target = sleepTimerTargetRef.current;
+      if (target === null) return;
+      setSleepSecondsLeft(Math.max(0, Math.ceil((target - Date.now()) / 1000)));
+    });
+    return () => sub.remove();
+  }, [sleepSecondsLeft]);
 
   useEffect(() => {
     if (!isPlaying && sleepSecondsLeft !== null) {
