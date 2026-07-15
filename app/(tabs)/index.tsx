@@ -980,13 +980,19 @@ export default function HomeScreen() {
     };
   }, []);
 
-  // X-1: breaking ALSO refetches on focus (it's persisted, so this only
-  // hits the network when stale).
+  // AUDIT FIX (iOS): refetchOnWindowFocus removed. TanStack Query's default
+  // focusManager listens for DOM visibility/focus events and is never wired
+  // to AppState anywhere in this app (see the AppState effect above, which
+  // exists precisely because that wiring is absent) — so this flag's actual
+  // behavior on iOS/Android was unverified/ambiguous. refetchInterval below
+  // already guarantees this query is refetched at least once a minute
+  // whenever it's mounted, which covers the "fresh breaking news on return"
+  // need this flag was reaching for.
   const breakingQuery = useQuery({
     queryKey: ['home-breaking'],
     queryFn: ({ signal }) => fetchBreakingPosts(signal),
     enabled: enableBreaking,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
     refetchInterval: 60_000,
     staleTime: 5 * 60 * 1000,
   });
