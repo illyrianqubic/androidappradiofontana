@@ -114,13 +114,14 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     zIndex: 35,
     alignItems: 'center',
     backgroundColor: colors.surface,
+    // AUDIT FIX (iOS/Android parity): this used to also carry an upward
+    // shadow (shadowOffset height: -2, elevation: 0). Android's elevation
+    // can only cast a downward shadow, so elevation: 0 meant no shadow ever
+    // rendered there, while iOS rendered a visible one — the hairline
+    // border below is the only separator now, and it renders identically
+    // on both platforms.
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.borderSubtle,
-    shadowColor: colors.navy,
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: -2 },
-    elevation: 0,
   },
   bottomHandle: {
     width: 46,
