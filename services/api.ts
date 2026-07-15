@@ -296,6 +296,14 @@ export async function fetchPostBySlug(slug: string, signal?: AbortSignal): Promi
   }`;
   const raw = await sanityFetch<(Post & { content?: Post['body'] }) | null>(query, { slug }, { signal });
   if (!raw) return null;
+  // Minimal runtime guard — if critical fields are missing, return null so
+  // the article screen shows its graceful "not found" state rather than
+  // rendering with undefined values or crashing. The GROQ query above
+  // aliases "slug": slug.current, so raw.slug is already a plain string
+  // here (matching the Post type), not a nested {current} object.
+  if (typeof raw.title !== 'string' || typeof raw.slug !== 'string' || !raw.slug) {
+    return null;
+  }
   // Prefer `body`; fall back to `content` if body is empty/missing.
   const body = (raw.body && raw.body.length > 0) ? raw.body : (raw.content ?? []);
   return { ...raw, body } as Post;
