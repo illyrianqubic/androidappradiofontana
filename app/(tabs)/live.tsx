@@ -970,6 +970,7 @@ function LiveScreenInner({
         contentContainerStyle={{ flexGrow: 1 }}
         showsVerticalScrollIndicator={false}
         bounces={false}
+        overScrollMode="never"
       >
         {/* ── Content zone ──────────────────────────────────────── */}
         <View style={[styles.contentZone, { paddingTop: headerHeight + s(20) }]}>

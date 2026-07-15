@@ -337,6 +337,7 @@ function HamburgerDrawerInner() {
               ref={scrollRef}
               showsVerticalScrollIndicator={false}
               bounces={false}
+              overScrollMode="never"
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={S.scrollContent}
             >
