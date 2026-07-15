@@ -23,6 +23,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.rtvfontana.android",
+      "buildNumber": "1",
       "icon": "./assets/images/darklogortvfontana.png",
       "infoPlist": {
         "UIBackgroundModes": [
@@ -30,7 +31,9 @@
           "fetch"
         ],
         "ITSAppUsesNonExemptEncryption": false,
-        "LSApplicationCategoryType": "public.app-category.music"
+        "LSApplicationCategoryType": "public.app-category.music",
+        "NSMicrophoneUsageDescription": "Kjo app nuk përdor mikrofonin.",
+        "UIRequiresFullScreen": false
       }
     },
     "android": {

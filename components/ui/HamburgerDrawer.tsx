@@ -120,6 +120,10 @@ function HamburgerDrawerInner() {
   });
 
   const selectAppIcon = useCallback(async (value: 'light' | 'dark') => {
+    // Dynamic icon switching is unsupported on iOS (see services/app-icon) —
+    // no-op silently instead of showing a restart prompt for a feature that
+    // cannot actually apply on this platform.
+    if (Platform.OS !== 'android') return;
     const confirmed = await new Promise<boolean>((resolve) => {
       Alert.alert(
         'Ndërrimi i Ikonës',
