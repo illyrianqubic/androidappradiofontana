@@ -122,7 +122,9 @@ function HamburgerDrawerInner() {
   const selectAppIcon = useCallback(async (value: 'light' | 'dark') => {
     // Dynamic icon switching is unsupported on iOS (see services/app-icon) —
     // no-op silently instead of showing a restart prompt for a feature that
-    // cannot actually apply on this platform.
+    // cannot actually apply on this platform. Remove this gate (and the
+    // matching one in services/app-icon/index.ts) once an EAS rebuild has
+    // shipped the CFBundleAlternateIcons plugin fix.
     if (Platform.OS !== 'android') return;
     const confirmed = await new Promise<boolean>((resolve) => {
       Alert.alert(
@@ -136,9 +138,8 @@ function HamburgerDrawerInner() {
       );
     });
     if (!confirmed) return;
-    // AUDIT FIX (iOS): setAppIcon() can silently fail (e.g. iOS before the
-    // CFBundleAlternateIcons EAS rebuild lands, or a native error) — check
-    // its return value and revert the optimistic UI state instead of
+    // setAppIcon() can still fail on Android (e.g. missing native build) —
+    // check its return value and revert the optimistic UI state instead of
     // showing a confirmed checkmark for an icon change that never happened.
     const previous = appIcon;
     setAppIconState(value);

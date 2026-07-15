@@ -11,6 +11,10 @@ function getNativeModule() {
   // but Info.plist has no CFBundleAlternateIcons entry, so setAlternateIconName
   // would always reject. Gate here so every caller (service + UI) is a no-op
   // on iOS/web instead of attempting and silently failing per-call.
+  // plugins/with-dynamic-app-icon.js already adds the missing Info.plist
+  // entry + icon assets, but it needs a full EAS rebuild to take effect —
+  // once that's shipped, remove this gate (and the matching one in
+  // components/ui/HamburgerDrawer.tsx) to re-enable icon switching on iOS.
   if (Platform.OS !== 'android') return null;
   try {
     const DynamicAppIcon = require('../../modules/dynamic-app-icon').default;
