@@ -23,6 +23,7 @@ import { QueryClient } from '@tanstack/react-query';
 import {
   PersistQueryClientProvider,
   type Persister,
+  type PersistedClient,
 } from '@tanstack/react-query-persist-client';
 import { LaunchSplash } from '../components/ui/LaunchSplash';
 import { HamburgerDrawer } from '../components/ui/HamburgerDrawer';
@@ -117,6 +118,34 @@ function createAsyncStoragePersister(opts: {
   let pending: unknown | undefined;
   let scheduled = false;
 
+  // A query dehydrated while its fetch was still in flight (`status:
+  // 'pending'`) carries a live `promise` field (see dehydrateQuery in
+  // @tanstack/query-core). JSON.stringify has no way to serialize a Promise
+  // — it round-trips to `{}` — so after JSON.parse, `promise` is a plain
+  // object with no `.then`. TanStack's hydrate() calls `promise.then(...)`
+  // unconditionally whenever that field is present, which throws
+  // "promise.then is not a function" and aborts the whole restore (crash
+  // seen on iOS right after the splash screen, when a query — e.g.
+  // home-hero — happened to be persisted mid-fetch). Stripping the field
+  // here means hydrate() always takes its `promise === undefined` path: the
+  // query still hydrates with whatever data/state it had, just without an
+  // in-flight refetch — which is fine, since the mounted component re-fires
+  // its own query anyway.
+  const stripUnresolvablePromises = (parsed: unknown): PersistedClient | undefined => {
+    if (typeof parsed !== 'object' || parsed === null) return undefined;
+    const clientState = (parsed as { clientState?: unknown }).clientState;
+    if (typeof clientState !== 'object' || clientState === null) return undefined;
+    const queries = (clientState as { queries?: unknown }).queries;
+    if (Array.isArray(queries)) {
+      for (const query of queries) {
+        if (query && typeof query === 'object' && 'promise' in query) {
+          delete (query as { promise?: unknown }).promise;
+        }
+      }
+    }
+    return parsed as PersistedClient;
+  };
+
   const flush = () => {
     scheduled = false;
     const value = pending;
@@ -159,7 +188,7 @@ function createAsyncStoragePersister(opts: {
         // (still ~10–40 ms) because there is no work to defer it behind —
         // it must complete before queries hydrate.
         const parsed = JSON.parse(raw);
-        return parsed;
+        return stripUnresolvablePromises(parsed);
       } catch (error) {
         // Corrupted cache file (rare — happens after force-kill mid-write or
         // an unclean OTA update). Drop it so the next write replaces it with
@@ -205,10 +234,18 @@ const SKIP_PERSIST_KEYS: ReadonlySet<string> = new Set([
   'weather-istog',
 ]);
 
+// Bump this if the persisted cache shape ever changes in a way old on-disk
+// data can't safely hydrate into (e.g. a future TanStack Query major bump).
+// persistQueryClientRestore compares this against the persisted value BEFORE
+// calling hydrate(), so a version mismatch discards the cache up front
+// instead of risking a hydrate-time crash.
+const CACHE_BUSTER = 'v1';
+
 // Stable references — moved out of render to prevent provider/navigator
 // children from invalidating on every root re-render.
 const PERSIST_OPTIONS = {
   persister,
+  buster: CACHE_BUSTER,
   // X-7: persister.maxAge is the eviction TTL for the on-disk cache. Set to
   // 2× the in-memory gcTime (1 h) so a query stays on disk slightly longer
   // than it would in memory. Setting them equal made eviction order race-y
