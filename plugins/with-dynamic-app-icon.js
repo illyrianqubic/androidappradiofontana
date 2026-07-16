@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { withDangerousMod, withAndroidManifest, withInfoPlist, withXcodeProject } = require("expo/config-plugins");
+const { withDangerousMod, withAndroidManifest, withInfoPlist } = require("expo/config-plugins");
 
 // ─── Android icon sizes ──────────────────────────────────────────────────────
 const DPI_VALUES = ["mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"];
@@ -44,62 +44,62 @@ module.exports = function withDynamicAppIcon(config) {
     return config;
   });
 
-  // ─── iOS: copy PNG assets into Xcode project directory ──────────────────
+  // ─── iOS: copy PNG assets into an asset-catalog .appiconset ─────────────
+  // BUG FIX (Apple ITMS-90895): CFBundleAlternateIcons entries must resolve
+  // to an image inside an asset catalog (.xcassets/<Name>.appiconset), not a
+  // loose file next to AppDelegate.swift. The app previously built and ran
+  // fine locally (Xcode's earlier "Build input file cannot be found" was a
+  // separate, now-fixed path bug), but App Store Connect's asset validator
+  // rejects the binary at submission because "LightIcon" doesn't exist as a
+  // catalog asset. Xcode's asset catalog compiler (actool) discovers
+  // .appiconset folders by their presence under .xcassets — no
+  // PBXFileReference/addResourceFile registration is needed or wanted here.
   config = withDangerousMod(config, ['ios', (config) => {
-    const iosRoot = config.modRequest.platformProjectRoot; // .../ios/
-    const projectName = config.modRequest.projectName;     // e.g. "rtvfontana"
-    const destDir = path.join(iosRoot, projectName);
+    const iosRoot = config.modRequest.platformProjectRoot; // .../ios
+    const projectName = config.modRequest.projectName;     // e.g. "RTVFontana"
+    const projectDir = path.join(iosRoot, projectName);
     const srcDir = path.resolve(
       config.modRequest.projectRoot,
       'assets/app-icons/ios'
     );
 
+    const xcassetsName = fs.existsSync(projectDir)
+      ? fs.readdirSync(projectDir).find((f) => f.endsWith('.xcassets'))
+      : undefined;
+    if (!xcassetsName) {
+      console.warn(`[with-dynamic-app-icon] no .xcassets folder found in ${projectDir}`);
+      return config;
+    }
+
+    const appIconSetDir = path.join(projectDir, xcassetsName, 'LightIcon.appiconset');
+    fs.mkdirSync(appIconSetDir, { recursive: true });
+
     const files = ['LightIcon@2x.png', 'LightIcon@3x.png'];
     for (const file of files) {
       const src = path.join(srcDir, file);
-      const dest = path.join(destDir, file);
+      const dest = path.join(appIconSetDir, file);
       if (fs.existsSync(src)) {
         fs.copyFileSync(src, dest);
       } else {
         console.warn(`[with-dynamic-app-icon] iOS asset not found: ${src}`);
       }
     }
+
+    const contentsJson = {
+      images: [
+        { filename: 'LightIcon@2x.png', idiom: 'iphone', scale: '2x' },
+        { filename: 'LightIcon@3x.png', idiom: 'iphone', scale: '3x' },
+      ],
+      info: { author: 'xcode', version: 1 },
+    };
+    fs.writeFileSync(
+      path.join(appIconSetDir, 'Contents.json'),
+      JSON.stringify(contentsJson, null, 2),
+      'utf8'
+    );
+
     return config;
   }]);
-
-  // ─── iOS: register PNG files in Xcode Resources build phase ─────────────
-  config = withXcodeProject(config, (config) => {
-    const xcodeProject = config.modResults;
-    const targetUUID = xcodeProject.getFirstTarget()?.uuid;
-    if (!targetUUID) return config;
-
-    // BUG FIX: addResourceFile's path must be relative to the .xcodeproj
-    // (ios/), matching every other file in the same group — the group
-    // itself carries no `path`, so AppDelegate.swift/Info.plist/etc. are
-    // all registered as "ProjectName/<file>", not bare filenames. A bare
-    // filename here resolved to ios/<file>, while the withDangerousMod
-    // step above copies the PNGs to ios/<ProjectName>/<file> — that
-    // mismatch is exactly what produces Xcode's "Build input file cannot
-    // be found" at build time. Verified by running `expo prebuild` and
-    // comparing the generated project.pbxproj's PBXFileReference entries.
-    const projectName = config.modRequest.projectName;
-    const files = ['LightIcon@2x.png', 'LightIcon@3x.png'];
-    for (const file of files) {
-      const relativePath = path.join(projectName, file);
-      // Check if already registered (idempotent — safe to re-run)
-      const refs = xcodeProject.pbxFileReferenceSection() || {};
-      const alreadyAdded = Object.values(refs).some(
-        (ref) =>
-          ref &&
-          typeof ref === 'object' &&
-          (ref.path === relativePath || ref.path === `"${relativePath}"`)
-      );
-      if (!alreadyAdded) {
-        xcodeProject.addResourceFile(relativePath, { target: targetUUID });
-      }
-    }
-    return config;
-  });
 
   return config;
 };
