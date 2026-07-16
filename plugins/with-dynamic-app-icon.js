@@ -25,81 +25,26 @@ module.exports = function withDynamicAppIcon(config) {
     return config;
   }]);
 
-  // ─── iOS: inject CFBundleAlternateIcons into Info.plist ─────────────────
+  // ─── iOS: Info.plist icon config ─────────────────────────────────────────
+  // TEMPORARY (Apple ITMS-90895): CFBundleAlternateIcons/LightIcon is
+  // disabled here. The asset-catalog approach (LightIcon.appiconset inside
+  // Images.xcassets) was verified correct via local `expo prebuild`, but EAS
+  // Build's cloud prebuild was not picking it up the same way, and Apple's
+  // asset validator rejected the submitted binary because "LightIcon" wasn't
+  // resolvable as a catalog asset. Removing the Info.plist reference (and
+  // the asset-copy step below) means iOS ships with only its primary icon
+  // until a proper EAS-compatible fix is implemented — see
+  // services/app-icon/index.ts and components/ui/HamburgerDrawer.tsx, which
+  // already gate icon switching to Android only.
   config = withInfoPlist(config, (config) => {
     config.modResults.CFBundleIcons = {
       CFBundlePrimaryIcon: {
         CFBundleIconFiles: ['AppIcon'],
         CFBundleIconName: 'AppIcon',
       },
-      CFBundleAlternateIcons: {
-        // Key 'LightIcon' must match the string passed to
-        // setAlternateIconName() in DynamicAppIconModule.swift
-        LightIcon: {
-          CFBundleIconFiles: ['LightIcon'],
-          CFBundleIconName: 'LightIcon',
-        },
-      },
     };
     return config;
   });
-
-  // ─── iOS: copy PNG assets into an asset-catalog .appiconset ─────────────
-  // BUG FIX (Apple ITMS-90895): CFBundleAlternateIcons entries must resolve
-  // to an image inside an asset catalog (.xcassets/<Name>.appiconset), not a
-  // loose file next to AppDelegate.swift. The app previously built and ran
-  // fine locally (Xcode's earlier "Build input file cannot be found" was a
-  // separate, now-fixed path bug), but App Store Connect's asset validator
-  // rejects the binary at submission because "LightIcon" doesn't exist as a
-  // catalog asset. Xcode's asset catalog compiler (actool) discovers
-  // .appiconset folders by their presence under .xcassets — no
-  // PBXFileReference/addResourceFile registration is needed or wanted here.
-  config = withDangerousMod(config, ['ios', (config) => {
-    const iosRoot = config.modRequest.platformProjectRoot; // .../ios
-    const projectName = config.modRequest.projectName;     // e.g. "RTVFontana"
-    const projectDir = path.join(iosRoot, projectName);
-    const srcDir = path.resolve(
-      config.modRequest.projectRoot,
-      'assets/app-icons/ios'
-    );
-
-    const xcassetsName = fs.existsSync(projectDir)
-      ? fs.readdirSync(projectDir).find((f) => f.endsWith('.xcassets'))
-      : undefined;
-    if (!xcassetsName) {
-      console.warn(`[with-dynamic-app-icon] no .xcassets folder found in ${projectDir}`);
-      return config;
-    }
-
-    const appIconSetDir = path.join(projectDir, xcassetsName, 'LightIcon.appiconset');
-    fs.mkdirSync(appIconSetDir, { recursive: true });
-
-    const files = ['LightIcon@2x.png', 'LightIcon@3x.png'];
-    for (const file of files) {
-      const src = path.join(srcDir, file);
-      const dest = path.join(appIconSetDir, file);
-      if (fs.existsSync(src)) {
-        fs.copyFileSync(src, dest);
-      } else {
-        console.warn(`[with-dynamic-app-icon] iOS asset not found: ${src}`);
-      }
-    }
-
-    const contentsJson = {
-      images: [
-        { filename: 'LightIcon@2x.png', idiom: 'iphone', scale: '2x' },
-        { filename: 'LightIcon@3x.png', idiom: 'iphone', scale: '3x' },
-      ],
-      info: { author: 'xcode', version: 1 },
-    };
-    fs.writeFileSync(
-      path.join(appIconSetDir, 'Contents.json'),
-      JSON.stringify(contentsJson, null, 2),
-      'utf8'
-    );
-
-    return config;
-  }]);
 
   return config;
 };
