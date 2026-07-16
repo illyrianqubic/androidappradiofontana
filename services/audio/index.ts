@@ -44,7 +44,16 @@ export type PlayerStateValue = (typeof PlayerState)[keyof typeof PlayerState];
 // require() number works for React Native views but Android's MediaSession
 // needs an actual URI string to render the thumbnail correctly.
 function getNotificationLogoUri(): string {
-  const isDark = appSettings.getItem('app_theme') !== 'light';
+  // MMKV can be unavailable for a beat on cold start (native module not yet
+  // bridged — seen on iOS dev clients). A throw here would otherwise abort
+  // the whole player setup over a theme read, so default to the dark logo
+  // (matches ThemeProvider's default theme) instead of crashing.
+  let isDark = true;
+  try {
+    isDark = appSettings.getItem('app_theme') !== 'light';
+  } catch {
+    // See comment above — keep the default.
+  }
   const logoSource = isDark
     ? require('../../assets/images/darklogortvfontana.png')
     : require('../../assets/images/applogortvfontana.png');

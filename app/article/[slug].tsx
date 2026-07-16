@@ -867,9 +867,16 @@ type ReactionKey = (typeof REACTION_EMOJIS)[number]['key'];
 function useArticleReaction(slug: string) {
   const storageKey = `reaction_${slug}`;
   const [selected, setSelected] = useState<ReactionKey | null>(() => {
-    const saved = appSettings.getItem(storageKey);
-    if (saved && REACTION_EMOJIS.some((r) => r.key === saved)) {
-      return saved as ReactionKey;
+    // MMKV can be unavailable for a beat on cold start (native module not
+    // yet bridged — seen on iOS dev clients). Fall back to no saved
+    // reaction rather than crashing (same pattern as ThemeProvider).
+    try {
+      const saved = appSettings.getItem(storageKey);
+      if (saved && REACTION_EMOJIS.some((r) => r.key === saved)) {
+        return saved as ReactionKey;
+      }
+    } catch {
+      // See comment above.
     }
     return null;
   });
@@ -878,10 +885,14 @@ function useArticleReaction(slug: string) {
     (key: ReactionKey) => {
       const next = selected === key ? null : key;
       setSelected(next);
-      if (next) {
-        appSettings.setItem(storageKey, next);
-      } else {
-        appSettings.removeItem(storageKey);
+      try {
+        if (next) {
+          appSettings.setItem(storageKey, next);
+        } else {
+          appSettings.removeItem(storageKey);
+        }
+      } catch {
+        // Best-effort persistence — see the guard above.
       }
     },
     [selected, storageKey],

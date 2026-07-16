@@ -29,12 +29,23 @@ function getNativeModule() {
 }
 
 export function getSavedAppIcon(): 'light' | 'dark' {
-  const saved = appSettings.getItem(APP_ICON_KEY);
-  return saved === 'light' ? 'light' : 'dark';
+  // MMKV can be unavailable for a beat on cold start (native module not yet
+  // bridged — seen on iOS dev clients). Fall back to the default icon rather
+  // than crashing (same pattern as ThemeProvider's theme read).
+  try {
+    const saved = appSettings.getItem(APP_ICON_KEY);
+    return saved === 'light' ? 'light' : 'dark';
+  } catch {
+    return 'dark';
+  }
 }
 
 export function saveAppIconPreference(icon: 'light' | 'dark') {
-  appSettings.setItem(APP_ICON_KEY, icon);
+  try {
+    appSettings.setItem(APP_ICON_KEY, icon);
+  } catch {
+    // Best-effort persistence — see the guard above.
+  }
 }
 
 export async function setAppIcon(icon: 'light' | 'dark'): Promise<boolean> {
