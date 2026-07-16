@@ -73,18 +73,29 @@ module.exports = function withDynamicAppIcon(config) {
     const targetUUID = xcodeProject.getFirstTarget()?.uuid;
     if (!targetUUID) return config;
 
+    // BUG FIX: addResourceFile's path must be relative to the .xcodeproj
+    // (ios/), matching every other file in the same group — the group
+    // itself carries no `path`, so AppDelegate.swift/Info.plist/etc. are
+    // all registered as "ProjectName/<file>", not bare filenames. A bare
+    // filename here resolved to ios/<file>, while the withDangerousMod
+    // step above copies the PNGs to ios/<ProjectName>/<file> — that
+    // mismatch is exactly what produces Xcode's "Build input file cannot
+    // be found" at build time. Verified by running `expo prebuild` and
+    // comparing the generated project.pbxproj's PBXFileReference entries.
+    const projectName = config.modRequest.projectName;
     const files = ['LightIcon@2x.png', 'LightIcon@3x.png'];
     for (const file of files) {
+      const relativePath = path.join(projectName, file);
       // Check if already registered (idempotent — safe to re-run)
       const refs = xcodeProject.pbxFileReferenceSection() || {};
       const alreadyAdded = Object.values(refs).some(
         (ref) =>
           ref &&
           typeof ref === 'object' &&
-          (ref.path === file || ref.path === `"${file}"`)
+          (ref.path === relativePath || ref.path === `"${relativePath}"`)
       );
       if (!alreadyAdded) {
-        xcodeProject.addResourceFile(file, { target: targetUUID });
+        xcodeProject.addResourceFile(relativePath, { target: targetUUID });
       }
     }
     return config;
