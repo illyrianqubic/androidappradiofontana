@@ -38,9 +38,9 @@
         "releaseStatus": "draft"
       },
       "ios": {
-        "appleId": "REPLACE_WITH_APPLE_ID_EMAIL",
-        "ascAppId": "REPLACE_WITH_APP_STORE_CONNECT_APP_ID",
-        "appleTeamId": "REPLACE_WITH_APPLE_TEAM_ID"
+        "appleId": "freskimceta@gmail.com",
+        "ascAppId": "6791562849",
+        "appleTeamId": "JR6LBL2JM9"
       }
     }
   }
