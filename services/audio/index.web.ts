@@ -17,7 +17,12 @@ import { appIdentity } from '../../constants/tokens';
 
 const reconnectDelaysMs = [1000, 2000, 4000, 8000, 16000, 30000];
 
-const PlayerState = {
+// BUG FIX: this was missing `export`, so live.tsx's
+// `import { PlayerState } from '../../services/audio'` silently resolved to
+// `undefined` on web (Metro loads this .web.ts over the native index.ts for
+// web builds) — every `PlayerState.<key>` read then threw
+// "Cannot read properties of undefined (reading '<key>')".
+export const PlayerState = {
   none: 0,
   connecting: 1,
   paused: 2,
@@ -517,32 +522,29 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function useAudioState(): AudioStateValue {
-  const ctx = useContext(AudioStateContext);
-  if (!ctx) {
-    throw new Error('useAudioState must be used inside AudioProvider');
-  }
-  return ctx;
+// BUG FIX: these used to throw when the context value wasn't available yet,
+// while the native index.ts versions return null. LiveScreen's guard
+// (`if (!audioState || !audioActions) return null`) is written for that
+// null-based contract — on web the throw fired before the guard could ever
+// run, so it was dead code. Matching native's contract here means the guard
+// actually works on both platforms.
+export function useAudioState(): AudioStateValue | null {
+  return useContext(AudioStateContext);
 }
 
-export function useAudioMetadata(): NowPlayingMetadata {
-  const ctx = useContext(AudioMetadataContext);
-  if (!ctx) {
-    throw new Error('useAudioMetadata must be used inside AudioProvider');
-  }
-  return ctx;
+export function useAudioMetadata(): NowPlayingMetadata | null {
+  return useContext(AudioMetadataContext);
 }
 
-export function useAudioActions(): AudioActionsValue {
-  const ctx = useContext(AudioActionsContext);
-  if (!ctx) {
-    throw new Error('useAudioActions must be used inside AudioProvider');
-  }
-  return ctx;
+export function useAudioActions(): AudioActionsValue | null {
+  return useContext(AudioActionsContext);
 }
 
-export function useAudio(): AudioContextValue {
+export function useAudio(): AudioContextValue | null {
   const state = useAudioState();
   const actions = useAudioActions();
-  return useMemo(() => ({ ...state, ...actions }), [state, actions]);
+  return useMemo(() => {
+    if (!state || !actions) return null;
+    return { ...state, ...actions };
+  }, [state, actions]);
 }

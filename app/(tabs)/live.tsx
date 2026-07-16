@@ -748,6 +748,15 @@ function LiveScreenInner({
   audioState: AudioStateValue;
   audioActions: AudioActionsValue;
 }) {
+  // Defense-in-depth: LiveScreen already checks useAudioState()/
+  // useAudioActions() for null before rendering this component, but that
+  // guard only works if the AudioContext value is actually available by
+  // then. Runtime values aren't guaranteed to match TypeScript's non-null
+  // prop types (e.g. a stale render during a fast-refresh edit), so guard
+  // again here rather than crash reading audioState/audioActions fields
+  // below — same pattern as ThemeProvider's storage guard.
+  if (!audioState || !audioActions) return null;
+
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { isPlaying, isReconnecting, isBuffering, playbackState, reconnectAttempt } = audioState;
