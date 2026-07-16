@@ -50,12 +50,25 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
-    const saved = appSettings.getItem(THEME_KEY);
-    return saved === 'light' ? 'light' : 'dark';
+    // MMKV can be unavailable for a beat on cold start (native module not
+    // yet bridged — seen on iOS dev clients). Fall back to the default
+    // theme instead of crashing the app before anything can render; the
+    // effect below will simply keep retrying the write on every theme
+    // change once storage comes online.
+    try {
+      const saved = appSettings.getItem(THEME_KEY);
+      return saved === 'light' ? 'light' : 'dark';
+    } catch {
+      return 'dark';
+    }
   });
 
   useEffect(() => {
-    appSettings.setItem(THEME_KEY, theme);
+    try {
+      appSettings.setItem(THEME_KEY, theme);
+    } catch {
+      // Best-effort persistence — see the guard above.
+    }
   }, [theme]);
 
   const toggleTheme = useCallback(() => {
