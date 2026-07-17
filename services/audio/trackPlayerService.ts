@@ -1,6 +1,11 @@
-// Import RNTP directly — the headless JS task context on Android may not
-// satisfy our shim's TurboModuleRegistry.get() availability check, which
-// would silently drop all addEventListener calls and break lock screen controls.
+// ANDROID NOTE (5.0.0-alpha0): this imported RNTP directly (rather than via
+// our trackPlayerNative.ts shim) because the headless JS task context on
+// Android might not satisfy the shim's TurboModuleRegistry.get()
+// availability check, silently dropping addEventListener calls and breaking
+// lock screen controls. That check no longer exists after the 4.1.2
+// migration (trackPlayerNative.ts imports RNTP directly too now), but
+// importing RNTP directly here is still correct — the headless service
+// should talk to RNTP as plainly as possible regardless.
 import TrackPlayer, { Event, type AddTrack } from 'react-native-track-player';
 import { radioTrack } from './radioTrack';
 

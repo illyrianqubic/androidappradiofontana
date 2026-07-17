@@ -9,15 +9,12 @@ import React, {
 } from 'react';
 import {
   AppState,
-  Image,
   type AppStateStatus,
 } from 'react-native';
 import {
   AndroidAudioContentType,
   AppKilledPlaybackBehavior,
   getPlaybackCapabilities,
-  getTrackPlayerDiagnostics,
-  isTrackPlayerAvailable,
   TrackPlayer,
   TrackPlayerEvent,
   TrackPlayerState,
@@ -39,11 +36,15 @@ export const PlayerState = {
 } as const;
 export type PlayerStateValue = (typeof PlayerState)[keyof typeof PlayerState];
 
-// Resolve the local asset to a file:// URI so Android can use it as the
-// media notification largeIcon (square thumbnail on the left). Passing a raw
-// require() number works for React Native views but Android's MediaSession
-// needs an actual URI string to render the thumbnail correctly.
-function getNotificationLogoUri(): string {
+// ANDROID NOTE (5.0.0-alpha0): the original implementation resolved this to
+// a file:// URI via Image.resolveAssetSource(...).uri, because 5.0.0-alpha0
+// accepted android.largeIcon as a URI string. RNTP 4.1.2 has no
+// android.largeIcon field at all (confirmed by inspecting the installed
+// package's AndroidOptions type) — the closest equivalent is a top-level
+// `icon` field typed as a raw asset reference (the numeric id require()
+// returns), not a resolved URI. See git history for the original
+// implementation if restoring the 5.0.0-alpha0 native module.
+function getNotificationIcon(): number {
   // MMKV can be unavailable for a beat on cold start (native module not yet
   // bridged — seen on iOS dev clients). A throw here would otherwise abort
   // the whole player setup over a theme read, so default to the dark logo
@@ -54,10 +55,9 @@ function getNotificationLogoUri(): string {
   } catch {
     // See comment above — keep the default.
   }
-  const logoSource = isDark
+  return isDark
     ? require('../../assets/images/darklogortvfontana.png')
     : require('../../assets/images/applogortvfontana.png');
-  return Image.resolveAssetSource(logoSource).uri;
 }
 
 export type NowPlayingMetadata = {
@@ -282,12 +282,14 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const configurePlayer = useCallback(async () => {
     const playbackCapabilities = getPlaybackCapabilities();
     audioLog('updateOptions', { capabilities: playbackCapabilities });
+    // ANDROID NOTE (5.0.0-alpha0): `icon` replaces the old android.largeIcon
+    // field — see getNotificationIcon()'s comment above.
     await TrackPlayer.updateOptions({
+      icon: getNotificationIcon(),
       android: {
         appKilledPlaybackBehavior: AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
         alwaysPauseOnInterruption: true,
         stopForegroundGracePeriod: 30,
-        largeIcon: getNotificationLogoUri(),
       },
       capabilities: playbackCapabilities,
       notificationCapabilities: playbackCapabilities,
@@ -301,10 +303,13 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     }
 
     setupPromiseRef.current = (async () => {
-      audioLog('setup start', getTrackPlayerDiagnostics());
-      if (!isTrackPlayerAvailable()) {
-        throw new Error('react-native-track-player native module is unavailable. Rebuild the development client.');
-      }
+      // ANDROID NOTE (5.0.0-alpha0): original code used isTrackPlayerAvailable()
+      // TurboModule check + getTrackPlayerDiagnostics() here before attempting
+      // setup. RNTP 4.1.2's plain bridge module doesn't need a pre-flight
+      // check — a missing native module simply rejects setupPlayer() below,
+      // caught by the .catch() at the bottom of this IIFE. See git history
+      // for the original implementation if restoring.
+      audioLog('setup start');
 
       try {
         await TrackPlayer.setupPlayer({
@@ -391,20 +396,13 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const reconnect = useCallback(async () => {
     if (userIntentRef.current === 'pause') return;
     if (reconnectDebounceRef.current) return;
-    if (!isTrackPlayerAvailable()) {
-      audioLog('reconnect skipped: native module unavailable', getTrackPlayerDiagnostics());
-      updateState({
-        isPlaying: false,
-        isBuffering: false,
-        isReconnecting: false,
-        playbackState: PlayerState.error,
-        metadata: {
-          title: 'Gabim në stream',
-          artist: 'Rindërto development build',
-        },
-      });
-      return;
-    }
+    // ANDROID NOTE (5.0.0-alpha0): original code checked isTrackPlayerAvailable()
+    // here and showed a distinct "rebuild development build" message instead
+    // of retrying. RNTP 4.1.2 doesn't need that pre-flight check (see
+    // setupPlayer's comment above) — if the module truly is unavailable,
+    // doReconnect's own try/catch below now handles it via the normal retry
+    // path instead of a dedicated message. See git history for the original
+    // implementation if restoring.
 
     reconnectDebounceRef.current = setTimeout(() => {
       reconnectDebounceRef.current = null;
@@ -488,10 +486,12 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   }, [reconnect]);
 
   const play = useCallback(async () => {
-    if (!isTrackPlayerAvailable()) {
-      if (__DEV__) console.error('[Audio] TrackPlayer TurboModule is not available — rebuild the native app');
-      return;
-    }
+    // ANDROID NOTE (5.0.0-alpha0): original code checked isTrackPlayerAvailable()
+    // here before attempting playback. RNTP 4.1.2 doesn't need that
+    // pre-flight check (see setupPlayer's comment above) — the try/catch
+    // below already handles a missing native module via the normal
+    // error/reconnect path. See git history for the original implementation
+    // if restoring.
     audioLog('play action');
     userIntentRef.current = 'play';
     cancelReconnect();
@@ -620,13 +620,14 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Eagerly set up the player on mount so we get early diagnostics
     // and the queue is ready before the first play tap.
-    if (isTrackPlayerAvailable()) {
-      void setupPlayer().catch((error) => {
-        audioError('eager setup error', error);
-      });
-    } else {
-      if (__DEV__) console.error('[Audio] TrackPlayer TurboModule is not available — rebuild the native app');
-    }
+    // ANDROID NOTE (5.0.0-alpha0): original code branched on
+    // isTrackPlayerAvailable() here. RNTP 4.1.2 doesn't need that
+    // pre-flight check (see setupPlayer's comment above) — setupPlayer()'s
+    // own .catch() handles a missing native module. See git history for the
+    // original implementation if restoring.
+    void setupPlayer().catch((error) => {
+      audioError('eager setup error', error);
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
