@@ -10,7 +10,7 @@
     "assetBundlePatterns": [
       "assets/**/*"
     ],
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "updates": {
       "fallbackToCacheTimeout": 0,
       "url": "https://u.expo.dev/1fe56255-8910-4717-b30d-8203634b4a76"
