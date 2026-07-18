@@ -220,41 +220,51 @@ export const TrackPlayer = {
 
    ============================================================ */
 
+
 // ============================================================
 // react-native-track-player@4.1.2 IMPLEMENTATION (current)
 // ============================================================
-// Migrated from 5.0.0-alpha0 (TurboModule, New Architecture-only) to
-// 4.1.2 (stable) because 5.0.0-alpha0 crashes on iOS after entering the
-// "Loading" state. newArchEnabled stays true for the rest of the app —
-// 4.1.2 has no codegenConfig/TurboModule spec at all (confirmed by
-// inspecting the installed package), so it runs through React Native's
-// Legacy Interop Layer instead.
+// CRASH FIX (iOS production: instant crash on splash, no JS output).
 //
-// Because 4.1.2 is a plain NativeModules bridge module rather than a
-// Turbo Module, it does not throw synchronously when unavailable the way
-// 5.0.0-alpha0's TurboModuleRegistry.getEnforcing() did — the elaborate
-// lazy-require + availability-check machinery above (getTrackPlayerModule,
-// isTrackPlayerAvailable, getTrackPlayerDiagnostics, requireTrackPlayerModule,
-// loadTrackPlayerPackage) existed specifically to survive that TurboModule
-// failure mode and is not needed here.
+// RNTP 4.1.2 touches the native module at MODULE-EVALUATION time:
+//   - src/TrackPlayerModule.ts:  const { TrackPlayerModule } = NativeModules
+//   - src/trackPlayer.ts:        new NativeEventEmitter(TrackPlayer)  // iOS
+//   - src/constants/Capability.ts: TrackPlayer.CAPABILITY_PLAY, ...
+// If NativeModules.TrackPlayerModule is null/undefined, the
+// NativeEventEmitter constructor throws an invariant and the Capability
+// enum throws a TypeError — while the JS bundle is still being evaluated.
+// The previous revision of this file imported RNTP at module scope, and
+// the app's root index.ts imports this file as its first statement, so
+// that evaluation sat on the startup critical path: in a release build
+// the result is an immediate abort behind the splash screen, before React
+// renders anything and before any JS error can be surfaced.
 //
-// One residual risk worth knowing: RNTP's own `Capability` enum (imported
-// below) reads its values off `NativeModules.TrackPlayerModule` at *module
-// evaluation time*. If the native module truly isn't linked (e.g. a stale
-// dev client that hasn't been rebuilt since this migration, or Expo Go,
-// which never supported RNTP regardless of version), importing this file
-// will throw while that enum is being constructed, before any of our own
-// code runs. This is inherent to RNTP 4.x's own source — not something a
-// wrapper can guard against without reintroducing the lazy-require pattern
-// removed above — and only affects unlinked/stale dev builds, never a
-// correctly built production binary.
-import { type EmitterSubscription } from 'react-native';
-import RNTrackPlayer, {
-  Capability,
-  type AddTrack,
-  type Track,
-  type TrackType as RNTPTrackType,
-} from 'react-native-track-player';
+// When can the module be null? The 4.1.2 native side registers a LEGACY
+// bridge module named "TrackPlayerModule"
+// (RCT_EXTERN_REMAP_MODULE(TrackPlayerModule, RNTrackPlayer, ...)), while
+// 5.0.0-alpha0 registered a TURBO module named "TrackPlayer" — different
+// name, different registry. Any binary whose native side doesn't carry the
+// 4.1.2 legacy module (an old dev client, a stale binary running newer JS,
+// or an interop-layer registration failure under New Architecture) hits
+// the eval-time crash.
+//
+// Fix: never import RNTP at module scope. Everything goes through a lazy,
+// cached, availability-guarded require — the same architecture the
+// preserved 5.0.0-alpha0 wrapper above used, adapted to 4.1.2's
+// NativeModules-based lookup. If the module is unavailable the app now
+// boots normally and audio degrades to its error state instead of the
+// process dying on the splash screen.
+import {
+  AppRegistry,
+  NativeModules,
+  Platform,
+  type EmitterSubscription,
+} from 'react-native';
+// Type-only imports are erased at compile time — they do NOT evaluate the
+// package at runtime.
+import type { AddTrack, Track, TrackType as RNTPTrackType } from 'react-native-track-player';
+
+type TrackPlayerPackage = typeof import('react-native-track-player');
 
 export type StationMetadata = {
   title: string;
@@ -312,82 +322,138 @@ export const AppKilledPlaybackBehavior = {
   StopPlaybackAndRemoveNotification: 'stop-playback-and-remove-notification',
 } as const;
 
-// Verified against node_modules/react-native-track-player's own State/Event
-// constants: the string values above are byte-identical to RNTP 4.1.2's
-// (and 5.0.0-alpha0's) real State/Event enums, so no runtime translation is
-// needed between our own string-literal types and RNTP's payloads.
+// The string values above are byte-identical to RNTP 4.1.2's own State and
+// Event enums (verified against the installed package), so no runtime
+// translation is needed between our string-literal types and RNTP payloads.
 const noopSubscription: EmitterSubscription = {
   remove: () => undefined,
 } as EmitterSubscription;
 
-// RNTP 4.1.2 is a plain NativeModules bridge — Capability.Play/.Pause are
-// read as direct module constants (not via getConstants() the way v5's
-// TurboModule did).
+function isNativeModulePresent(): boolean {
+  try {
+    // Safe on both architectures: the bridgeless NativeModules proxy
+    // returns null/undefined for unknown modules rather than throwing —
+    // but keep the try/catch in case a future RN version changes that.
+    return NativeModules.TrackPlayerModule != null;
+  } catch {
+    return false;
+  }
+}
+
+// Cache: undefined = not attempted yet, null = attempted and unavailable.
+let _pkg: TrackPlayerPackage | null | undefined;
+
+function loadTrackPlayerPackage(): TrackPlayerPackage | null {
+  if (_pkg !== undefined) return _pkg;
+  if (!isNativeModulePresent()) {
+    _pkg = null;
+    return _pkg;
+  }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    _pkg = require('react-native-track-player') as TrackPlayerPackage;
+  } catch {
+    // Package evaluation itself failed (constants readout etc.) — treat as
+    // unavailable instead of letting the throw propagate to a caller.
+    _pkg = null;
+  }
+  return _pkg;
+}
+
+function requireTrackPlayerPackage(): TrackPlayerPackage {
+  const pkg = loadTrackPlayerPackage();
+  if (!pkg) {
+    throw new Error('react-native-track-player native module is unavailable. Rebuild the native app.');
+  }
+  return pkg;
+}
+
 export function getPlaybackCapabilities() {
-  return [Capability.Play, Capability.Pause];
+  // Lazy per the crash fix above — Capability's enum values are read off
+  // the native module the moment RNTP's JS evaluates. Only called from
+  // configurePlayer(), i.e. after setupPlayer() already succeeded.
+  const pkg = requireTrackPlayerPackage();
+  return [pkg.Capability.Play, pkg.Capability.Pause];
 }
 
 export const TrackPlayer = {
   registerPlaybackService(factory: () => () => Promise<void>) {
-    // ANDROID NOTE (5.0.0-alpha0): the original wrapper reimplemented the
-    // Android headless task / iOS setImmediate split manually here, guarded
-    // by isTrackPlayerAvailable(), to avoid eagerly loading RNTP before it
-    // was confirmed linked. RNTP 4.1.2's own registerPlaybackService already
-    // handles that same platform split internally, so we delegate directly.
-    RNTrackPlayer.registerPlaybackService(factory);
+    if (Platform.OS === 'android') {
+      // No RNTP import needed — mirrors RNTP's own implementation.
+      AppRegistry.registerHeadlessTask('TrackPlayer', factory);
+      return;
+    }
+
+    // iOS: RNTP's own registerPlaybackService just does
+    // setImmediate(factory()). Doing the same here, but with the package
+    // load deferred INSIDE the tick, keeps all RNTP evaluation off the
+    // bundle-eval critical path (this method is called from the app's root
+    // index.ts before anything renders).
+    setImmediate(() => {
+      if (!loadTrackPlayerPackage()) return;
+      factory()().catch(() => {
+        // Service init failed — audio provider surfaces its own error state.
+      });
+    });
   },
 
   addEventListener(
     event: TrackPlayerEvent,
     listener: (payload?: { state?: TrackPlayerState }) => void,
   ) {
+    const pkg = loadTrackPlayerPackage();
+    if (!pkg) return noopSubscription;
     // Cast event/listener as `never` because our string-literal
     // TrackPlayerEvent type is narrower than RNTP's typed Event enum — the
     // underlying string values are identical (see comment above).
-    return RNTrackPlayer.addEventListener(event as never, listener as never) ?? noopSubscription;
+    return pkg.default.addEventListener(event as never, listener as never) ?? noopSubscription;
   },
 
-  setupPlayer(options: Record<string, unknown>) {
-    return RNTrackPlayer.setupPlayer(options);
+  // The methods below are async so that an unavailable module surfaces as a
+  // REJECTED PROMISE (absorbed by the existing try/catch and .catch() paths
+  // in services/audio/index.ts) instead of a synchronous throw at the call
+  // site.
+  async setupPlayer(options: Record<string, unknown>) {
+    return requireTrackPlayerPackage().default.setupPlayer(options);
   },
 
-  updateOptions(options: Record<string, unknown>) {
-    return RNTrackPlayer.updateOptions(options);
+  async updateOptions(options: Record<string, unknown>) {
+    return requireTrackPlayerPackage().default.updateOptions(options);
   },
 
-  reset() {
-    return RNTrackPlayer.reset();
+  async reset() {
+    return requireTrackPlayerPackage().default.reset();
   },
 
-  add(track: RadioTrack) {
-    return RNTrackPlayer.add(track as AddTrack);
+  async add(track: RadioTrack) {
+    return requireTrackPlayerPackage().default.add(track as AddTrack);
   },
 
-  load(track: RadioTrack) {
-    return RNTrackPlayer.load(track as Track);
+  async load(track: RadioTrack) {
+    return requireTrackPlayerPackage().default.load(track as Track);
   },
 
-  updateMetadataForTrack(index: number, metadata: StationMetadata) {
-    return RNTrackPlayer.updateMetadataForTrack(index, metadata);
+  async updateMetadataForTrack(index: number, metadata: StationMetadata) {
+    return requireTrackPlayerPackage().default.updateMetadataForTrack(index, metadata);
   },
 
-  updateNowPlayingMetadata(metadata: StationMetadata & { isLiveStream?: boolean }) {
-    return RNTrackPlayer.updateNowPlayingMetadata(metadata);
+  async updateNowPlayingMetadata(metadata: StationMetadata & { isLiveStream?: boolean }) {
+    return requireTrackPlayerPackage().default.updateNowPlayingMetadata(metadata);
   },
 
-  getPlaybackState() {
-    return RNTrackPlayer.getPlaybackState() as Promise<{ state: TrackPlayerState }>;
+  async getPlaybackState() {
+    return requireTrackPlayerPackage().default.getPlaybackState() as Promise<{ state: TrackPlayerState }>;
   },
 
-  play() {
-    return RNTrackPlayer.play();
+  async play() {
+    return requireTrackPlayerPackage().default.play();
   },
 
-  pause() {
-    return RNTrackPlayer.pause();
+  async pause() {
+    return requireTrackPlayerPackage().default.pause();
   },
 
-  stop() {
-    return RNTrackPlayer.stop();
+  async stop() {
+    return requireTrackPlayerPackage().default.stop();
   },
 };
