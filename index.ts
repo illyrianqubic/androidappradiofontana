@@ -1,5 +1,9 @@
 import 'react-native-gesture-handler';
-import { registerTrackPlayerService } from './services/audio/registerTrackPlayerService';
+// TEST (iOS splash-crash isolation, revert after result): import removed
+// entirely so registerTrackPlayerService.ts (and its own import of
+// trackPlayerNative.ts) never loads at all. Paired with the AudioProvider
+// removal in app/_layout.tsx — see the comment there.
+// import { registerTrackPlayerService } from './services/audio/registerTrackPlayerService';
 import 'expo-router/entry';
 
 // DIAGNOSTIC (iOS startup-crash investigation): log the exact JS error
@@ -38,7 +42,6 @@ if (global.ErrorUtils) {
   });
 }
 
-// Register the TrackPlayer headless task so Android can invoke it when
-// the user taps lock-screen media controls while the app is in the
-// background. Must be called before any background task runs.
-registerTrackPlayerService();
+// TEST (iOS splash-crash isolation, revert after result): call removed
+// along with the import above.
+// registerTrackPlayerService();
