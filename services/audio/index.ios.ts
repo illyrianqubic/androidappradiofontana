@@ -1,20 +1,38 @@
 // iOS audio backend using expo-audio instead of react-native-track-player.
 //
-// WHY: RNTP 4.1.2's native module (RNTrackPlayer) crashes on iOS with
-// EXC_CRASH/SIGABRT — confirmed via a controlled A/B test against real
-// device crash logs (not assumed): a build with AudioProvider/RNTP fully
-// removed crashed on a different, independent signature
+// WHY RNTP WAS REPLACED: RNTP 4.1.2's native module crashed on iOS with
+// EXC_CRASH/SIGABRT, confirmed via a controlled A/B test against real
+// device crash logs — a build with AudioProvider/RNTP fully removed
+// crashed on a different, independent signature
 // (expo.controller.errorRecoveryQueue), while builds with RNTP present
 // crashed on com.facebook.react.ExceptionsManagerQueue at byte-identical
-// app-binary offsets (2890212/2888704) regardless of expo-updates state.
-// RNTP 4.1.2 has no TurboModule/codegen support (confirmed by inspecting
-// the installed package) and was never tested against iOS 26 — it's an
-// old-bridge-module dependency now several years stale.
+// app-binary offsets (2890212/2888704).
 //
-// This file mirrors index.web.ts's reconnect/state-machine architecture
-// (already proven correct there) but adds the lock-screen integration
-// index.web.ts doesn't need. Android is untouched — index.ts still uses
-// RNTP there, where it has always worked.
+// CRASH FIX ROUND 2 (the same offsets reappeared after the RNTP replacement
+// shipped): expo-audio's own AudioModule.js does
+// `export default requireNativeModule('ExpoAudio');` at MODULE EVALUATION
+// TIME (no lazy wrapper), and expo-modules-core's requireNativeModule()
+// throws synchronously if the native module isn't found (confirmed by
+// reading node_modules/expo-modules-core/src/requireNativeModule.ts — its
+// own requireOptionalNativeModule() helper returns null gracefully, but
+// requireNativeModule() wraps it in `if (!nativeModule) throw new
+// Error(...)`). ExpoAudio.js then immediately touches
+// AudioModule.AudioPlayer.prototype at its own top level. The original
+// version of this file imported { createAudioPlayer, setAudioModeAsync }
+// from 'expo-audio' as a static top-level import — exactly the same
+// eager-native-throw-at-import-time bug that RNTP had (see
+// trackPlayerNative.ts's crash-fix comment for the original writeup),
+// just in a different library. This fully explains why swapping RNTP for
+// expo-audio produced the IDENTICAL crash offsets: the actual crash site
+// is almost certainly the shared Metro/RN module-require error path, not
+// any library-specific code — identical regardless of which import threw.
+// Fixed the same proven way: defer requiring 'expo-audio' until first
+// actual use via loadExpoAudio() below, instead of a static import.
+//
+// This file otherwise mirrors index.web.ts's reconnect/state-machine
+// architecture (already proven correct there) but adds the lock-screen
+// integration index.web.ts doesn't need. Android is untouched — index.ts
+// still uses RNTP there, where it has always worked.
 //
 // LOCK SCREEN CONTROLS: expo-audio's AudioPlayer.setActiveForLockScreen()
 // only *displays* metadata via its public JS API — but its native iOS
@@ -36,13 +54,27 @@ import React, {
   useState,
 } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
-import {
-  createAudioPlayer,
-  setAudioModeAsync,
-  type AudioPlayer,
-  type AudioStatus,
-} from 'expo-audio';
+// Type-only import — erased at compile time, does NOT evaluate the
+// package at runtime. See the crash-fix comment above.
+import type { AudioPlayer, AudioStatus } from 'expo-audio';
 import { appIdentity } from '../../constants/tokens';
+
+type ExpoAudioPackage = typeof import('expo-audio');
+
+// Cache: undefined = not attempted yet, null = attempted and unavailable.
+let _expoAudioPkg: ExpoAudioPackage | null | undefined;
+
+function loadExpoAudio(): ExpoAudioPackage | null {
+  if (_expoAudioPkg !== undefined) return _expoAudioPkg;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    _expoAudioPkg = require('expo-audio') as ExpoAudioPackage;
+  } catch (error) {
+    if (__DEV__) console.warn('[audio-ios] expo-audio require failed — native module unavailable', error);
+    _expoAudioPkg = null;
+  }
+  return _expoAudioPkg;
+}
 
 const reconnectDelaysMs = [1000, 2000, 4000, 8000, 16000, 30000];
 const AUDIO_DEBUG = __DEV__;
@@ -357,10 +389,13 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   }, [clearPlaySettlingCheck]);
 
   const createAndAttachPlayer = useCallback(
-    (autoPlay: boolean) => {
+    (autoPlay: boolean): AudioPlayer | null => {
+      const expoAudio = loadExpoAudio();
+      if (!expoAudio) return null;
+
       releaseCurrentPlayer();
 
-      const player = createAudioPlayer(
+      const player = expoAudio.createAudioPlayer(
         {
           uri: appIdentity.streamUrl,
           headers: { 'User-Agent': 'RTV Fontana/2.0.0 expo-audio' },
@@ -413,7 +448,12 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     initializingRef.current = true;
 
     try {
-      await setAudioModeAsync({
+      const expoAudio = loadExpoAudio();
+      if (!expoAudio) {
+        throw new Error('expo-audio native module is unavailable. Rebuild the native app.');
+      }
+
+      await expoAudio.setAudioModeAsync({
         allowsRecording: false,
         playsInSilentMode: true,
         interruptionMode: 'doNotMix',
@@ -421,7 +461,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         shouldPlayInBackground: true,
       });
 
-      createAndAttachPlayer(false);
+      if (!createAndAttachPlayer(false)) {
+        throw new Error('expo-audio native module is unavailable. Rebuild the native app.');
+      }
       updateState({
         isReady: true,
         playbackState: PlayerState.paused,
