@@ -331,19 +331,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
       await configurePlayer();
 
-      // DIAGNOSTIC (iOS splash-crash investigation, unconfirmed hypothesis):
-      // this used to reset()+load(radioTrack) here to pre-load the ICY/
-      // Shoutcast stream immediately on mount so play() would feel instant.
-      // That eager network-touching load() is one of the first things RNTP
-      // does after JS starts, on the same startup path as the crash. Left
-      // unloaded here — queueReadyRef.current stays false, so
-      // ensureRadioTrack() (called at the top of play()) performs the same
-      // reset()+load() on first user interaction instead. Trades "instant"
-      // first playback for not touching the stream before the splash
-      // screen is gone. If the crash persists, this hypothesis is ruled
-      // out and this should be reverted (restore the reset()+load() call
-      // removed here, matching ensureRadioTrack()'s below).
-      audioLog('setup done (track load deferred to first play)');
+      // Pre-load the track so play() is instant — queue is ready before first tap.
+      await TrackPlayer.reset();
+      await TrackPlayer.load(radioTrack);
+      queueReadyRef.current = true;
+      audioLog('setup done + track pre-loaded');
       updateState({
         isReady: true,
         playbackState: PlayerState.paused,
