@@ -29,7 +29,8 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_SENTRY_DSN": "https://394e03709ed1d7fb8d5ef9379ca8f5dd@o4511764167327744.ingest.de.sentry.io/4511764177289296"
+        "EXPO_PUBLIC_SENTRY_DSN": "https://394e03709ed1d7fb8d5ef9379ca8f5dd@o4511764167327744.ingest.de.sentry.io/4511764177289296",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     }
   },
