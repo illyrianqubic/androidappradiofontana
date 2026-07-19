@@ -27,13 +27,7 @@ import {
 } from '@tanstack/react-query-persist-client';
 import { LaunchSplash } from '../components/ui/LaunchSplash';
 import { HamburgerDrawer } from '../components/ui/HamburgerDrawer';
-// TEST (iOS splash-crash isolation, revert after result): AudioProvider
-// import removed entirely so services/audio/index.ts (and everything it
-// imports, including trackPlayerNative.ts) never loads at all — not even
-// at import time. If the crash disappears, audio is implicated somewhere
-// beyond what e204afe already fixed. If it persists, audio is fully ruled
-// out and the search moves to the other providers/imports below.
-// import { AudioProvider } from '../services/audio';
+import { AudioProvider } from '../services/audio';
 import { DrawerProvider } from '../providers/DrawerProvider';
 import { appSettings, queryStorage } from '../services/storage';
 import { ThemeProvider, useTheme } from '../providers/ThemeProvider';
@@ -501,9 +495,7 @@ function RootLayoutInner() {
           client={queryClient}
           persistOptions={PERSIST_OPTIONS}
         >
-          {/* TEST (iOS splash-crash isolation, revert after result): <AudioProvider>
-              replaced with a Fragment. See the commented-out import above. */}
-          <>
+          <AudioProvider>
             <DrawerProvider>
               {/* AUDIT FIX (iOS): LaunchSplash's background always starts at the
                   same dark navy as the native splash (see LaunchSplash.tsx),
@@ -541,7 +533,7 @@ function RootLayoutInner() {
                 />
               ) : null}
             </DrawerProvider>
-          </>
+          </AudioProvider>
         </PersistQueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
