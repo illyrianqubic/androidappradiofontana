@@ -1,4 +1,5 @@
 import 'react-native-gesture-handler';
+import { Platform } from 'react-native';
 import { registerTrackPlayerService } from './services/audio/registerTrackPlayerService';
 import 'expo-router/entry';
 
@@ -41,4 +42,16 @@ if (global.ErrorUtils) {
 // Register the TrackPlayer headless task so Android can invoke it when
 // the user taps lock-screen media controls while the app is in the
 // background. Must be called before any background task runs.
-registerTrackPlayerService();
+//
+// iOS uses services/audio/index.ios.ts (expo-audio) instead of RNTP —
+// react-native-track-player's native module has been confirmed (via a
+// controlled A/B test against real device crash logs) to crash on iOS
+// init. This call is gated to Android so registerTrackPlayerService.ts's
+// registerPlaybackService() — which is what actually requires
+// 'react-native-track-player' on iOS via a setImmediate-deferred callback
+// (see trackPlayerNative.ts) — never runs on iOS at all. The static
+// import above stays: trackPlayerNative.ts's own top-level code is
+// already lazy/safe (e204afe), so merely importing it does not touch RNTP.
+if (Platform.OS === 'android') {
+  registerTrackPlayerService();
+}
