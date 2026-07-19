@@ -68,6 +68,7 @@
       "./plugins/with-adi-registration-asset",
       "./plugins/with-dynamic-app-icon",
       "expo-router",
+      "@sentry/react-native/expo",
       [
         "expo-splash-screen",
         {
