@@ -56,13 +56,13 @@ if (Platform.OS === 'android') {
   registerTrackPlayerService();
 }
 
-// Deferred so Sentry.init() above is guaranteed to run first — see the
-// SEQUENCING comment. This is a microtask-scale reorder, not a real
-// architecture change: the native side doesn't invoke the registered root
-// component until the JS thread returns control after the full bundle
-// evaluation pass, which a dynamic import still completes well before.
-// @ts-expect-error expo-router/entry is a side-effect-only module with no
-// declared exports/types (the static `import 'expo-router/entry'` form
-// this replaces didn't need types either — TS is just stricter about
-// dynamic import() targets needing a resolvable declaration).
-void import('expo-router/entry');
+// Deferred 5s so Sentry has time to flush any pending crash report from
+// the previous session before expo-router/entry's bootstrap (and
+// everything downstream of it) starts running.
+setTimeout(() => {
+  // @ts-expect-error expo-router/entry is a side-effect-only module with no
+  // declared exports/types (the static `import 'expo-router/entry'` form
+  // this replaces didn't need types either — TS is just stricter about
+  // dynamic import() targets needing a resolvable declaration).
+  void import('expo-router/entry');
+}, 5000);
