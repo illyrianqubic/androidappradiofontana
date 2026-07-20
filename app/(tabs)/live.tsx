@@ -12,7 +12,10 @@ import {
 } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import Svg, { Circle, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
-import { useIsFocused } from '@react-navigation/native';
+// SDK 57: expo-router vendors react-navigation internally and re-exports
+// useIsFocused — the standalone @react-navigation/native package's context
+// is never mounted by expo-router 57, so its hook must not be used.
+import { useIsFocused } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -202,7 +205,7 @@ const circleStyles = StyleSheet.create({
     overflow: 'hidden',
   },
   circleBase: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: CIRCLE_SIZE / 2,
   },
   circleMid: {

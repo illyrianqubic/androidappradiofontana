@@ -177,7 +177,7 @@ export function LaunchSplash({ onComplete, onExitStart, isContentReady = false }
 // ─── styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   screen: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 120,

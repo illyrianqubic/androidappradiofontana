@@ -622,13 +622,13 @@ export default function ArticleDetailScreen() {
       >
         {/* ── Hero ────────────────────────────────────────────────────── */}
         <View style={styles.heroContainer}>
-          <Pressable onPress={() => setLightboxVisible(true)} style={StyleSheet.absoluteFillObject}>
+          <Pressable onPress={() => setLightboxVisible(true)} style={StyleSheet.absoluteFill}>
             <Image
               source={heroImageUri ? { uri: heroImageUri } : undefined}
               placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
               contentFit="cover"
               transition={0}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
             />
           </Pressable>
           {/* Subtle bottom fade to paper colour so the image transitions
@@ -636,7 +636,7 @@ export default function ArticleDetailScreen() {
           <LinearGradient
             colors={['transparent', 'transparent', 'rgba(251,249,244,0.0)', colors.paper]}
             locations={[0, 0.55, 0.85, 1]}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
             pointerEvents="none"
           />
         </View>
@@ -820,7 +820,7 @@ const RelatedItem = memo(function RelatedItem({
             recyclingKey={post._id}
             contentFit="cover"
             transition={0}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
           />
         </View>
         {/* White body */}
@@ -1166,7 +1166,7 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     zIndex: 30,
   },
   articleNavSolid: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.rule,

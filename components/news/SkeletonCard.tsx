@@ -10,7 +10,10 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { useIsFocused } from '@react-navigation/native';
+// SDK 57: expo-router vendors react-navigation internally and re-exports
+// useIsFocused — the standalone @react-navigation/native package's context
+// is never mounted by expo-router 57, so its hook must not be used.
+import { useIsFocused } from 'expo-router';
 import { radius } from '../../constants/tokens';
 import { useTheme } from '../../providers/ThemeProvider';
 import type { ThemeColors } from '../../providers/ThemeProvider';
@@ -49,7 +52,7 @@ const getStyles = (colors: ThemeColors) =>
       overflow: 'hidden',
     },
     shimmer: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: colors.border,
     },
     skeletonRow: {

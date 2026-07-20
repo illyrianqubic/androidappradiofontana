@@ -545,7 +545,7 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.surfaceSubtle,
   },
   heroGradientOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     paddingHorizontal: 12,
     paddingVertical: 12,
     justifyContent: 'space-between',

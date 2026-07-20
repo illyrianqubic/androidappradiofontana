@@ -47,7 +47,10 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import { useIsFocused } from '@react-navigation/native';
+// SDK 57: expo-router vendors react-navigation internally and re-exports
+// useIsFocused — the standalone @react-navigation/native package's context
+// is never mounted by expo-router 57, so its hook must not be used.
+import { useIsFocused } from 'expo-router';
 import { HamburgerButton } from '../../components/ui/HamburgerButton';
 import { RelativeTime } from '../../components/ui/RelativeTime';
 import { RefreshStatusBanner } from '../../components/ui/RefreshStatusBanner';
@@ -562,7 +565,7 @@ const HeroCard = memo(function HeroCard({
         <View style={styles.heroContent}>
           <LinearGradient
             colors={[colors.surface, colors.surfaceSubtle]}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
             pointerEvents="none"
           />
           {isBreakingBadgeVisible(hero.breaking, hero.publishedAt) ? (

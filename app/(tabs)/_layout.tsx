@@ -1,7 +1,6 @@
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, type ComponentProps } from 'react';
 import { Tabs } from 'expo-router';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -13,6 +12,14 @@ import type { LucideIcon } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../providers/ThemeProvider';
 import type { ThemeColors } from '../../providers/ThemeProvider';
+
+// SDK 57: expo-router now vendors its own react-navigation fork, so types
+// from the standalone @react-navigation/bottom-tabs package no longer match
+// what <Tabs tabBar={...}> passes. Derive the props type from the Tabs
+// component itself — version-proof against future vendoring changes.
+type BottomTabBarProps = Parameters<
+  NonNullable<ComponentProps<typeof Tabs>['tabBar']>
+>[0];
 
 const TAB_ROUTES = ['index', 'live', 'news'] as const;
 type TabRoute = (typeof TAB_ROUTES)[number];

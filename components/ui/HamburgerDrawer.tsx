@@ -646,7 +646,7 @@ const LegalLink = memo(function LegalLink({ label, url }: { label: string; url: 
 
 const getS = (colors: ThemeColors) => StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: `${colors.navyFixed}6B`,
   },
   panelOuter: {

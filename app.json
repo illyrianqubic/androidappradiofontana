@@ -10,16 +10,10 @@
     "assetBundlePatterns": [
       "assets/**/*"
     ],
-    "newArchEnabled": false,
     "updates": {
       "enabled": false,
       "fallbackToCacheTimeout": 0,
-      "url": "https://u.expo.dev/1fe56255-8910-4717-b30d-8203634b4a76"
-    },
-    "splash": {
-      "image": "./assets/images/darklogortvfontana.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0B1220"
+      "url": "https://u.expo.dev/f147c876-71ac-44b2-87c6-f386f5db4063"
     },
     "ios": {
       "supportsTablet": false,
@@ -42,12 +36,8 @@
         "foregroundImage": "./assets/adaptive-icon-foreground-dark.png",
         "backgroundColor": "#0B1220"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.rtvfontana.android",
-      "assets": [
-        "assets/adi-registration.properties"
-      ],
       "permissions": [
         "android.permission.INTERNET",
         "android.permission.WAKE_LOCK",
@@ -90,7 +80,11 @@
             "./node_modules/@expo-google-fonts/merriweather/700Bold/Merriweather_700Bold.ttf"
           ]
         }
-      ]
+      ],
+      "expo-asset",
+      "expo-audio",
+      "expo-image",
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true
@@ -98,12 +92,12 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "1fe56255-8910-4717-b30d-8203634b4a76"
+        "projectId": "f147c876-71ac-44b2-87c6-f386f5db4063"
       }
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
-    "owner": "frescoidhereis"
+    "owner": "frescoid1s-team"
   }
 }
