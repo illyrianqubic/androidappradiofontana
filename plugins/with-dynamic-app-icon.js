@@ -1,6 +1,34 @@
 const fs = require("fs");
 const path = require("path");
-const { withDangerousMod, withAndroidManifest, withInfoPlist } = require("expo/config-plugins");
+const { withDangerousMod, withAndroidManifest, withXcodeProject } = require("expo/config-plugins");
+
+// ─── iOS alternate icon ──────────────────────────────────────────────────────
+// Apple-supported mechanism (Xcode 13+): a LightIcon.appiconset inside the
+// app target's Images.xcassets, plus two build settings. actool then
+// GENERATES the CFBundleIcons/CFBundleAlternateIcons Info.plist entries at
+// build time from the catalog contents.
+//
+// Do NOT hand-write CFBundleIcons into Info.plist: a plist entry that doesn't
+// exactly match a compiled catalog asset is rejected at upload with
+// ITMS-90895 ("LightIcon isn't resolvable as a catalog asset") — that is
+// what killed the previous attempt. The catalog + build settings are the
+// single source of truth.
+const IOS_ALTERNATE_ICON_NAME = "LightIcon";
+const IOS_ICON_SOURCE_DIR = path.join("assets", "app-icons", "ios", "LightIcon");
+
+// Full iPhone appiconset matrix + marketing icon (matches the files produced
+// by scripts/generate_ios_alternate_icon.py).
+const IOS_APPICONSET_IMAGES = [
+  { filename: "Icon-App-20x20@2x.png", idiom: "iphone", scale: "2x", size: "20x20" },
+  { filename: "Icon-App-20x20@3x.png", idiom: "iphone", scale: "3x", size: "20x20" },
+  { filename: "Icon-App-29x29@2x.png", idiom: "iphone", scale: "2x", size: "29x29" },
+  { filename: "Icon-App-29x29@3x.png", idiom: "iphone", scale: "3x", size: "29x29" },
+  { filename: "Icon-App-40x40@2x.png", idiom: "iphone", scale: "2x", size: "40x40" },
+  { filename: "Icon-App-40x40@3x.png", idiom: "iphone", scale: "3x", size: "40x40" },
+  { filename: "Icon-App-60x60@2x.png", idiom: "iphone", scale: "2x", size: "60x60" },
+  { filename: "Icon-App-60x60@3x.png", idiom: "iphone", scale: "3x", size: "60x60" },
+  { filename: "Icon-App-1024x1024@1x.png", idiom: "ios-marketing", scale: "1x", size: "1024x1024" },
+];
 
 // ─── Android icon sizes ──────────────────────────────────────────────────────
 const DPI_VALUES = ["mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"];
@@ -25,24 +53,57 @@ module.exports = function withDynamicAppIcon(config) {
     return config;
   }]);
 
-  // ─── iOS: Info.plist icon config ─────────────────────────────────────────
-  // TEMPORARY (Apple ITMS-90895): CFBundleAlternateIcons/LightIcon is
-  // disabled here. The asset-catalog approach (LightIcon.appiconset inside
-  // Images.xcassets) was verified correct via local `expo prebuild`, but EAS
-  // Build's cloud prebuild was not picking it up the same way, and Apple's
-  // asset validator rejected the submitted binary because "LightIcon" wasn't
-  // resolvable as a catalog asset. Removing the Info.plist reference (and
-  // the asset-copy step below) means iOS ships with only its primary icon
-  // until a proper EAS-compatible fix is implemented — see
-  // services/app-icon/index.ts and components/ui/HamburgerDrawer.tsx, which
-  // already gate icon switching to Android only.
-  config = withInfoPlist(config, (config) => {
-    config.modResults.CFBundleIcons = {
-      CFBundlePrimaryIcon: {
-        CFBundleIconFiles: ['AppIcon'],
-        CFBundleIconName: 'AppIcon',
-      },
-    };
+  // ─── iOS: copy LightIcon.appiconset into Images.xcassets ─────────────────
+  config = withDangerousMod(config, ["ios", (config) => {
+    const projectRoot = config.modRequest.projectRoot;
+    const projectName = config.modRequest.projectName;
+    const sourceDir = path.join(projectRoot, IOS_ICON_SOURCE_DIR);
+    const appiconsetDir = path.join(
+      config.modRequest.platformProjectRoot,
+      projectName,
+      "Images.xcassets",
+      `${IOS_ALTERNATE_ICON_NAME}.appiconset`,
+    );
+
+    if (!fs.existsSync(sourceDir)) {
+      throw new Error(
+        `Missing iOS alternate icon sources: ${IOS_ICON_SOURCE_DIR}. ` +
+        `Run scripts/generate_ios_alternate_icon.py first.`,
+      );
+    }
+
+    fs.mkdirSync(appiconsetDir, { recursive: true });
+    for (const image of IOS_APPICONSET_IMAGES) {
+      fs.copyFileSync(path.join(sourceDir, image.filename), path.join(appiconsetDir, image.filename));
+    }
+    fs.writeFileSync(
+      path.join(appiconsetDir, "Contents.json"),
+      JSON.stringify(
+        {
+          images: IOS_APPICONSET_IMAGES,
+          info: { author: "xcode", version: 1 },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    return config;
+  }]);
+
+  // ─── iOS: Xcode build settings so actool compiles + declares the icon ────
+  config = withXcodeProject(config, (config) => {
+    const project = config.modResults;
+    const configurations = project.pbxXCBuildConfigurationSection();
+    for (const key of Object.keys(configurations)) {
+      const buildSettings = configurations[key].buildSettings;
+      if (!buildSettings) continue;
+      buildSettings.ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = "YES";
+      const existing = buildSettings.ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES;
+      const names = new Set((typeof existing === "string" ? existing.split(/\s+/) : []).filter(Boolean));
+      names.add(IOS_ALTERNATE_ICON_NAME);
+      buildSettings.ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = Array.from(names).join(" ");
+    }
     return config;
   });
 

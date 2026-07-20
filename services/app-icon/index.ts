@@ -7,15 +7,13 @@ let setAppIconNative: ((iconName: 'light' | 'dark') => Promise<void>) | null = n
 
 function getNativeModule() {
   if (setAppIconNative) return setAppIconNative;
-  // Dynamic icon switching is Android-only: the iOS native module compiles
-  // but Info.plist has no CFBundleAlternateIcons entry, so setAlternateIconName
-  // would always reject. Gate here so every caller (service + UI) is a no-op
-  // on iOS/web instead of attempting and silently failing per-call.
-  // plugins/with-dynamic-app-icon.js already adds the missing Info.plist
-  // entry + icon assets, but it needs a full EAS rebuild to take effect —
-  // once that's shipped, remove this gate (and the matching one in
-  // components/ui/HamburgerDrawer.tsx) to re-enable icon switching on iOS.
-  if (Platform.OS !== 'android') return null;
+  // Icon switching works on Android (activity-alias) and iOS
+  // (UIApplication.setAlternateIconName with the LightIcon appiconset that
+  // plugins/with-dynamic-app-icon.js installs into Images.xcassets and
+  // declares via ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES — actool
+  // generates the CFBundleAlternateIcons plist entry at build time).
+  // Web has no native module at all.
+  if (Platform.OS === 'web') return null;
   try {
     const DynamicAppIcon = require('../../modules/dynamic-app-icon').default;
     if (DynamicAppIcon?.setAppIcon) {

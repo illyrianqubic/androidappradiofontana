@@ -10,11 +10,6 @@
     "assetBundlePatterns": [
       "assets/**/*"
     ],
-    "updates": {
-      "enabled": false,
-      "fallbackToCacheTimeout": 0,
-      "url": "https://u.expo.dev/f147c876-71ac-44b2-87c6-f386f5db4063"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.rtvfontana.android",
@@ -22,8 +17,7 @@
       "icon": "./assets/images/darklogortvfontana.png",
       "infoPlist": {
         "UIBackgroundModes": [
-          "audio",
-          "fetch"
+          "audio"
         ],
         "ITSAppUsesNonExemptEncryption": false,
         "LSApplicationCategoryType": "public.app-category.music",
@@ -72,12 +66,7 @@
         "expo-font",
         {
           "fonts": [
-            "./node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf",
-            "./node_modules/@expo-google-fonts/inter/400Regular/Inter_400Regular.ttf",
-            "./node_modules/@expo-google-fonts/inter/500Medium/Inter_500Medium.ttf",
-            "./node_modules/@expo-google-fonts/inter/700Bold/Inter_700Bold.ttf",
-            "./node_modules/@expo-google-fonts/merriweather/400Regular/Merriweather_400Regular.ttf",
-            "./node_modules/@expo-google-fonts/merriweather/700Bold/Merriweather_700Bold.ttf"
+            "./node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf"
           ]
         }
       ],
@@ -94,9 +83,6 @@
       "eas": {
         "projectId": "f147c876-71ac-44b2-87c6-f386f5db4063"
       }
-    },
-    "runtimeVersion": {
-      "policy": "appVersion"
     },
     "owner": "frescoid1s-team"
   }

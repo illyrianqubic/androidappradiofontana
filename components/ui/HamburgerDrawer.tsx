@@ -120,12 +120,10 @@ function HamburgerDrawerInner() {
   });
 
   const selectAppIcon = useCallback(async (value: 'light' | 'dark') => {
-    // Dynamic icon switching is unsupported on iOS (see services/app-icon) —
-    // no-op silently instead of showing a restart prompt for a feature that
-    // cannot actually apply on this platform. Remove this gate (and the
-    // matching one in services/app-icon/index.ts) once an EAS rebuild has
-    // shipped the CFBundleAlternateIcons plugin fix.
-    if (Platform.OS !== 'android') return;
+    // Works on Android (activity-alias) and iOS (setAlternateIconName; the
+    // LightIcon appiconset is installed by plugins/with-dynamic-app-icon.js).
+    // On iOS the system itself shows a mandatory confirmation alert after a
+    // successful switch — that is Apple's UX requirement, not an error.
     const confirmed = await new Promise<boolean>((resolve) => {
       Alert.alert(
         'Ndërrimi i Ikonës',
