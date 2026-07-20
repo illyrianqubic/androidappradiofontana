@@ -23,11 +23,11 @@ import { elevation, fonts, radius } from '../../constants/tokens';
 import { useTheme, type ThemeColors } from '../../providers/ThemeProvider';
 import {
   buildSanityImageUrl,
-  defaultThumbhash,
   fetchBreakingPosts,
   fetchHeroPost,
   fetchLatestPosts,
   fetchPopularPosts,
+  getSafeThumbhash,
   sanityImageWidths,
   type Post,
 } from '../../services/api';
@@ -253,7 +253,7 @@ export default function HomeScreen() {
         <View style={styles.popularImageWrap}>
           <Image
             source={item.mainImageUrl ? { uri: buildSanityImageUrl(item.mainImageUrl, sanityImageWidths.feedThumb) } : undefined}
-            placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
+            placeholder={{ thumbhash: getSafeThumbhash(item.thumbhash) }}
             recyclingKey={item._id}
             contentFit="cover"
             style={styles.popularImage}
@@ -297,7 +297,7 @@ export default function HomeScreen() {
             <View style={styles.latestImageWrap}>
               <Image
                 source={imageUri ? { uri: imageUri } : undefined}
-                placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
+                placeholder={{ thumbhash: getSafeThumbhash(item.thumbhash) }}
                 recyclingKey={item._id}
                 contentFit="cover"
                 transition={220}
@@ -338,7 +338,7 @@ export default function HomeScreen() {
             <Pressable onPress={() => onPressPost(hero)} style={styles.heroCard}>
               <Image
                 source={heroImageUri ? { uri: heroImageUri } : undefined}
-                placeholder={{ thumbhash: hero.thumbhash || defaultThumbhash }}
+                placeholder={{ thumbhash: getSafeThumbhash(hero.thumbhash) }}
                 contentFit="cover"
                 transition={220}
                 style={styles.heroImage}

@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useQueryClient } from '@tanstack/react-query';
-import { buildSanityImageUrl, defaultThumbhash, fetchPostBySlug, sanityImageWidths, type Post } from '../../services/api';
+import { buildSanityImageUrl, fetchPostBySlug, getSafeThumbhash, sanityImageWidths, type Post } from '../../services/api';
 import { queueImagePrefetch } from '../../lib/prefetchQueue';
 import { fonts } from '../../constants/tokens';
 import { RelativeTime } from '../ui/RelativeTime';
@@ -185,7 +185,7 @@ function NewsCardComponent({ post, compact = false, onPress, colors }: NewsCardP
           <View style={S.cImgWrap}>
             <Image
               source={imageUri ? { uri: imageUri } : undefined}
-              placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
+              placeholder={{ thumbhash: getSafeThumbhash(post.thumbhash) }}
               recyclingKey={post._id}
               contentFit="cover"
               transition={0}
@@ -216,7 +216,7 @@ function NewsCardComponent({ post, compact = false, onPress, colors }: NewsCardP
         <View style={S.imgWrap}>
           <Image
             source={imageUri ? { uri: imageUri } : undefined}
-            placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
+            placeholder={{ thumbhash: getSafeThumbhash(post.thumbhash) }}
             recyclingKey={post._id}
             contentFit="cover"
             transition={0}

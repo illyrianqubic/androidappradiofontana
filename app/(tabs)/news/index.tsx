@@ -30,9 +30,9 @@ import { queueImagePrefetch } from '../../../lib/prefetchQueue';
 import { getAndClearPendingDrawerCategory } from '../../../lib/drawerCategory';
 import {
   buildSanityImageUrl,
-  defaultThumbhash,
   fetchLatestPosts,
   fetchPostBySlug,
+  getSafeThumbhash,
   sanityImageWidths,
   type Post,
 } from '../../../services/api';
@@ -88,7 +88,7 @@ const FeaturedCard = memo(function FeaturedCard({ post, onPress, colors }: { pos
         <View style={SF.imageZone}>
           <Image
             source={imageUri ? { uri: imageUri } : undefined}
-            placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
+            placeholder={{ thumbhash: getSafeThumbhash(post.thumbhash) }}
             recyclingKey={post._id}
             contentFit="cover"
             transition={0}

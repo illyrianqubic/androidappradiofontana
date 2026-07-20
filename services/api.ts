@@ -19,6 +19,86 @@ export const defaultCategories = [
 
 export const defaultThumbhash = '/wAqAP8J+IiEeHeAiHh5eIeHeA==';
 
+// ── Thumbhash validation (CRASH FIX) ─────────────────────────────────────────
+// iOS crash: EXC_BREAKPOINT (SIGTRAP) in ExpoImage `image(fromThumbhash:)`.
+// expo-image's native Thumbhash decoder (Thumbhash.swift) reads header and
+// AC-coefficient bytes with NO bounds checks, so any truthy-but-malformed
+// thumbhash string coming from the CMS crashes the whole app. Validate the
+// full structure here — mirroring the native decoder's math — and fall back
+// to `defaultThumbhash` (a known-good hash) whenever the value is malformed.
+
+// Strict base64 alphabet as produced by Sanity's thumbhash metadata.
+const THUMBHASH_BASE64_RE = /^[A-Za-z0-9+/]*={0,2}$/;
+
+const THUMBHASH_B64_CHARS =
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+// Decodes base64 without relying on global atob (not guaranteed in Hermes).
+// Returns null on any invalid character.
+function decodeThumbhashBase64(input: string): Uint8Array | null {
+  const clean = input.replace(/=+$/, '');
+  const out: number[] = [];
+  let buffer = 0;
+  let bits = 0;
+  for (let i = 0; i < clean.length; i++) {
+    const value = THUMBHASH_B64_CHARS.indexOf(clean.charAt(i));
+    if (value < 0) return null;
+    buffer = (buffer << 6) | value;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      out.push((buffer >> bits) & 0xff);
+    }
+  }
+  return Uint8Array.from(out);
+}
+
+// Number of AC coefficients the native decoder reads for an (nx, ny) channel.
+function thumbhashACCount(nx: number, ny: number): number {
+  let count = 0;
+  for (let cy = 0; cy < ny; cy++) {
+    let cx = cy > 0 ? 0 : 1;
+    while (cx * ny < nx * (ny - cy)) {
+      count++;
+      cx++;
+    }
+  }
+  return count;
+}
+
+/**
+ * Returns true only if `thumbhash` decodes to enough bytes for expo-image's
+ * native Thumbhash decoder (5–6 header bytes + every AC coefficient it reads).
+ */
+export function isValidThumbhash(thumbhash?: string | null): boolean {
+  if (!thumbhash || !THUMBHASH_BASE64_RE.test(thumbhash)) return false;
+  const bytes = decodeThumbhashBase64(thumbhash);
+  if (!bytes || bytes.length < 5) return false; // 24-bit + 16-bit headers
+  const header24 = bytes[0] | (bytes[1] << 8) | (bytes[2] << 16);
+  const header16 = bytes[3] | (bytes[4] << 8);
+  const hasAlpha = (header24 >> 23) !== 0;
+  if (hasAlpha && bytes.length < 6) return false; // alpha DC/scale byte
+  const isLandscape = (header16 >> 15) !== 0;
+  const lx = Math.max(3, isLandscape ? (hasAlpha ? 5 : 7) : header16 & 7);
+  const ly = Math.max(3, isLandscape ? header16 & 7 : hasAlpha ? 5 : 7);
+  const acStart = hasAlpha ? 6 : 5;
+  const nibbles =
+    thumbhashACCount(lx, ly) +
+    thumbhashACCount(3, 3) +
+    thumbhashACCount(3, 3) +
+    (hasAlpha ? thumbhashACCount(5, 5) : 0);
+  const requiredBytes = acStart + Math.ceil(nibbles / 2);
+  return bytes.length >= requiredBytes;
+}
+
+/**
+ * Returns `thumbhash` when it is structurally valid, otherwise the bundled
+ * `defaultThumbhash`. Always safe to pass to expo-image's `placeholder` prop.
+ */
+export function getSafeThumbhash(thumbhash?: string | null): string {
+  return isValidThumbhash(thumbhash) ? (thumbhash as string) : defaultThumbhash;
+}
+
 type PortableTextSpan = {
   _type: 'span';
   _key: string;

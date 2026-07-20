@@ -55,9 +55,9 @@ import { queueImagePrefetch } from '../../lib/prefetchQueue';
 import { isBreakingBadgeVisible } from '../../lib/breakingBadge';
 import {
   buildSanityImageUrl,
-  defaultThumbhash,
   fetchPostBySlug,
   fetchRelatedPosts,
+  getSafeThumbhash,
   sanityImageWidths,
   type Post,
   type PortableTextBlock,
@@ -625,7 +625,7 @@ export default function ArticleDetailScreen() {
           <Pressable onPress={() => setLightboxVisible(true)} style={StyleSheet.absoluteFill}>
             <Image
               source={heroImageUri ? { uri: heroImageUri } : undefined}
-              placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
+              placeholder={{ thumbhash: getSafeThumbhash(post.thumbhash) }}
               contentFit="cover"
               transition={0}
               style={StyleSheet.absoluteFill}
@@ -816,7 +816,7 @@ const RelatedItem = memo(function RelatedItem({
         <View style={styles.relatedCardImg}>
           <Image
             source={thumbUri ? { uri: thumbUri } : undefined}
-            placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
+            placeholder={{ thumbhash: getSafeThumbhash(post.thumbhash) }}
             recyclingKey={post._id}
             contentFit="cover"
             transition={0}

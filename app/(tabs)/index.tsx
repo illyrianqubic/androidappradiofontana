@@ -65,12 +65,12 @@ import { queueImagePrefetch } from '../../lib/prefetchQueue';
 import { getAndClearPendingDrawerCategory } from '../../lib/drawerCategory';
 import {
   buildSanityImageUrl,
-  defaultThumbhash,
   fetchBreakingPosts,
   fetchHeroPost,
   fetchLatestPosts,
   fetchLocalPosts,
   fetchPostBySlug,
+  getSafeThumbhash,
   sanityImageWidths,
   type Post,
 } from '../../services/api';
@@ -550,7 +550,7 @@ const HeroCard = memo(function HeroCard({
         <View style={styles.heroImageWrap}>
           <Image
             source={heroImageUri ? { uri: heroImageUri } : undefined}
-            placeholder={{ thumbhash: hero.thumbhash || defaultThumbhash }}
+            placeholder={{ thumbhash: getSafeThumbhash(hero.thumbhash) }}
             // AUDIT FIX P4.14: hero is the LCP element on home — fetch first.
             priority="high"
             recyclingKey={hero._id}
@@ -614,7 +614,7 @@ const LocalCard = memo(function LocalCard({ post, onPress, onPressIn, colors }: 
         <View style={styles.localImageWrap}>
           <Image
             source={imageUri ? { uri: imageUri } : undefined}
-            placeholder={{ thumbhash: post.thumbhash || defaultThumbhash }}
+            placeholder={{ thumbhash: getSafeThumbhash(post.thumbhash) }}
             recyclingKey={post._id}
             contentFit="cover"
             transition={0}
@@ -719,7 +719,7 @@ const GridItem = memo(function GridItem({
             <View style={styles.gridImgWrap}>
               <Image
                 source={imageUri ? { uri: imageUri } : undefined}
-                placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
+                placeholder={{ thumbhash: getSafeThumbhash(item.thumbhash) }}
                 recyclingKey={item._id}
                 contentFit="cover"
                 transition={0}
@@ -780,7 +780,7 @@ const SearchResultCard = memo(function SearchResultCard({
       >
         <Image
           source={imageUri ? { uri: imageUri } : undefined}
-          placeholder={{ thumbhash: item.thumbhash || defaultThumbhash }}
+          placeholder={{ thumbhash: getSafeThumbhash(item.thumbhash) }}
           recyclingKey={item._id}
           contentFit="cover"
           transition={0}

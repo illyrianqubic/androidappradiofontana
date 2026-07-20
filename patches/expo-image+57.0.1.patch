@@ -1,0 +1,77 @@
+diff --git a/node_modules/expo-image/ios/Loaders/ThumbhashLoader.swift b/node_modules/expo-image/ios/Loaders/ThumbhashLoader.swift
+index 82ac11b..afee2c3 100644
+--- a/node_modules/expo-image/ios/Loaders/ThumbhashLoader.swift
++++ b/node_modules/expo-image/ios/Loaders/ThumbhashLoader.swift
+@@ -17,8 +17,8 @@ class ThumbhashLoader: NSObject, SDImageLoader {
+     progress progressBlock: SDImageLoaderProgressBlock?,
+     completed completedBlock: ImageLoaderCompletedBlock? = nil
+   ) -> SDWebImageOperation? {
+-    guard let url else {
+-      let error = makeNSError(description: "URL provided to ThumbhashLoader is missing")
++    guard let url, url.pathComponents.count > 1 else {
++      let error = makeNSError(description: "URL provided to ThumbhashLoader is missing or malformed")
+       completedBlock?(nil, nil, error, false)
+       return nil
+     }
+@@ -39,6 +39,15 @@ class ThumbhashLoader: NSObject, SDImageLoader {
+       return nil
+     }
+ 
++    // The decoder in `Thumbhash.swift` reads header and AC-coefficient bytes with
++    // no bounds checks, so a malformed or truncated hash crashes the app with a
++    // SIGTRAP (EXC_BREAKPOINT). Reject any data that doesn't supply enough bytes.
++    guard isValidThumbhashData(thumbhashData) else {
++      let error = makeNSError(description: "Thumbhash data is malformed or truncated")
++      completedBlock?(nil, nil, error, false)
++      return nil
++    }
++
+     Task(priority: .high) {
+       let image = image(fromThumbhash: thumbhashData)
+ 
+@@ -52,4 +61,45 @@ class ThumbhashLoader: NSObject, SDImageLoader {
+   func shouldBlockFailedURL(with url: URL, error: Error) -> Bool {
+     return true
+   }
++
++  // MARK: - Thumbhash validation
++
++  // Mirrors the decode math in `thumbHashToRGBA` (Thumbhash.swift) to compute how
++  // many bytes the decoder will read, so malformed hashes can be rejected before
++  // they trap on out-of-bounds subscripts.
++  private func isValidThumbhashData(_ hash: Data) -> Bool {
++    let byteCount = hash.count
++    guard byteCount >= 5 else { // 24-bit + 16-bit headers
++      return false
++    }
++    let header24 = UInt32(hash[0]) | (UInt32(hash[1]) << 8) | (UInt32(hash[2]) << 16)
++    let header16 = UInt16(hash[3]) | (UInt16(hash[4]) << 8)
++    let hasAlpha = (header24 >> 23) != 0
++    if hasAlpha && byteCount < 6 { // alpha DC/scale byte
++      return false
++    }
++    let isLandscape = (header16 >> 15) != 0
++    let lx = max(3, isLandscape ? (hasAlpha ? 5 : 7) : Int(header16 & 7))
++    let ly = max(3, isLandscape ? Int(header16 & 7) : (hasAlpha ? 5 : 7))
++    let acStart = hasAlpha ? 6 : 5
++    var nibbles = acCoefficientCount(lx, ly) + 2 * acCoefficientCount(3, 3)
++    if hasAlpha {
++      nibbles += acCoefficientCount(5, 5)
++    }
++    let requiredBytes = acStart + (nibbles + 1) / 2
++    return byteCount >= requiredBytes
++  }
++
++  // Number of AC coefficients the decoder reads for an (nx, ny) channel.
++  private func acCoefficientCount(_ nx: Int, _ ny: Int) -> Int {
++    var count = 0
++    for cy in 0 ..< ny {
++      var cx = cy > 0 ? 0 : 1
++      while cx * ny < nx * (ny - cy) {
++        count += 1
++        cx += 1
++      }
++    }
++    return count
++  }
+ }
