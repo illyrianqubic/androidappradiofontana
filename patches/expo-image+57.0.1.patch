@@ -1,5 +1,5 @@
 diff --git a/node_modules/expo-image/ios/Loaders/ThumbhashLoader.swift b/node_modules/expo-image/ios/Loaders/ThumbhashLoader.swift
-index 82ac11b..afee2c3 100644
+index 82ac11b..5f6ed1a 100644
 --- a/node_modules/expo-image/ios/Loaders/ThumbhashLoader.swift
 +++ b/node_modules/expo-image/ios/Loaders/ThumbhashLoader.swift
 @@ -17,8 +17,8 @@ class ThumbhashLoader: NSObject, SDImageLoader {
@@ -29,7 +29,7 @@ index 82ac11b..afee2c3 100644
      Task(priority: .high) {
        let image = image(fromThumbhash: thumbhashData)
  
-@@ -52,4 +61,45 @@ class ThumbhashLoader: NSObject, SDImageLoader {
+@@ -52,4 +61,52 @@ class ThumbhashLoader: NSObject, SDImageLoader {
    func shouldBlockFailedURL(with url: URL, error: Error) -> Bool {
      return true
    }
@@ -48,6 +48,13 @@ index 82ac11b..afee2c3 100644
 +    let header16 = UInt16(hash[3]) | (UInt16(hash[4]) << 8)
 +    let hasAlpha = (header24 >> 23) != 0
 +    if hasAlpha && byteCount < 6 { // alpha DC/scale byte
++      return false
++    }
++    // `thumbHashToApproximateAspectRatio` uses raw `header & 7` with no clamp;
++    // a zero yields aspect ratio 0/∞ → width or height 0 → CGImage returns nil
++    // → the force unwrap in `image(fromThumbhash:)` traps (SIGTRAP). Real
++    // encoders never emit 0 here, so reject it.
++    if (header16 & 7) == 0 {
 +      return false
 +    }
 +    let isLandscape = (header16 >> 15) != 0
@@ -75,3 +82,50 @@ index 82ac11b..afee2c3 100644
 +    return count
 +  }
  }
+diff --git a/node_modules/expo-image/ios/Utils/Thumbhash.swift b/node_modules/expo-image/ios/Utils/Thumbhash.swift
+index c2da2b7..16c3449 100644
+--- a/node_modules/expo-image/ios/Utils/Thumbhash.swift
++++ b/node_modules/expo-image/ios/Utils/Thumbhash.swift
+@@ -532,19 +532,28 @@ func image(fromThumbhash: Data) -> UIImage {
+       i += 1
+     }
+   }
+-  let image = CGImage(
+-    width: w,
+-    height: h,
+-    bitsPerComponent: 8,
+-    bitsPerPixel: 32,
+-    bytesPerRow: w * 4,
+-    space: CGColorSpaceCreateDeviceRGB(),
+-    bitmapInfo: CGBitmapInfo(rawValue: CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue),
+-    provider: CGDataProvider(data: rgba as CFData)!,
+-    decode: nil,
+-    shouldInterpolate: true,
+-    intent: .perceptual
+-  )
+-  return UIImage(cgImage: image!)
++  // Never trap here: a malformed hash can yield w/h == 0 (zero aspect-ratio
++  // component) or a failed CGImage/data provider, and force unwrapping those
++  // crashes the whole app with a SIGTRAP. Fall back to an empty image instead.
++  guard
++    w > 0, h > 0,
++    let provider = CGDataProvider(data: rgba as CFData),
++    let image = CGImage(
++      width: w,
++      height: h,
++      bitsPerComponent: 8,
++      bitsPerPixel: 32,
++      bytesPerRow: w * 4,
++      space: CGColorSpaceCreateDeviceRGB(),
++      bitmapInfo: CGBitmapInfo(rawValue: CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue),
++      provider: provider,
++      decode: nil,
++      shouldInterpolate: true,
++      intent: .perceptual
++    )
++  else {
++    return UIImage()
++  }
++  return UIImage(cgImage: image)
+ }
+ #endif

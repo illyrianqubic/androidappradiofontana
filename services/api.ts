@@ -17,7 +17,12 @@ export const defaultCategories = [
   'Shëndetësi',
 ] as const;
 
-export const defaultThumbhash = '/wAqAP8J+IiEeHeAiHh5eIeHeA==';
+// Neutral light-gray placeholder, generated with the reference thumbhash
+// encoder (100x75 opaque #ECECEC). WARNING: the previous hand-written value
+// ('/wAqAP8J+IiEeHeAiHh5eIeHeA==') decoded to an aspect ratio of 7/0 = ∞,
+// producing a 0-height CGImage and crashing iOS with a SIGTRAP on every
+// render. Only use encoder-generated hashes here — see isValidThumbhash.
+export const defaultThumbhash = 'OggCBYCHiIh3d3d/h4h3iwAAAAAA';
 
 // ── Thumbhash validation (CRASH FIX) ─────────────────────────────────────────
 // iOS crash: EXC_BREAKPOINT (SIGTRAP) in ExpoImage `image(fromThumbhash:)`.
@@ -78,6 +83,10 @@ export function isValidThumbhash(thumbhash?: string | null): boolean {
   const header16 = bytes[3] | (bytes[4] << 8);
   const hasAlpha = (header24 >> 23) !== 0;
   if (hasAlpha && bytes.length < 6) return false; // alpha DC/scale byte
+  // The native aspect-ratio helper uses raw `header & 7` with no clamp; a zero
+  // yields ratio 0/Infinity → w or h == 0 → CGImage returns nil → force-unwrap
+  // trap (SIGTRAP). Real encoders never emit 0 here, so reject it.
+  if ((header16 & 7) === 0) return false;
   const isLandscape = (header16 >> 15) !== 0;
   const lx = Math.max(3, isLandscape ? (hasAlpha ? 5 : 7) : header16 & 7);
   const ly = Math.max(3, isLandscape ? header16 & 7 : hasAlpha ? 5 : 7);
