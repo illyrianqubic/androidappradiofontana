@@ -2,7 +2,7 @@
   "expo": {
     "name": "RTV Fontana",
     "slug": "rtv-fontana",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "scheme": "rtvfontana",
     "orientation": "portrait",
     "icon": "./assets/images/darklogortvfontana.png",
