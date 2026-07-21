@@ -48,15 +48,30 @@ export function LaunchSplash({ onComplete, onExitStart, onNativeSplashReady, isC
   const mountedAtRef = useRef(Date.now());
   const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nativeSplashReadyFiredRef = useRef(false);
+  const imageDisplayedRef = useRef(false);
+  const layoutReadyRef = useRef(false);
 
-  // Fires once this view has actually laid out, so the caller can hide the
-  // native splash only once there's a painted replacement underneath it —
-  // not merely once fonts have loaded.
-  const handleRootLayout = useCallback(() => {
-    if (nativeSplashReadyFiredRef.current) return;
-    nativeSplashReadyFiredRef.current = true;
-    onNativeSplashReady?.();
+  // Fires once this view has laid out AND the logo image has actually
+  // displayed, so the caller hides the native splash only once there's a
+  // fully painted replacement underneath it — not merely once fonts have
+  // loaded, and not before the logo itself has decoded and painted.
+  const tryFireNativeSplashReady = useCallback(() => {
+    if (imageDisplayedRef.current && layoutReadyRef.current) {
+      if (nativeSplashReadyFiredRef.current) return;
+      nativeSplashReadyFiredRef.current = true;
+      onNativeSplashReady?.();
+    }
   }, [onNativeSplashReady]);
+
+  const handleRootLayout = useCallback(() => {
+    layoutReadyRef.current = true;
+    tryFireNativeSplashReady();
+  }, [tryFireNativeSplashReady]);
+
+  const handleImageDisplay = useCallback(() => {
+    imageDisplayedRef.current = true;
+    tryFireNativeSplashReady();
+  }, [tryFireNativeSplashReady]);
 
   const finishExit = useCallback(() => {
     if (exitedRef.current) return;
@@ -178,6 +193,7 @@ export function LaunchSplash({ onComplete, onExitStart, onNativeSplashReady, isC
             contentFit="contain"
             style={styles.logo}
             cachePolicy="memory"
+            onDisplay={handleImageDisplay}
           />
         </Animated.View>
       </View>

@@ -19,6 +19,7 @@ import {
 // to Bold). Saves ~200–250 ms cold start (3 fewer font HTTP fetches +
 // glyph-table parse).
 import { Image as ExpoImage } from 'expo-image';
+import { Asset } from 'expo-asset';
 import { QueryClient } from '@tanstack/react-query';
 import {
   PersistQueryClientProvider,
@@ -34,6 +35,18 @@ import { ThemeProvider, useTheme } from '../providers/ThemeProvider';
 import * as StoreReview from 'expo-store-review';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
+// Preload splash logo immediately at module evaluation time so expo-image's
+// memory cache is warm before LaunchSplash mounts — avoids a decode-in-
+// progress gap between the native splash hiding and the JS logo painting.
+Asset.fromModule(require('../assets/images/darklogortvfontana.png'))
+  .downloadAsync()
+  .then((asset) => {
+    if (asset.localUri) {
+      ExpoImage.prefetch(asset.localUri, 'memory');
+    }
+  })
+  .catch(() => undefined);
 
 // AUDIT FIX P6.21: cap expo-image caches explicitly so they never grow
 // unbounded on low-RAM devices (3 GB Galaxy A04 etc.). Memory cache 150 MB
