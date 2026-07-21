@@ -417,10 +417,16 @@ function RootLayoutInner() {
   useEffect(() => {
     if ((interLoaded || interFontError) && !nativeSplashHidden) {
       setStartup((s) => ({ ...s, nativeSplashHidden: true }));
-      SplashScreen.hideAsync()
-        .catch(() => undefined);
     }
   }, [interLoaded, interFontError, nativeSplashHidden]);
+
+  // Fires once LaunchSplash's root view has actually laid out on the native
+  // side, instead of hideAsync() firing on font-load alone — closes the gap
+  // where the native splash could be removed before LaunchSplash has painted
+  // a replacement frame.
+  const onNativeSplashReady = useCallback(() => {
+    SplashScreen.hideAsync().catch(() => undefined);
+  }, []);
 
   const contentOpacity = useSharedValue(0);
   const reducedMotion = useReducedMotion();
@@ -485,7 +491,9 @@ function RootLayoutInner() {
   }, [showLaunchSplash]);
 
   if (!interLoaded && !interFontError) {
-    return <View style={{ flex: 1, backgroundColor: colors.bgScreen }} />;
+    // Hardcoded (not colors.bgScreen) so this matches the native splash's
+    // #0B1220 background in light theme too, not just dark.
+    return <View style={{ flex: 1, backgroundColor: '#0B1220' }} />;
   }
 
   return (
@@ -529,6 +537,7 @@ function RootLayoutInner() {
                 <LaunchSplash
                   onComplete={onLaunchSplashComplete}
                   onExitStart={onLaunchSplashExitStart}
+                  onNativeSplashReady={onNativeSplashReady}
                   isContentReady={contentReady}
                 />
               ) : null}

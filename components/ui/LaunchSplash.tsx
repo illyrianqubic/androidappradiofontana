@@ -30,11 +30,12 @@ const EXIT_FALLBACK_MS = 800;
 type LaunchSplashProps = {
   onComplete: () => void;
   onExitStart?: () => void;
+  onNativeSplashReady?: () => void;
   isContentReady?: boolean;
 };
 
 // ─── LaunchSplash ─────────────────────────────────────────────────────────────
-export function LaunchSplash({ onComplete, onExitStart, isContentReady = false }: LaunchSplashProps) {
+export function LaunchSplash({ onComplete, onExitStart, onNativeSplashReady, isContentReady = false }: LaunchSplashProps) {
   const { colors } = useTheme();
   const reducedMotion = useReducedMotion();
 
@@ -46,6 +47,16 @@ export function LaunchSplash({ onComplete, onExitStart, isContentReady = false }
   const exitStartedRef = useRef(false);
   const mountedAtRef = useRef(Date.now());
   const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nativeSplashReadyFiredRef = useRef(false);
+
+  // Fires once this view has actually laid out, so the caller can hide the
+  // native splash only once there's a painted replacement underneath it —
+  // not merely once fonts have loaded.
+  const handleRootLayout = useCallback(() => {
+    if (nativeSplashReadyFiredRef.current) return;
+    nativeSplashReadyFiredRef.current = true;
+    onNativeSplashReady?.();
+  }, [onNativeSplashReady]);
 
   const finishExit = useCallback(() => {
     if (exitedRef.current) return;
@@ -159,7 +170,7 @@ export function LaunchSplash({ onComplete, onExitStart, isContentReady = false }
   }));
 
   return (
-    <Animated.View style={[styles.screen, screenStyle]} pointerEvents="none">
+    <Animated.View style={[styles.screen, screenStyle]} pointerEvents="none" onLayout={handleRootLayout}>
       <View style={styles.logoWrap} pointerEvents="none">
         <Animated.View style={logoStyle}>
           <Image
