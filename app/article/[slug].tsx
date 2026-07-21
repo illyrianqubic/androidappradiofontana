@@ -426,9 +426,9 @@ export default function ArticleDetailScreen() {
   }, [postQuery.data, articleWebUrl]);
   const onShareNative = useCallback(async () => {
     const post = postQuery.data; if (!post) return;
-    const articleUrl = Linking.createURL(`/news/${post.slug}`);
+    const articleUrl = articleWebUrl(post);
     await Share.share({ title: post.title, message: `${post.title}\n${articleUrl}`, url: articleUrl });
-  }, [postQuery.data]);
+  }, [postQuery.data, articleWebUrl]);
   const onOpenRelatedPost = useCallback(
     (nextPost: Post) => {
       queueImagePrefetch(buildSanityImageUrl(nextPost.mainImageUrl, sanityImageWidths.articleHero));
