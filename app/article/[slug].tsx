@@ -3,6 +3,7 @@ import {
   BackHandler,
   Dimensions,
   Modal,
+  Platform,
   Pressable,
   Share,
   StyleSheet,
@@ -427,7 +428,15 @@ export default function ArticleDetailScreen() {
   const onShareNative = useCallback(async () => {
     const post = postQuery.data; if (!post) return;
     const articleUrl = articleWebUrl(post);
-    await Share.share({ title: post.title, message: `${post.title}\n${articleUrl}`, url: articleUrl });
+    await Share.share({
+      title: post.title,
+      // Android's Share module ignores `url` entirely (see Share.js) so the
+      // link must be embedded in `message` there. iOS surfaces `message` and
+      // `url` as separate fields — appending the URL to `message` too would
+      // show it twice in the share sheet.
+      message: Platform.OS === 'android' ? `${post.title}\n${articleUrl}` : post.title,
+      url: articleUrl,
+    });
   }, [postQuery.data, articleWebUrl]);
   const onOpenRelatedPost = useCallback(
     (nextPost: Post) => {
