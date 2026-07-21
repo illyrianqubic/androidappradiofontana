@@ -425,7 +425,15 @@ function RootLayoutInner() {
   // where the native splash could be removed before LaunchSplash has painted
   // a replacement frame.
   const onNativeSplashReady = useCallback(() => {
-    SplashScreen.hideAsync().catch(() => undefined);
+    // onLayout fires after layout computation but before GPU paint.
+    // Two nested requestAnimationFrames push hideAsync() to after
+    // at least two committed frames, much closer to actual screen
+    // presentation on real iOS hardware.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        SplashScreen.hideAsync().catch(() => undefined);
+      });
+    });
   }, []);
 
   const contentOpacity = useSharedValue(0);
