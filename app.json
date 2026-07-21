@@ -5,7 +5,7 @@
     "version": "1.0.2",
     "scheme": "rtvfontana",
     "orientation": "portrait",
-    "icon": "./assets/images/darklogortvfontana.png",
+    "icon": "./assets/images/icon-ios-new.png",
     "userInterfaceStyle": "dark",
     "assetBundlePatterns": [
       "assets/**/*"
@@ -14,7 +14,10 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.rtvfontana.android",
       "buildNumber": "1",
-      "icon": "./assets/images/darklogortvfontana.png",
+      "icon": {
+        "light": "./assets/images/icon-ios-light-new.png",
+        "dark": "./assets/images/icon-ios-new.png"
+      },
       "infoPlist": {
         "UIBackgroundModes": [
           "audio"
