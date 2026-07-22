@@ -1,7 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BackHandler,
-  Dimensions,
   Modal,
   Platform,
   Pressable,
@@ -9,6 +8,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
@@ -572,7 +572,7 @@ export default function ArticleDetailScreen() {
       <View style={styles.screen}>
         {articleNav}
         <View style={[styles.loadingWrap, { paddingTop: navBarHeight + 16 }]}>
-          <SkeletonCard height={260} style={{ width: '100%', borderRadius: 0 }} />
+          <SkeletonCard height={HERO_H} style={{ width: '100%', borderRadius: 0 }} />
           <View style={styles.loadingHeader}>
             <SkeletonCard height={28} style={[styles.loadingBlock, { width: '85%' }]} />
             <SkeletonCard height={28} style={[styles.loadingBlock, { width: '85%' }]} />
@@ -1035,9 +1035,6 @@ const ShareFab = memo(function ShareFab({
 });
 
 // ── Image lightbox ───────────────────────────────────────────────────────────
-const LIGHTBOX_W = Dimensions.get('window').width;
-const LIGHTBOX_H = Dimensions.get('window').height;
-
 const lightboxStyles = StyleSheet.create({
   overlay: {
     flex: 1,
@@ -1045,17 +1042,12 @@ const lightboxStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  container: {
-    width: LIGHTBOX_W,
-    height: LIGHTBOX_H * 0.6,
-  },
   image: {
     width: '100%',
     height: '100%',
   },
   closeBtn: {
     position: 'absolute',
-    top: 48,
     right: 16,
     width: 44,
     height: 44,
@@ -1075,6 +1067,8 @@ const ImageLightbox = memo(function ImageLightbox({
   onClose: () => void;
 }) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -1147,11 +1141,14 @@ const ImageLightbox = memo(function ImageLightbox({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={lightboxStyles.overlay}>
         <GestureDetector gesture={composed}>
-          <Animated.View style={[lightboxStyles.container, animatedStyle]}>
+          <Animated.View style={[{ width: windowWidth, height: windowHeight * 0.6 }, animatedStyle]}>
             <Image source={uri ? { uri } : undefined} style={lightboxStyles.image} />
           </Animated.View>
         </GestureDetector>
-        <Pressable style={[lightboxStyles.closeBtn, { backgroundColor: colors.surface + '26' }]} onPress={onClose}>
+        <Pressable
+          style={[lightboxStyles.closeBtn, { top: insets.top + 8, backgroundColor: colors.surface + '26' }]}
+          onPress={onClose}
+        >
           <X size={28} color={colors.surface} strokeWidth={1.5} />
         </Pressable>
       </View>

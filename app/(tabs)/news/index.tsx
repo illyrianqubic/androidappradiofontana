@@ -10,6 +10,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -149,6 +150,7 @@ const CategoryPill = memo(function CategoryPill({
       onPressIn={handlePressIn}
       onPress={handlePress}
       onLayout={onLayout}
+      hitSlop={{ top: 7, bottom: 7 }}
       style={({ pressed }) => [SP.pill, active && SP.pillActive, pressed && { opacity: 0.75, transform: [{ scale: 0.95 }] }]}
       accessibilityRole="tab"
       accessibilityLabel={`Kategoria ${item.label}`}
@@ -215,6 +217,7 @@ export default function NewsIndexScreen() {
   const router = useRouter();
   const { category: categoryParam } = useLocalSearchParams<{ category?: string }>();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
   const listRef = useRef<FlashListRef<Post>>(null);
   const catScrollRef = useRef<ScrollView>(null);
   const pillLayouts = useRef<Map<string, { x: number; width: number }>>(new Map());
@@ -405,7 +408,16 @@ export default function NewsIndexScreen() {
   }, [posts, router, queryClient]);
   const showFeatured = !debouncedSearch && posts.length > 2;
 
-  const renderLoadingItem = useCallback(() => <SkeletonCard height={180} />, []);
+  // Match the real NewsCard's height (16:9 image scaled to card width, plus
+  // ~96dp of body text/padding) so the loading skeleton doesn't visibly pop
+  // when real content mounts — a fixed height undershoots more on wider
+  // screens since the real image scales with width and a fixed height doesn't.
+  const skeletonCardHeight = Math.round((windowWidth - 32) * (9 / 16)) + 96;
+
+  const renderLoadingItem = useCallback(
+    () => <SkeletonCard height={skeletonCardHeight} />,
+    [skeletonCardHeight],
+  );
 
   const renderPostItem = useCallback(
     ({ item, index }: ListRenderItemInfo<Post>) => {
