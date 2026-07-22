@@ -30,7 +30,7 @@ const TAB_ICONS: Record<TabRoute, LucideIcon> = {
   news: Newspaper,
 };
 
-const BAR_HEIGHT = 56;
+const BAR_HEIGHT = 49;
 const DIVIDER_HEIGHT = 0.5;
 const ICON_ZONE_HEIGHT = BAR_HEIGHT - DIVIDER_HEIGHT;
 const ICON_SIZE = 24;
