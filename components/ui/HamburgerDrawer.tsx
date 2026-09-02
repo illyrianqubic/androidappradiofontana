@@ -64,6 +64,8 @@ function useDrawerStyles() {
 
 const LAJME_CATEGORIES = [
   { label: 'Politikë', slug: 'politike' },
+  { label: 'Aktualitet', slug: 'aktualitet' },
+  { label: 'Kronikë', slug: 'kronike' },
   { label: 'Sport', slug: 'sport' },
   { label: 'Teknologji', slug: 'teknologji' },
   { label: 'Showbiz', slug: 'showbiz' },

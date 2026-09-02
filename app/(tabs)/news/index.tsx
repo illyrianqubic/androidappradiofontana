@@ -45,6 +45,8 @@ type NewsCategoryTab = { label: string; slug: string };
 const NEWS_CATEGORY_TABS: NewsCategoryTab[] = [
   { label: 'Të Gjitha',  slug: '' },
   { label: 'Politikë',   slug: 'politike' },
+  { label: 'Aktualitet', slug: 'aktualitet' },
+  { label: 'Kronikë',    slug: 'kronike' },
   { label: 'Sport',      slug: 'sport' },
   { label: 'Teknologji', slug: 'teknologji' },
   { label: 'Showbiz',    slug: 'showbiz' },
